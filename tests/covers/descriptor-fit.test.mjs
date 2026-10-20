@@ -1,8 +1,10 @@
-// THE DESCRIPTOR FITS ITS MEASURE — COVERS-R19.
+// THE DESCRIPTOR FITS ITS MEASURE — COVERS-R19 and R19.1.
 //
-// A descriptor that does not fit the title's measure on one line breaks between words onto
-// the fewest lines that fit, at the same size and tracking (render.mjs, fitDescriptor). This
-// suite holds the library to that, and a synthetic worst case beside it.
+// A descriptor that does not fit the title's measure on one line breaks the way a title does,
+// filling each line with as many words as fit, at the same size and tracking (render.mjs,
+// fitDescriptor). Its leading is its cap height plus its word gap (descriptorLeading). And a
+// title breaks at an existing hyphen only with HYPHEN_MIN letters each side (text.mjs). This
+// suite holds the library to all three, and a synthetic worst case beside it.
 //
 // LIVE DATA, DELIBERATELY. The question is whether every descriptor the reconciler will draw
 // fits, so the suite reads what the reconciler reads: cms_stories and cms_stories_retired over
@@ -12,10 +14,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCanvas } from '@napi-rs/canvas';
-import { fitDescriptor, formatDescriptor, planCover, registerFonts } from '../../scripts/covers/render.mjs';
+import { descriptorLeading, fitDescriptor, formatDescriptor, planCover, registerFonts } from '../../scripts/covers/render.mjs';
 import { toRecord } from '../../scripts/covers/generate.mjs';
 import { DESCRIPTOR, TITLE } from '../../scripts/covers/layout.mjs';
-import { trackedWidth } from '../../scripts/covers/text.mjs';
+import { breakParts, HYPHEN_MIN, trackedWidth, wrapDetailed } from '../../scripts/covers/text.mjs';
 import { DB_URL, RETIRED_NODE, SOURCE_NODE, storiesInScope } from '../../scripts/covers/store.mjs';
 
 registerFonts();
@@ -61,38 +63,39 @@ test('THE DESCRIPTOR FITS ITS MEASURE (COVERS-R19)', async (t) => {
     }
   });
 
-  await t.test('one that fits on one line stays on one line, and one that does not takes the fewest lines', () => {
+  await t.test('one that fits stays on one line; one that does not fills each line, as a title does', () => {
     for (const r of withDesc) {
       const text = formatDescriptor(r.descriptor);
       const fit = fitDescriptor(ctx, text);
-      if (width(text) <= TITLE.maxWidth) assert.equal(fit.lines.length, 1, `${r.slug} fits but was broken`);
-      else assert.ok(fit.lines.length >= 2, `${r.slug} does not fit but was not broken`);
-      if (fit.lines.length > 2) {
-        // fewer lines must be impossible: every two-line break leaves a line over the measure
-        const words = text.split(DESCRIPTOR.separator);
-        for (let i = 1; i < words.length; i++) {
-          const a = words.slice(0, i).join(DESCRIPTOR.separator);
-          const b = words.slice(i).join(DESCRIPTOR.separator);
-          assert.ok(width(a) > TITLE.maxWidth || width(b) > TITLE.maxWidth, `${r.slug}: two lines would have fitted`);
-        }
+      if (width(text) <= TITLE.maxWidth) { assert.equal(fit.lines.length, 1, `${r.slug} fits but was broken`); continue; }
+      assert.ok(fit.lines.length >= 2, `${r.slug} does not fit but was not broken`);
+      // Filled: the next line's first word would not have fitted on the line before it.
+      for (let i = 0; i < fit.lines.length - 1; i++) {
+        const next = fit.lines[i + 1].text.split(DESCRIPTOR.separator)[0];
+        assert.ok(width(fit.lines[i].text + DESCRIPTOR.separator + next) > TITLE.maxWidth, `${r.slug}: "${next}" would have fitted on line ${i + 1}`);
       }
     }
   });
 
-  await t.test('the break chosen is the one whose lines are closest in width', () => {
+  await t.test('every live descriptor that breaks sets two words over the third', () => {
     for (const r of withDesc) {
-      const text = formatDescriptor(r.descriptor);
-      const fit = fitDescriptor(ctx, text);
-      if (fit.lines.length !== 2) continue;
-      const words = text.split(DESCRIPTOR.separator);
-      const spread = (i) => {
-        const a = width(words.slice(0, i).join(DESCRIPTOR.separator));
-        const b = width(words.slice(i).join(DESCRIPTOR.separator));
-        return Math.max(a, b) <= TITLE.maxWidth ? Math.abs(a - b) : Infinity;
-      };
-      const chosen = Math.abs(fit.lines[0].width - fit.lines[1].width);
-      for (let i = 1; i < words.length; i++) assert.ok(chosen <= spread(i), `${r.slug}: a more even break existed`);
+      const fit = fitDescriptor(ctx, formatDescriptor(r.descriptor));
+      if (fit.lines.length === 1) continue;
+      assert.deepEqual(fit.lines.map((l) => l.text.split(DESCRIPTOR.separator).length), [2, 1], `${r.slug}: ${fit.lines.map((l) => l.text).join(' / ')}`);
     }
+  });
+
+  await t.test('the leading is cap height plus word gap, measured by the engine', () => {
+    const { leading, cap, gap } = descriptorLeading(ctx);
+    ctx.font = `${DESCRIPTOR.size}px "EB Garamond"`;
+    assert.equal(cap, ctx.measureText('H').actualBoundingBoxAscent);
+    assert.equal(gap, 2 * ctx.measureText(' ').width + 3 * DESCRIPTOR.tracking, 'the word gap is two spaces and three tracking steps');
+    assert.equal(leading, cap + gap);
+    assert.ok(Math.abs(leading - 83.6) < 0.05, `leading ${leading} — the expected 35.0 + 48.6 = 83.6 at EB Garamond 54px tracked 9`);
+    assert.equal('lineHeight' in DESCRIPTOR, false, 'DESCRIPTOR.lineHeight is gone: the leading is derived, not a second number');
+    const plan = planCover(ctx, { slug: 'x', title: 'Chaff', author: 'A', category: 'short', descriptor: 'superstition. avoidance. confirmation.' });
+    assert.equal(plan.descriptor.lines.length, 2);
+    assert.equal(plan.descriptor.lines[1].y - plan.descriptor.lines[0].y, leading, 'the baselines are one leading apart');
   });
 
   await t.test('a synthetic worst case fits: the library\'s three longest descriptor words', () => {
@@ -102,6 +105,8 @@ test('THE DESCRIPTOR FITS ITS MEASURE (COVERS-R19)', async (t) => {
     assert.ok(width(text) > TITLE.maxWidth, `the worst case "${text}" fits on one line, so it proves nothing about the break`);
     const fit = fitDescriptor(ctx, text);
     assertFits(text, fit, `worst case "${text}"`);
+    assert.deepEqual(fit.lines.map((l) => l.text), ['CONSOLIDATION.  IMPERSONATION.', 'ESTRANGEMENT.'], 'the worst case as the library stood at R19.1');
+    assert.ok(Math.abs(fit.lines[0].width - 1213.3) < 0.05, `first line ${fit.lines[0].width}`);
     // and on a cover with the library's longest title, the stack still fits its region
     const longestTitle = records.reduce((a, b) => (b.title.length > a.title.length ? b : a));
     const plan = planCover(ctx, { ...longestTitle, descriptor: text });
@@ -113,3 +118,37 @@ test('THE DESCRIPTOR FITS ITS MEASURE (COVERS-R19)', async (t) => {
     assert.throws(() => fitDescriptor(ctx, `${'W'.repeat(40)}.  RUIN.`), /cannot fit/);
   });
 });
+
+test('A TITLE HYPHEN BREAKS ONLY WITH TWO LETTERS BEHIND AND THREE FORWARD (COVERS-R19.1)', async (t) => {
+  await t.test('the minimums are the ruling: two behind, three forward', () => {
+    assert.deepEqual({ ...HYPHEN_MIN }, { before: 2, after: 3 });
+  });
+
+  await t.test('Wi-Fi is refused: two letters would be carried forward', () => {
+    assert.deepEqual(breakParts('WI-FI'), ['WI-FI']);
+    const plan = planCover(ctx, { slug: 'x', title: 'Public Wi-Fi Is a Trap', author: 'A', category: 'news', subcategory: 'Tech' });
+    assert.equal(plan.title.size, 140);
+    assert.deepEqual(plan.title.lines, ['PUBLIC WI-FI IS', 'A TRAP']);
+  });
+
+  await t.test('Step-by-Step, Brown-Skinned, Tug-of-War and Red-White-Red keep their breaks', () => {
+    assert.deepEqual(breakParts('STEP-BY-STEP'), ['STEP-', 'BY-', 'STEP']);
+    assert.deepEqual(breakParts('BROWN-SKINNED'), ['BROWN-', 'SKINNED']);
+    assert.deepEqual(breakParts('TUG-OF-WAR'), ['TUG-', 'OF-', 'WAR']);
+    assert.deepEqual(breakParts('RED-WHITE-RED'), ['RED-', 'WHITE-', 'RED']);
+    const lines = (title) => planCover(ctx, { slug: 'x', title, author: 'A', category: 'short' }).title.lines;
+    assert.deepEqual(lines('Brown-Skinned Girl'), ['BROWN-', 'SKINNED GIRL']);
+    assert.ok(lines('Become a Content Creator: The Step-by-Step Guide').some((l) => l.endsWith('STEP-')), 'STEP- / BY-STEP');
+  });
+
+  await t.test('counted across the whole word on each side, letters and numerals only', () => {
+    assert.deepEqual(breakParts('X-RAY'), ['X-RAY'], 'one letter behind');
+    assert.deepEqual(breakParts('RE-ENTRY'), ['RE-', 'ENTRY']);
+    assert.deepEqual(breakParts('9-5ER'), ['9-5ER'], 'one numeral behind');
+    assert.deepEqual(breakParts('A-B-CDE'), ['A-B-', 'CDE'], 'A- alone is refused, A-B- leaves two behind');
+    assert.deepEqual(breakParts('-30'), ['-30'], 'a leading hyphen is still not a break');
+    ctx.font = '186px "Cormorant Garamond SemiBold"';
+    assert.equal(wrapDetailed(ctx, 'WI-FI', 12, 1232).lines.length, 1);
+  });
+});
+

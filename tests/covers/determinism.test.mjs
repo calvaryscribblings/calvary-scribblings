@@ -14,7 +14,7 @@ import { createHash } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCanvas } from '@napi-rs/canvas';
-import { renderCover, planCover, registerFonts, measureCanaries, formatDescriptor } from '../../scripts/covers/render.mjs';
+import { renderCover, planCover, registerFonts, measureCanaries, formatDescriptor, descriptorLeading, fitDescriptor } from '../../scripts/covers/render.mjs';
 import { LIVERIES, liveryFor, eyebrowFor, isKnownCategory, IMPRINT_EYEBROW } from '../../scripts/covers/liveries.mjs';
 import { AUTHOR, CANVAS, DESCRIPTOR, EYEBROW, FOOTER, RULE, STACK, STACK_REGION, TITLE, instalmentFooter } from '../../scripts/covers/layout.mjs';
 import { breakParts, caps, clusters, wrapDetailed, wrapTracked } from '../../scripts/covers/text.mjs';
@@ -164,9 +164,17 @@ test('THE LAYOUT', async (t) => {
     // but it is a real behaviour change, and it should be noticed here rather than in a
     // cover. Re-measure, and update the 0.5 below deliberately.
     const region = STACK_REGION.bottom - STACK_REGION.top;
-    // COVERS-R19: a descriptor too wide for the measure breaks onto more lines. A ruled
-    // descriptor is three words, so its worst case is three lines, each a leading apart.
-    const descExtra = DESCRIPTOR.gapBelowRule + DESCRIPTOR.size * 0.72 + 2 * DESCRIPTOR.size * TITLE.lineHeight;
+    // COVERS-R19: a descriptor too wide for the measure breaks onto more lines, each one
+    // derived leading (cap height plus word gap, descriptorLeading) apart. The worst case is
+    // the library's three longest descriptor words (R19.1), which set on TWO lines, so that is
+    // the row allowed for here. Three lines would need every adjacent pair of words to be
+    // wider than the measure; no ruled descriptor comes near it. If one ever did, under a
+    // two-line 186px title it would need 803px: past this 50% bar, but still inside the
+    // 1556px region, so the vertical constraint would still not bind.
+    const c = createCanvas(10, 10).getContext('2d');
+    const worstLines = fitDescriptor(c, 'CONSOLIDATION.  IMPERSONATION.  ESTRANGEMENT.').lines.length;
+    assert.equal(worstLines, 2);
+    const descExtra = DESCRIPTOR.gapBelowRule + DESCRIPTOR.size * 0.72 + (worstLines - 1) * descriptorLeading(c).leading;
     for (const rung of TITLE.ladder) {
       if (rung.maxLines === Infinity) continue;   // the fallback: uncapped, nothing below it
       const worst = rung.maxLines * rung.size * TITLE.lineHeight + RULE.gapAboveFromTitle + descExtra;

@@ -109,12 +109,36 @@ export function drawTracked(ctx, text, cx, y, tracking) {
  *
  * The hyphen stays on the leading part, where a reader expects it. Trailing hyphens do not
  * create a break after themselves (nothing follows), and a leading hyphen is not a break
- * either — "-30" must not become "-" / "30".
+ * either — "-30" must not become "-" / "30". And a hyphen too near either end of the word is
+ * not a break (HYPHEN_MIN, below).
  */
 export function breakParts(word) {
   const parts = String(word).split(/(?<=-)(?!$)/g);
-  return parts.length > 1 && parts[0] !== '-' ? parts : [word];
+  if (!(parts.length > 1 && parts[0] !== '-')) return [word];
+  // A break is kept only where it leaves at least HYPHEN_MIN.before letters or numerals of the
+  // word behind it and carries at least HYPHEN_MIN.after forward, each counted across the
+  // whole word on that side. A refused break joins its two parts back together.
+  const total = letters(word);
+  const out = [parts[0]];
+  let behind = letters(parts[0]);
+  for (const part of parts.slice(1)) {
+    if (behind >= HYPHEN_MIN.before && total - behind >= HYPHEN_MIN.after) out.push(part);
+    else out[out.length - 1] += part;
+    behind += letters(part);
+  }
+  return out;
 }
+
+/**
+ * THE HYPHEN MINIMUMS (COVERS-R19.1, Ikenna's ruling, CHOSEN, not derived): Bringhurst's rule,
+ * two letters left behind and three carried forward. Found on "Public Wi-Fi Is a Trap", which
+ * set PUBLIC WI- / FI IS A TRAP: a two-letter fragment carried to the next line. Refusing that
+ * break makes WI-FI one unit, and the ladder steps down as it does for any break that doesn't
+ * fit: PUBLIC WI-FI IS / A TRAP at 140px. STEP- / BY-STEP, BROWN- / SKINNED, TUG- / OF-WAR and
+ * RED-WHITE- / RED all clear it and keep their breaks.
+ */
+export const HYPHEN_MIN = Object.freeze({ before: 2, after: 3 });
+const letters = (s) => (String(s).match(/[\p{L}\p{N}]/gu) ?? []).length;
 
 /**
  * Greedy wrap to `maxWidth` at the ctx's current font and the given tracking.

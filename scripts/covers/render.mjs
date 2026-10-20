@@ -364,7 +364,7 @@ function fitTitle(ctx, title, extraBelow = 0) {
 }
 
 /**
- * Break a descriptor that does not fit the measure. COVERS-R19, Ikenna's ruling.
+ * Break a descriptor that does not fit the measure. COVERS-R19 and R19.1, Ikenna's rulings.
  *
  * ── THE DEFECT ───────────────────────────────────────────────────────────────────────────
  * Found by CARDS-R1.2, 20 Oct 2026. The descriptor was drawn on one line whatever its width,
@@ -372,24 +372,22 @@ function fitTitle(ctx, title, extraBelow = 0) {
  * CONFIRMATION. on The Number Thirteen, ran 1567.6px on a 1600px canvas, straight through
  * both keylines; 29 live covers crossed the inner keyline.
  *
- * ── THE RULE ─────────────────────────────────────────────────────────────────────────────
- * The descriptor's measure is the TITLE'S OWN MEASURE (TITLE.maxWidth): not a new number.
+ * ── THE MEASURE ──────────────────────────────────────────────────────────────────────────
+ * The TITLE'S OWN MEASURE (TITLE.maxWidth, 1232px), not a new number. Measuring to the
+ * keylines instead would leave a descriptor like Don't Worry's (1343px between keylines
+ * 1344px apart) touching the frame. A descriptor that fits on one line is drawn exactly as
+ * before, and those covers render byte-identical to the ones already live.
  *
- *   • It fits on one line at its size and tracking → one line, exactly as before. Those
- *     covers render byte-identical to the ones already live.
- *   • It does not → it breaks BETWEEN WORDS into the FEWEST lines that each fit the measure,
- *     and of the breaks that give that many lines, the one whose lines are CLOSEST IN WIDTH
- *     (the smallest difference between the widest and the narrowest line). A word keeps its
- *     full stop because the full stop is part of the word, and the words keep their order.
+ * ── WHERE IT BREAKS (R19.1) ──────────────────────────────────────────────────────────────
+ * The way the title already breaks: fill each line with as many WORDS as fit the measure and
+ * carry the rest to the next line. Words are never split, keep their order and keep their
+ * full stops; the double space stays between words on a line and is dropped at a break. The
+ * descriptor rubric says "the third word is where it lands", and filling the first line puts
+ * the break exactly there: every live descriptor that breaks sets two words over the third.
+ * (R19 chose the break whose lines were closest in width. Ikenna ruled that out.)
  *
  * SIZE AND TRACKING NEVER CHANGE. Shrinking or tightening the long ones would give the library
  * descriptors in two rhythms; breaking keeps one.
- *
- * Line spacing is the title's own ratio (TITLE.lineHeight, 1.12) at the descriptor's size.
- *
- * TIES (CHOSEN): two breaks equally close in width go to the one with the narrower widest line,
- * then to the one that breaks earlier. With three words that means a 1 + 2 split and a 2 + 1
- * split of exactly equal balance (which has not happened in the library) goes to 1 + 2.
  *
  * A single word wider than the measure has no break that fits, and that RAISES, the way an
  * impossible title does: nothing ships a descriptor over the keyline again. At 54px tracked 9
@@ -401,28 +399,35 @@ export function fitDescriptor(ctx, text) {
   const width = (t) => trackedWidth(ctx, t, DESCRIPTOR.tracking);
   const one = width(text);
   if (one <= measure) return { lines: [{ text, width: one }], width: one, measure };
-  const words = text.split(DESCRIPTOR.separator);
-  const join = (ws) => ws.join(DESCRIPTOR.separator);
-  for (let n = 2; n <= words.length; n++) {
-    let best = null;
-    // Every way of cutting the words into n runs, in order. Descriptors are three words by
-    // ruling, so this is two candidates at n = 2; it stays exact for any length.
-    const cut = (from, left, acc) => {
-      if (left === 1) {
-        const lines = [...acc, words.slice(from)].map((ws) => ({ text: join(ws), width: width(join(ws)) }));
-        if (lines.some((l) => l.width > measure)) return;
-        const ws = lines.map((l) => l.width);
-        const spread = Math.max(...ws) - Math.min(...ws);
-        const widest = Math.max(...ws);
-        if (!best || spread < best.spread || (spread === best.spread && widest < best.widest)) best = { lines, spread, widest };
-        return;
-      }
-      for (let i = from + 1; i <= words.length - left + 1; i++) cut(i, left - 1, [...acc, words.slice(from, i)]);
-    };
-    cut(0, n, []);
-    if (best) return { lines: best.lines, width: one, measure };
+  const lines = [];
+  let line = '';
+  for (const word of text.split(DESCRIPTOR.separator)) {
+    if (width(word) > measure) throw new Error(`descriptor cannot fit the ${measure}px measure: a single word is wider ("${text}")`);
+    const candidate = line ? line + DESCRIPTOR.separator + word : word;
+    if (width(candidate) <= measure) { line = candidate; continue; }
+    lines.push(line);
+    line = word;
   }
-  throw new Error(`descriptor cannot fit the ${measure}px measure: a single word is wider ("${text}")`);
+  lines.push(line);
+  return { lines: lines.map((t) => ({ text: t, width: width(t) })), width: one, measure };
+}
+
+/**
+ * THE DESCRIPTOR'S LEADING (R19.1, Ikenna's ruling): the gap between two lines equals the gap
+ * between two words. So the step from one baseline to the next is the cap height (the
+ * descriptor is set in capitals, so a line's ink rises a cap height above its baseline) plus
+ * the word gap as drawn: the separator's two spaces and the three tracking steps around them.
+ * Both are measured by the engine that draws, never typed in. At 54px tracked 9 in EB Garamond
+ * that is 35.0 + 48.6 = 83.6px, 1.548 of the size.
+ *
+ * The word gap is measured as a difference, so it is exactly what drawTracked lays down:
+ * "H" + separator + "H" less two lone "H"s leaves the two spaces and the three steps.
+ */
+export function descriptorLeading(ctx) {
+  ctx.font = FONTS[DESCRIPTOR.font](DESCRIPTOR.size);
+  const cap = capAscent(ctx);
+  const gap = trackedWidth(ctx, `H${DESCRIPTOR.separator}H`, DESCRIPTOR.tracking) - 2 * trackedWidth(ctx, 'H', DESCRIPTOR.tracking);
+  return { leading: cap + gap, cap, gap };
 }
 
 /**
@@ -445,10 +450,10 @@ export function planCover(ctx, record) {
     ctx.font = FONTS[DESCRIPTOR.font](DESCRIPTOR.size);
     descAscent = capAscent(ctx);
   }
-  // The descriptor's own leading: the title's ratio at the descriptor's size (COVERS-R19).
+  // The descriptor's own leading: its cap height plus its word gap (descriptorLeading).
   // Each line after the first adds one step; a one-line descriptor adds nothing, so its
   // geometry is exactly what it always was.
-  const descLeading = DESCRIPTOR.size * TITLE.lineHeight;
+  const descLeading = descFit && descFit.lines.length > 1 ? descriptorLeading(ctx).leading : 0;
   const descExtraLines = descFit ? (descFit.lines.length - 1) * descLeading : 0;
   const extraBelow = descriptorText ? DESCRIPTOR.gapBelowRule + descAscent + descExtraLines : 0;
 
