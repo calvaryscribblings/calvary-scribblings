@@ -357,9 +357,9 @@
   ]
  },
  {
-  "slug": "widow-s-fire",
+  "slug": "free-will",
   "livery": "short",
-  "text": "https://calvaryscribblings.co.uk/stories/widow-s-fire",
+  "text": "https://calvaryscribblings.co.uk/stories/free-will",
   "version": 4,
   "modules": 33,
   "sideMm": 10.414,
@@ -376,9 +376,66 @@
   ]
  },
  {
-  "slug": "almost-like-her",
+  "slug": "the-number-thirteen",
   "livery": "short",
-  "text": "https://calvaryscribblings.co.uk/stories/almost-like-her",
+  "text": "https://calvaryscribblings.co.uk/stories/the-number-thirteen",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "the-man-i-met-at-nineteen",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/the-man-i-met-at-nineteen",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "anomaly",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/anomaly",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "the-call",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/the-call",
   "version": 4,
   "modules": 33,
   "sideMm": 10.414,

@@ -10,9 +10,12 @@
 // glyph, and neither is scaled when a card draws a glyph. The Ending cards and the Ring draw
 // them at the same 6 mm as the corner indices.
 //
-// The drawings: Letter a sealed envelope · Secret a keyhole · Child a kite · Water three waves
-// · Road a road narrowing to the horizon · House a pitched-roof house · Debt a cowrie shell ·
-// Grave a headstone. (R1.1 dropped R1's rain cloud and flame with the motifs they drew.)
+// The drawings: Letter a sealed envelope · Secret a keyhole · Child a kite · Captive a barred
+// window · Road a road narrowing to the horizon · House a pitched-roof house · Debt a cowrie
+// shell · Grave a headstone. (R1.1 dropped R1's rain cloud and flame with the motifs they drew;
+// R1.2 dropped R1.1's three waves with Water.) Captive is square and barred, with straight
+// sides and no arch, so it reads apart from the Secret plate (tall, rounded, one keyhole) and
+// from the Grave headstone (arched).
 import { Path2D } from '@napi-rs/canvas';
 import { GLYPH_MM, GLYPH_STROKE_MM } from './geometry.mjs';
 
@@ -36,10 +39,10 @@ export const GLYPHS = Object.freeze({
     'M12 16 C10.2 17.6 13.8 18.8 12 20.4 C10.8 21.5 12.6 22.4 13.4 22.6', // the tail
     'M10.9 17.6 L12.3 17 M12.4 19.6 L13.6 20.4', // two bows on the tail
   ],
-  Water: [
-    'M3 8 C5.2 6.2 7.4 6.2 9.6 8 C11.8 9.8 14 9.8 16.2 8 C18.4 6.2 20.6 6.2 21 6.6',   // three waves,
-    'M3 12.5 C5.2 10.7 7.4 10.7 9.6 12.5 C11.8 14.3 14 14.3 16.2 12.5 C18.4 10.7 20.6 10.7 21 11.1', // one
-    'M3 17 C5.2 15.2 7.4 15.2 9.6 17 C11.8 18.8 14 18.8 16.2 17 C18.4 15.2 20.6 15.2 21 15.6',     // stroke
+  Captive: [
+    'M3.5 4 H20.5 V18.5 H3.5 Z',                // the window
+    'M7.75 4 V18.5 M12 4 V18.5 M16.25 4 V18.5', // its bars, upright only: a cross-bar made it a sash
+    'M2 21.5 H22',                              // the sill
   ],
   Road: [
     'M2 9 H22',                                 // the horizon

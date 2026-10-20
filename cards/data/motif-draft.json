@@ -1,11 +1,11 @@
 {
- "round": "CARDS-R1.1",
- "generatedFrom": "cms_stories + story_bodies + series/series_instalments + instalment EPUBs, read-only, 20 Oct 2026",
+ "round": "CARDS-R1.2",
+ "generatedFrom": "cms_stories + story_bodies + series/series_instalments + instalment EPUBs, read-only, 20 Oct 2026 (R1.2 re-read for Captive; database unchanged since R1.1)",
  "motifs": [
   "Letter",
   "Secret",
   "Child",
-  "Water",
+  "Captive",
   "Road",
   "House",
   "Debt",
@@ -31,7 +31,11 @@
      "quote": "I was only eleven years old when the war broke out.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: villagers are herded to the square and made to kneel, but it is a round-up for execution over one afternoon; the story turns on the father’s death and the soldier’s two faces, not on anyone being held."
+   }
   },
   {
    "kind": "story",
@@ -46,7 +50,11 @@
    "strength": null,
    "quote": null,
    "why": "A comic sketch about stretching a small budget; no money is owed and no motif is central.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -61,7 +69,11 @@
    "strength": "fair",
    "quote": "I scribbled a few words on a scrap of paper, anchoring my phone number to it, and I waited.",
    "why": "The whole encounter hinges on the narrator slipping a written note with his number into a stranger's hand, and her calling it.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -87,7 +99,11 @@
      "quote": "She would fight like hell to keep her only son alive.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -108,7 +124,11 @@
      "quote": "if I lend you money, what will you use to pay me back?",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -123,7 +143,11 @@
    "strength": "fair",
    "quote": "That same golden retriever would later leave a silence in their home that neither she nor Tobi knew how to fill.",
    "why": "The romance is framed by grief for the dog that brought the couple together: it opens on Vicky mourning Max and ends on the two of them facing his death.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: Tobi builds an enclosure for the dog, a minor plot device about a pet, not a person held against their will."
+   }
   },
   {
    "kind": "story",
@@ -138,7 +162,11 @@
    "strength": "strong",
    "quote": "Then it hits me, harder than the runaway vehicle: I have met my end.",
    "why": "A workaholic is killed in a hit-and-run and the story is his dying moments, finding no memories to replay.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -159,7 +187,11 @@
      "quote": "you cannot leave your father’s house and start living alone?",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -180,7 +212,11 @@
      "quote": "The sack was filled with human bones and decomposed remains.",
      "strength": "strong"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: Halimat is missing and found as remains; the story never shows her held or abducted, so it is a disappearance and a murder (Secret/Grave), not captivity."
+   }
   },
   {
    "kind": "story",
@@ -195,7 +231,11 @@
    "strength": "strong",
    "quote": "If your mother ever finds out about us, I won't be the only one going down in a scandal.",
    "why": "The devoted best friend is secretly sleeping with Tamara's teenage son, draining her account, and holding recordings as blackmail.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -210,7 +250,11 @@
    "strength": "fair",
    "quote": "The rejection arrived on a Tuesday afternoon. My thirty-second. Not that I was counting.",
    "why": "The writer's story is told through thirty-two rejection emails and ends with her closing the latest one and writing on.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -225,7 +269,11 @@
    "strength": null,
    "quote": null,
    "why": "A poem of desire whose flames and fireworks are all metaphor; no motif is real here.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -240,7 +288,11 @@
    "strength": null,
    "quote": null,
    "why": "A forgotten drum god takes over a phone mast to punish a village; none of the motifs is central.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -255,7 +307,11 @@
    "strength": null,
    "quote": null,
    "why": "A poem of lovers bound across seven lives; its rivers and water are imagery, and war, drought and debt are passing obstacles.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -276,7 +332,11 @@
      "quote": "He only knew that tradition had cost him his mother.",
      "strength": "strong"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: the widowhood rite is coerced, but Nne is not confined or detained; the story turns on her death."
+   }
   },
   {
    "kind": "story",
@@ -297,7 +357,11 @@
      "quote": "It was strange how quickly the mood at a burial ceremony could change once the coffin was in the ground.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -312,7 +376,11 @@
    "strength": "fair",
    "quote": "How could a child disappear in the few minutes it took to microwave dinner?",
    "why": "A lonely woman's chance to babysit a little girl turns on the child vanishing and being revealed as never real.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: the police escort Jemima to their vehicle in the closing lines; it is a passing coda, not an arrest the story turns on."
+   }
   },
   {
    "kind": "story",
@@ -327,7 +395,11 @@
    "strength": null,
    "quote": null,
    "why": "A lonely woman is stalked by a man no camera can see; none of the motifs is central.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: an intruder in the bedroom, not a captor; no one is held or locked in."
+   }
   },
   {
    "kind": "story",
@@ -342,7 +414,11 @@
    "strength": null,
    "quote": null,
    "why": "A poem about killing and kidnapping painting a nation's flag red; its dead are collective, not a death the poem turns on.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: one line about a ransom demand among a list of images of violence; the poem turns on bloodshed, not on captivity."
+   }
   },
   {
    "kind": "story",
@@ -363,7 +439,11 @@
      "quote": "I was the first son. In the family I came from, that wasn't just a title; it was a huge responsibility.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -394,7 +474,11 @@
      "quote": "But six weeks later, I didn’t even feel myself die.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -409,7 +493,11 @@
    "strength": null,
    "quote": null,
    "why": "An essay on defining success, using the journey only as a metaphor.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -430,7 +518,11 @@
      "quote": "walk out of every room she had gently made feel like home",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: ‘not a cage’ and ‘not a prison’ are negated metaphors for a contract marriage."
+   }
   },
   {
    "kind": "story",
@@ -445,7 +537,11 @@
    "strength": "strong",
    "quote": "I wished my legs could have carried me farther, faster, before the bomb went off — just so I could get home to you.",
    "why": "A sequence of poems in the voices of the dead and the bereaved, all turning on a death and the grief left behind.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -460,7 +556,11 @@
    "strength": "fair",
    "quote": "when I get my job back, I will reimburse him.",
    "why": "The narrator who despises beggars lives on money borrowed from his father, promising to pay it back.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -475,7 +575,11 @@
    "strength": null,
    "quote": null,
    "why": "An essay on tactile media and convenience; the River Benue is a setting, and none of the motifs applies.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: the ‘trap’ of the title is a metaphor for convenience."
+   }
   },
   {
    "kind": "story",
@@ -490,7 +594,11 @@
    "strength": null,
    "quote": null,
    "why": "An essay on the World Cup as shared experience; none of the motifs applies.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: the ‘padded room’ is a metaphor for algorithmic feeds."
+   }
   },
   {
    "kind": "story",
@@ -511,7 +619,11 @@
      "quote": "Resting on a table near the entrance was the printed order of service.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -526,7 +638,11 @@
    "strength": null,
    "quote": null,
    "why": "A reflection on comparison stealing joy; none of the motifs is central.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -547,7 +663,11 @@
      "quote": "That she suddenly understood the value of money now that she had no home?",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: Tara is dragged out of the flat, an eviction, the opposite of being held."
+   }
   },
   {
    "kind": "story",
@@ -562,7 +682,11 @@
    "strength": "strong",
    "quote": "They think he'd been dead for about a week.",
    "why": "A neighbour reads a man's decline in his rubbish and realises, when his body is carried out, that she missed his death.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: the neighbour keeps to his flat by his own withdrawal; no one holds him."
+   }
   },
   {
    "kind": "story",
@@ -584,16 +708,15 @@
      "strength": "strong"
     },
     {
-     "motif": "Water",
-     "quote": "Since Afam's death, I had developed a phobia of bodies of water.",
-     "strength": "fair"
-    },
-    {
      "motif": "Child",
      "quote": "The day I discovered I was pregnant, I was happier than I was frightened.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: the narrator hides behind a door by choice; the story turns on the secret of Afam’s killing."
+   }
   },
   {
    "kind": "story",
@@ -608,7 +731,11 @@
    "strength": null,
    "quote": null,
    "why": "A comic piece about a craving for coconut bread disguised as a lost love; no motif applies.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: ‘break free from your hold’ is a metaphor for a craving for bread."
+   }
   },
   {
    "kind": "story",
@@ -629,7 +756,11 @@
      "quote": "Our eyes met, and she smiled at me. Small and calm, but I swear there was the tiniest bit of recognition in her face.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: she locks herself in out of fear; nobody holds her."
+   }
   },
   {
    "kind": "story",
@@ -644,7 +775,11 @@
    "strength": null,
    "quote": null,
    "why": "A sequence of break-up poems keyed to songs; none of the eight motifs is central.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -659,7 +794,11 @@
    "strength": null,
    "quote": null,
    "why": "A poem about learning to trust a safe love after trauma; no motif is central.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -680,7 +819,11 @@
      "quote": "Because daughters like me do not do things like this. Good daughters do not steal.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -705,8 +848,17 @@
      "motif": "Grave",
      "quote": "Inside the house, the screams continued for several minutes before they suddenly stopped.",
      "strength": "fair"
+    },
+    {
+     "motif": "Captive",
+     "quote": "He tried to move his hands and discovered that they had been tied behind his back.",
+     "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "strength": "fair",
+    "primary": false
+   }
   },
   {
    "kind": "story",
@@ -727,7 +879,11 @@
      "quote": "LOCAL MAN DIES IN TAXI COLLISION The date was nine years ago. The photo beside the headline was me.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -748,7 +904,11 @@
      "quote": "Then she cut her wrist and bled out beside him.",
      "strength": "strong"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: the abduction is staged; the narrator is Brenda herself, so no one is held."
+   }
   },
   {
    "kind": "story",
@@ -763,7 +923,11 @@
    "strength": "strong",
    "quote": "the small voice of my child — who has been standing there, watching all along — takes me back to where it all began.",
    "why": "A child watching her parents' violent love becomes a mother repeating it in front of her own child.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -778,7 +942,11 @@
    "strength": "fair",
    "quote": "I simply began saving. Until I had enough to leave.",
    "why": "The wife's long-hidden plan to leave, saved toward in secret for years, is what breaks open the marriage.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: \"You can’t leave this house\" is a threat in an argument, not detention."
+   }
   },
   {
    "kind": "story",
@@ -793,7 +961,11 @@
    "strength": null,
    "quote": null,
    "why": "A poem about inspiration, procrastination and validation; no motif is central.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -808,7 +980,11 @@
    "strength": "strong",
    "quote": "And I knew something she did not.",
    "why": "The narrator's secret affair with her twin's husband turns out to be something her sister knew and allowed.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -823,7 +999,11 @@
    "strength": "fair",
    "quote": "No warning. No explanation. No goodbye. Just a wedding.",
    "why": "The woman he was building a future with concealed another relationship until he discovered her wedding on Facebook.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -838,7 +1018,11 @@
    "strength": "strong",
    "quote": "as I stare at the two thick red lines on the test strip in my hand",
    "why": "The story builds to an unplanned pregnancy, framed by her single mother's warning.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -859,7 +1043,11 @@
      "quote": "So she kept this one to herself.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -870,11 +1058,21 @@
    "subcategory": "Drama",
    "descriptor": "desperation. disguise. entrapment.",
    "url": "/stories/free-will",
-   "primary": "Secret",
-   "strength": "fair",
-   "quote": "I didn't need to act mad; I only needed to look the part.",
-   "why": "His disguise as a beggar is taken for the real thing and he is carried off with the mentally ill.",
-   "alternates": []
+   "primary": "Captive",
+   "strength": "strong",
+   "quote": "They pushed me inside and slammed the door shut. I banged against it as the van pulled away",
+   "why": "The narrator, dressed as a beggar, is seized by men rounding up the mentally ill and locked in their van; the whole story builds to that capture and ends on it.",
+   "alternates": [
+    {
+     "motif": "Secret",
+     "quote": "I didn't need to act mad; I only needed to look the part.",
+     "strength": "fair"
+    }
+   ],
+   "captiveRead": {
+    "strength": "strong",
+    "primary": true
+   }
   },
   {
    "kind": "story",
@@ -895,7 +1093,11 @@
      "quote": "Like it's normal for a nine-year-old to feed her starving elder sister.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -921,7 +1123,11 @@
      "quote": "Okay… give my years to Soma,' he said. 'Let her know that as I was dying, I thought of her.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: the police arrest and the vines binding him are passing beats; the story turns on judgement at the bridge and the birth."
+   }
   },
   {
    "kind": "story",
@@ -936,7 +1142,11 @@
    "strength": null,
    "quote": null,
    "why": "An essay on setbacks and adversity; no motif is central.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -951,7 +1161,11 @@
    "strength": null,
    "quote": null,
    "why": "A haunting by a beggar he wronged; the debts and the walk home are background, not what it turns on.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -966,7 +1180,11 @@
    "strength": "fair",
    "quote": "I don't think my mother hated me. I think she hated the life that came with me.",
    "why": "A son still carries his teenage mother's contempt, and the story is about freeing himself from her voice.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -997,7 +1215,11 @@
      "quote": "Aunty Baby's house was nothing like Mama's.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1012,7 +1234,11 @@
    "strength": null,
    "quote": null,
    "why": "An essay on AI companionship; no motif is central.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1027,7 +1253,11 @@
    "strength": "fair",
    "quote": "The first time Chisom witnessed a man being beaten to death, he was seated by the window of a commercial bus",
    "why": "A mob killing he witnesses drives the story, and he is made to face the same death himself, first in a dream and then at his own door.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: a mob seizes him to lynch him, not to hold him; Grave and the jungle-justice idea carry it."
+   }
   },
   {
    "kind": "story",
@@ -1053,7 +1283,11 @@
      "quote": "Did she know I was a painter? Had she been watching the house? Did she know everything?",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: the thud and drag in Anna’s house hint at something but nobody is shown held."
+   }
   },
   {
    "kind": "story",
@@ -1068,7 +1302,11 @@
    "strength": "strong",
    "quote": "Staring at me, assembled from the first letter of every single line, were my names.",
    "why": "A folded poem handed across the table on a first date hides her names in an acrostic.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1083,7 +1321,11 @@
    "strength": "fair",
    "quote": "a good morning text from your 'work husband', you can feel colour seep into your world again",
    "why": "A dutiful wife's hidden affair with her work husband is what makes her life bearable.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1098,7 +1340,11 @@
    "strength": "fair",
    "quote": "I said yes anyway, because my father had just suffered a stroke, my mother's shop was drowning in debt",
    "why": "She married a man she could not talk to in order to rescue her family from debt and hardship, and is reckoning with the cost.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: the storage room \"feels too small\" is metaphor for a confining marriage."
+   }
   },
   {
    "kind": "story",
@@ -1113,7 +1359,11 @@
    "strength": null,
    "quote": null,
    "why": "A profile of Chioma Ajunwa's road to Olympic gold; the journey is figurative and no motif is central.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: \"shut out\" by a doping ban is a metaphor, not confinement."
+   }
   },
   {
    "kind": "story",
@@ -1134,7 +1384,11 @@
      "quote": "Leaving the house doesn't solve anything. Coming back does.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1149,7 +1403,11 @@
    "strength": null,
    "quote": null,
    "why": "A short reflection on job-hunting after graduation; no motif is central.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1174,8 +1432,17 @@
      "motif": "Grave",
      "quote": "Then looked at me with a calmness that still visits me in nightmares. 'She's dead.'",
      "strength": "strong"
+    },
+    {
+     "motif": "Captive",
+     "quote": "Then hands dragging me outside before I could even understand what was happening. Neighbours gathered on their balconies as I was shoved into the back of a car.",
+     "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "strength": "fair",
+    "primary": false
+   }
   },
   {
    "kind": "story",
@@ -1190,7 +1457,11 @@
    "strength": null,
    "quote": null,
    "why": "A therapist's case notes on three clients make her question her own relationship; no motif is central.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1205,7 +1476,11 @@
    "strength": "strong",
    "quote": "Motherhood has not taken her life. It has taken her silence and filled it with someone else's breathing.",
    "why": "A new mother sits up with her sleeping baby, overwhelmed by motherhood.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1220,7 +1495,11 @@
    "strength": "fair",
    "quote": "He now took out his phone and read again the WhatsApp message Tracy had sent him whilst he was drinking.",
    "why": "Tracy's WhatsApp message, and the reply Sornen writes and deletes, are what finally bring him to accept the break-up.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1251,7 +1530,11 @@
      "quote": "Then she stood, took one last look at the home she had hoped to return to, and walked away.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1266,7 +1549,11 @@
    "strength": null,
    "quote": null,
    "why": "A sequence of emotional states as proof of being alive; none of the motifs is central.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1281,7 +1568,11 @@
    "strength": null,
    "quote": null,
    "why": "A comic first date undone by a lactose-intolerant stomach; no motif fits.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "'locked in' is slang for attention; rejected."
+   }
   },
   {
    "kind": "story",
@@ -1296,7 +1587,11 @@
    "strength": "strong",
    "quote": "If it's a boy, save him. If it's another girl, save Doris. We can always make another one.",
    "why": "A husband's obsession with having a son leads him to gamble his wife's life during a dangerous birth.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1311,7 +1606,11 @@
    "strength": null,
    "quote": null,
    "why": "A poem about a woman learning to love her dark skin; the house and hearth images are metaphors.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1332,7 +1631,11 @@
      "quote": "what Nnamdi's email would contain, when Collins would finally open it, were the forwarded documents",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1347,7 +1650,11 @@
    "strength": null,
    "quote": null,
    "why": "A sharp exchange between a mother and her daughter-in-law at dinner; no motif fits.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1362,7 +1669,11 @@
    "strength": null,
    "quote": null,
    "why": "An erotic memory of a couple's first night together; no motif fits.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1377,7 +1688,11 @@
    "strength": "fair",
    "quote": "Before either of them understood what was happening, his hands were around her throat.",
    "why": "A song said to be linked to a string of killings ends, as the legend promised, with a man strangling the woman he loves on her kitchen floor.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1392,7 +1707,11 @@
    "strength": null,
    "quote": null,
    "why": "A dialogue poem weighing what men and women each carry; the storms are metaphors.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "'Sometimes strength feels like a prison' is a metaphor; rejected."
+   }
   },
   {
    "kind": "story",
@@ -1407,7 +1726,11 @@
    "strength": "strong",
    "quote": "At her burial, Joseph leaned toward me and whispered, 'I told you.'",
    "why": "A grandmother's death, then a whole family's, shape a man's life until his dead brother comes to tell him his own death is near.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1422,7 +1745,11 @@
    "strength": null,
    "quote": null,
    "why": "An anxious planner misses her own birthday while preparing for disasters; no motif fits.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1437,7 +1764,11 @@
    "strength": null,
    "quote": null,
    "why": "A humorous guide to surviving your twenties; no motif fits.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1452,7 +1783,11 @@
    "strength": "fair",
    "quote": "A young man died at the state hospital because there was no anti-venom for treatment.",
    "why": "A preventable death the governor shrugs off returns as his own dying in the same broken hospital.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "Police shove the injured Governor into the boot of their Hilux, but as rough transport to hospital, not detention; rejected."
+   }
   },
   {
    "kind": "story",
@@ -1473,7 +1808,11 @@
      "quote": "I raised the device fully open and what do I see?",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1494,7 +1833,11 @@
      "quote": "spent years raising a child alone because the woman he loved had walked away when the child was only three months old.",
      "strength": "strong"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1509,7 +1852,11 @@
    "strength": null,
    "quote": null,
    "why": "A poem lamenting cultural festivals reduced to spectacle; no motif fits.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1530,7 +1877,11 @@
      "quote": "Chief Sylvester Eze had built his entire life on broken promises and convenient lies.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1545,7 +1896,11 @@
    "strength": null,
    "quote": null,
    "why": "A man glimpses his tired future marriage in a mirror and chooses to stay; no motif fits.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "'boxed in' describes an argument, a metaphor; rejected."
+   }
   },
   {
    "kind": "story",
@@ -1560,7 +1915,11 @@
    "strength": null,
    "quote": null,
    "why": "A colour describes its own essence; its fire and ice are metaphors.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1581,7 +1940,11 @@
      "quote": "His voice begins to tremble. ‘With my daughter.’",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "The lovers are cornered in the office, but no one is held; rejected."
+   }
   },
   {
    "kind": "story",
@@ -1596,7 +1959,11 @@
    "strength": "fair",
    "quote": "that we’d end up sitting next to each other for the entire flight.",
    "why": "A woman builds an imagined life with the stranger beside her on a flight, and it ends when the journey does.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1611,7 +1978,11 @@
    "strength": "strong",
    "quote": "By the time you get to your sixth IVF cycle, you stop announcing dates.",
    "why": "A couple go through a sixth failed IVF cycle in their attempt to have a child.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1626,7 +1997,11 @@
    "strength": "fair",
    "quote": "He was in his old dingy flat and he'd lost his family in an accident 25 years ago.",
    "why": "The party he relives dissolves into the truth that his wife and children died twenty-five years ago.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1652,7 +2027,11 @@
      "quote": "I ran away years later with no identity and no roots.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1667,7 +2046,11 @@
    "strength": null,
    "quote": null,
    "why": "An essay on phone addiction set at a birthday dinner; no motif fits.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "'locked in a lopsided psychological war' is a metaphor; rejected."
+   }
   },
   {
    "kind": "story",
@@ -1682,7 +2065,11 @@
    "strength": "strong",
    "quote": "She had buried a sister. She knew exactly what she was fighting for.",
    "why": "Her sister's death from fake insulin is what drives Dora Akunyili's whole fight against counterfeit drugs.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1693,11 +2080,15 @@
    "subcategory": "Horror",
    "descriptor": "superstition. avoidance. confirmation.",
    "url": "/stories/the-number-thirteen",
-   "primary": "none",
-   "strength": null,
-   "quote": null,
-   "why": "A man afraid of the number thirteen is wrongly arrested, then blames the thirteenth batch of pap; no motif fits.",
-   "alternates": []
+   "primary": "Captive",
+   "strength": "strong",
+   "quote": "they took his phones and shoved him roughly into the backseat of his own car. He was sandwiched between two men, unable to move.",
+   "why": "Armed officers seize Dayo at the market, drive him to an unknown building and hold him for hours as a wrongly identified drug supplier until he pays to bail himself; the whole story turns on this arrest, which he then reads as the curse of thirteen.",
+   "alternates": [],
+   "captiveRead": {
+    "strength": "strong",
+    "primary": true
+   }
   },
   {
    "kind": "story",
@@ -1718,7 +2109,11 @@
      "quote": "Somehow, he always woke first — some paternal frequency tuned to the specific sound of his son's lungs struggling.",
      "strength": "strong"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "'still trapped inside her own head' is a metaphor; rejected."
+   }
   },
   {
    "kind": "story",
@@ -1739,7 +2134,11 @@
      "quote": "They had lost the baby. Okene didn’t scream. She couldn’t.",
      "strength": "strong"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1760,7 +2159,11 @@
      "quote": "It was from a lady who said she had invested all her savings in a Ponzi scheme.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Amara is led back to bed beside her husband, but held only by her mother's pressure, not physically; rejected."
+   }
   },
   {
    "kind": "story",
@@ -1775,7 +2178,11 @@
    "strength": "strong",
    "quote": "you wanted, more than anything, to give a child the warmth you never had.",
    "why": "A wealthy woman's long, failing struggle to conceive ends when clinic negligence destroys her embryos.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1790,7 +2197,11 @@
    "strength": null,
    "quote": null,
    "why": "A meditation on war's wreckage of innocence and love; home is a longed-for idea and no death or water is in events.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1805,13 +2216,11 @@
    "strength": null,
    "quote": null,
    "why": "The story turns on being loved as an echo of a former wife; none of the eight motifs is what it turns on.",
-   "alternates": [
-    {
-     "motif": "Water",
-     "quote": "We were taking an evening walk home when it started raining. I laughed and tilted my face up, letting the rain hit me.",
-     "strength": "fair"
-    }
-   ]
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1826,7 +2235,11 @@
    "strength": null,
    "quote": null,
    "why": "A young woman's search for purpose; her parents' investment is a passing pressure, not the story's turn.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1847,7 +2260,11 @@
      "quote": "Because each time I disappear, I meet with my father.",
      "strength": "strong"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1868,7 +2285,11 @@
      "quote": "Pause. 33 glances over at freezer 34. 'Notice my neighbour over there's hardly home?'",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1889,7 +2310,11 @@
      "quote": "I got into the first taxi I could find and told the driver to keep driving.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: Kodi is handcuffed and dragged away only as the aftermath of the shooting; the story does not turn on the arrest."
+   }
   },
   {
    "kind": "story",
@@ -1904,7 +2329,11 @@
    "strength": "strong",
    "quote": "I had an overdue loan, and the credit had already been swallowed whole as repayment.",
    "why": "A student chases unpaid shoe debts while his own loan swallows his stipend.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1919,7 +2348,11 @@
    "strength": null,
    "quote": null,
    "why": "Poems on a failing nation; ruined homes, taken children and the dead are glimpsed but none is what the collection turns on.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: 'took our children into captivity' is a single passing line in one poem of a collection about national failure."
+   }
   },
   {
    "kind": "story",
@@ -1934,7 +2367,11 @@
    "strength": null,
    "quote": null,
    "why": "A brief, pleasant parting after a conversation; nothing in the motif list fits.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1949,7 +2386,11 @@
    "strength": "fair",
    "quote": "The rest of the journey through Oko and Umunze passed in a haze",
    "why": "A glance shared from the back seat of a car on a journey ends when the traffic breaks and the car moves on.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1964,7 +2405,11 @@
    "strength": "fair",
    "quote": "History will remember the birth of me but never will it have a place for that pain",
    "why": "The title poem is a son's tribute to his mother's love and the pain of his birth.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -1979,7 +2424,11 @@
    "strength": null,
    "quote": null,
    "why": "A poem about belonging and desire; none of the motifs fits.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -2000,7 +2449,11 @@
      "quote": "And at the bottom of the page, in his handwriting, he left five words:",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -2015,7 +2468,11 @@
    "strength": null,
    "quote": null,
    "why": "A love story that turns out to be a dream; no motif fits honestly.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -2030,7 +2487,11 @@
    "strength": null,
    "quote": null,
    "why": "A man finally builds his own idea after watching friends profit from his; the Caribbean water is only a photo on a screen.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -2045,7 +2506,11 @@
    "strength": null,
    "quote": null,
    "why": "A dreamlike prose poem of an imagined village and a threshold between worlds; its streams and river are imagined, and no motif fits.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -2066,7 +2531,11 @@
      "quote": "Kemi zipped the suitcase and wheeled it towards the door.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -2081,7 +2550,11 @@
    "strength": "fair",
    "quote": "She was nineteen when she packed for America. Philadelphia. Drexel University.",
    "why": "Adichie's migration to America shapes the displacement and writing her story turns on.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -2102,7 +2575,11 @@
      "quote": "I tell her you're slipping away from me. That I can't feel you.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -2117,7 +2594,11 @@
    "strength": null,
    "quote": null,
    "why": "A woman realises the relationship she mourns was never love; no motif fits.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -2143,7 +2624,11 @@
      "quote": "There was something written on the back: a date, twenty years earlier, and underneath it a sentence in handwriting I recognised immediately.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: the brother 'disappeared'; nothing says he was taken or held."
+   }
   },
   {
    "kind": "story",
@@ -2158,7 +2643,11 @@
    "strength": "strong",
    "quote": "The faded scars and repeated visits forming a pattern he had seen too often yet still struggled to name.",
    "why": "A man hides his girlfriend's abuse behind 'I just slipped' until a doctor asks him directly.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: Allan wishes to 'escape her torture', but he is never held or locked in; it is abuse and coercion, not captivity."
+   }
   },
   {
    "kind": "story",
@@ -2185,11 +2674,15 @@
      "strength": "fair"
     },
     {
-     "motif": "Water",
-     "quote": "For a moment, all he could hear was rain.",
+     "motif": "Captive",
+     "quote": "She was sitting on the floor, wrists and ankles bound.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "strength": "fair",
+    "primary": false
+   }
   },
   {
    "kind": "story",
@@ -2215,7 +2708,11 @@
      "quote": "Her father died when her mother was seven months pregnant",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -2236,7 +2733,11 @@
      "quote": "She stood in the corridor with anger written all over her face, and my little brother was beside her.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -2257,7 +2758,11 @@
      "quote": "I went down in my own blood, a single shot fired straight into my heart by Raymond's wife",
      "strength": "strong"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -2288,7 +2793,11 @@
      "quote": "I think it’s meant to happen here, at home.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: 'The tension that had held us captive' is a figure of speech."
+   }
   },
   {
    "kind": "story",
@@ -2303,7 +2812,11 @@
    "strength": null,
    "quote": null,
    "why": "A meddling mother-in-law finally meets her match; the pregnancy is the setting, not what the story turns on.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -2324,7 +2837,11 @@
      "quote": "Her fame grew most of all after she was gone.",
      "strength": "strong"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -2339,7 +2856,11 @@
    "strength": "fair",
    "quote": "And at the end, when the light comes near — not an ending, but strangely clear —",
    "why": "The poem traces one life from first breath to the heartbeat stopping, and it ends on that death.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -2360,7 +2881,11 @@
      "quote": "What made matters worse was that Ojusina knew everything one would expect no one to know.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: the killers' arrest is the closing beat of a story that turns on witnessing the murder; no one's being held is explored."
+   }
   },
   {
    "kind": "story",
@@ -2381,7 +2906,11 @@
      "quote": "On the back, in soft handwriting: Hey baby, come home soon. Love, your world.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   },
   {
    "kind": "story",
@@ -2396,7 +2925,11 @@
    "strength": "fair",
    "quote": "as they began the journey to their hometown",
    "why": "Two families' Christmas trips home to Amegu bring Kenechukwu and Chizitere together on the road into the village.",
-   "alternates": []
+   "alternates": [],
+   "captiveRead": {
+    "none": true,
+    "note": null
+   }
   }
  ],
  "pictures": [
@@ -2441,6 +2974,11 @@
      "quote": "'Silverclaw will not fall!' I bellowed. 'We will defend this castle with everything that we have!'",
      "quoteFrom": "beta-princess-i3",
      "strength": "fair"
+    },
+    {
+     "motif": "Captive",
+     "quote": "We camped for the night in our chains. In the morning we were made to march again.",
+     "strength": "fair"
     }
    ],
    "instalments": [
@@ -2462,7 +3000,11 @@
      "status": "published",
      "releaseAtMs": 1788171540000
     }
-   ]
+   ],
+   "captiveRead": {
+    "strength": "fair",
+    "primary": false
+   }
   },
   {
    "kind": "picture",
@@ -2485,12 +3027,6 @@
     {
      "motif": "Road",
      "quote": "I had been on the road for four hours and seven minutes. I had paid ₦2,200 in fares.",
-     "quoteFrom": "diary-of-a-lagos-9-5er-i1",
-     "strength": "fair"
-    },
-    {
-     "motif": "Water",
-     "quote": "Lagos rain does not negotiate. It arrived all at once, and within sixty seconds, the road was a river.",
      "quoteFrom": "diary-of-a-lagos-9-5er-i1",
      "strength": "fair"
     },
@@ -2526,7 +3062,11 @@
      "status": "published",
      "releaseAtMs": 1791997200000
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: no detention in any chapter. The R1.1 Water alternate is dropped."
+   }
   },
   {
    "kind": "picture",
@@ -2563,6 +3103,11 @@
      "quote": "You are not sleeping another night in that dirt. You are coming home with me.",
      "quoteFrom": "the-doherty-confessions-i2",
      "strength": "fair"
+    },
+    {
+     "motif": "Captive",
+     "quote": "They are about to take Madam Victoria. You need to come right now.",
+     "strength": "fair"
     }
    ],
    "instalments": [
@@ -2578,7 +3123,11 @@
      "status": "published",
      "releaseAtMs": 1792224000000
     }
-   ]
+   ],
+   "captiveRead": {
+    "strength": "fair",
+    "primary": false
+   }
   }
  ],
  "instalments": [
@@ -2607,8 +3156,17 @@
      "motif": "Road",
      "quote": "we were tied together and marched through the mud in a great caravan",
      "strength": "fair"
+    },
+    {
+     "motif": "Captive",
+     "quote": "We camped for the night in our chains. In the morning we were made to march again.",
+     "strength": "strong"
     }
-   ]
+   ],
+   "captiveRead": {
+    "strength": "strong",
+    "primary": false
+   }
   },
   {
    "kind": "instalment",
@@ -2641,7 +3199,11 @@
      "quote": "The same Omegas who reported the army were from the hunting party. I'm sorry, but it looks like Darius is dead.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: the only references are to her past 'as a slave' (Part One backstory). No one is held in this instalment."
+   }
   },
   {
    "kind": "instalment",
@@ -2669,7 +3231,11 @@
      "quote": "'To the glorious dead, may they lead the way to Lycandra's feast hall.'",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: a siege with the gates shut, a passing 'twelve of ours have been captured', a 'capture if you can' order and the metaphor 'poison prison'. Nothing in the story turns on anyone being held."
+   }
   },
   {
    "kind": "instalment",
@@ -2688,16 +3254,15 @@
    "why": "The chapter is built around Yemi's four-hour commute across Lagos, which drains his money, makes him late and puts him beside Bolaji on the bus home.",
    "alternates": [
     {
-     "motif": "Water",
-     "quote": "Lagos rain does not negotiate. It arrived all at once, and within sixty seconds, the road was a river.",
-     "strength": "strong"
-    },
-    {
      "motif": "Debt",
      "quote": "The rent discussion cannot wait again. Call me tomorrow. IT'S IMPORTANT.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: 'hold everyone hostage' is a figure of speech for agberos delaying a bus."
+   }
   },
   {
    "kind": "instalment",
@@ -2720,7 +3285,11 @@
      "quote": "Please shelf this, and we can revisit it in the new fiscal year.",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: no detention of any kind."
+   }
   },
   {
    "kind": "instalment",
@@ -2743,7 +3312,11 @@
      "quote": "Half of three hundred thousand, the full year's rent on my self-contain apartment",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: no detention of any kind."
+   }
   },
   {
    "kind": "instalment",
@@ -2766,7 +3339,11 @@
      "quote": "₦19,500, of which ₦25,000 was owed to Chidi, which meant technically I was operating in deficit",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: staying in his role as 'a sentence' is a job metaphor, which the rule excludes."
+   }
   },
   {
    "kind": "instalment",
@@ -2798,8 +3375,17 @@
      "motif": "Child",
      "quote": "He had drawn a crooked birthday cake with a blue pen and written HAPPY BIRTHDAY MUMMY across it.",
      "strength": "fair"
+    },
+    {
+     "motif": "Captive",
+     "quote": "They are about to take Madam Victoria. You need to come right now.",
+     "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "strength": "fair",
+    "primary": false
+   }
   },
   {
    "kind": "instalment",
@@ -2832,7 +3418,11 @@
      "quote": "All I knew was that he was a forbidden ghost. Just saying his name could ruin my mother",
      "strength": "fair"
     }
-   ]
+   ],
+   "captiveRead": {
+    "none": true,
+    "note": "Rejected: being abandoned, evicted, a mob in the market and Jay's courtship. No one is held, arrested or locked in."
+   }
   }
  ]
 }

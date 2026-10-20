@@ -1,4 +1,4 @@
-// THE MOTIF SHEET — gate 1 of Shorelines (CARDS-R1.1).
+// THE MOTIF SHEET — gate 1 of Shorelines (CARDS-R1.2).
 //
 //   node scripts/cards/motif-sheet.mjs        # writes cards/review/MOTIF-SHEET.md + cards/data/deck.json
 //
@@ -18,6 +18,11 @@
 // Storm → Water and Fire → Grave. The livery-mix targets are dropped, but every livery should
 // still carry a spread of motifs. Ikenna's own bylines (Calvary, Ikenna Okpara) go in wherever
 // the balance allows.
+//
+// ── R1.2 RULING ──────────────────────────────────────────────────────────────────────────
+// Water is replaced by Captive (a kidnapping, an arrest, a prison or a locked room that holds
+// someone against their will, and the story turns on it). Every Ending keeps its name. If the
+// library can't fill Captive honestly, the deck runs short.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,9 +33,9 @@ const draft = JSON.parse(readFileSync(resolve(ROOT, 'cards/data/motif-draft.json
 const bySlug = new Map([...draft.stories, ...draft.pictures].map((r) => [r.slug, r]));
 const IKENNA = /^(Calvary|Ikenna Okpara)$/;
 
-// The ruled shape: six motifs at 7, two at 6. Water and House take the 6s. Water is the one the
-// library is shortest of, and House is carried only by alternate readings.
-export const TARGET = Object.freeze({ Letter: 7, Secret: 7, Child: 7, Water: 6, Road: 7, House: 6, Debt: 7, Grave: 7 });
+// The ruled shape: six motifs at 7, two at 6. Captive takes Water's 6 (it is the motif the
+// library is shortest of), and House keeps its 6 (it is carried only by alternate readings).
+export const TARGET = Object.freeze({ Letter: 7, Secret: 7, Child: 7, Captive: 6, Road: 7, House: 6, Debt: 7, Grave: 7 });
 
 // The picture cards, one per published series: each takes the motif its series turns on.
 export const PICTURES = Object.freeze(draft.pictures.filter((p) => p.status === 'published').map((p) => p.slug));
@@ -41,7 +46,7 @@ export const DECK = Object.freeze({
   Letter: ['purple-rain', '7am-an-american-pulp-classic', 'skin-eater', 'a-legacy-through-time', 'love-it-enough', 'a-daub-of-blue', 'my-daddy-is-a-superhero'],
   Secret: ['how-are-you-my-friend', 'full', 'brenda', 'lagos-friendship', 'the-songbird-s-birdsong'],
   Child: ['mother-and-other-poems', 'dont-worry', 'you-will-love-it', 'boomerang', 'beyond-saving', 'sixth-cycle', 'chernobyl'],
-  Water: ['widow-s-fire', 'almost-like-her'],
+  Captive: ['free-will', 'the-number-thirteen', 'the-man-i-met-at-nineteen', 'anomaly', 'the-call'],
   Road: ['miss-lady', 'arrival-again', 'odeluwa', 'zee-a-love-letters-story', 'final-boarding-call', 'seat-14b', 'puppy-love'],
   House: ['the-girl-who-sang-through-the-dark', 'from-scratch', 'terms-and-conditions', 'mango-season', 'small-permissions', 'room-14'],
   Debt: ['the-enabler', 'unstoppabbl', 'safety-net', 'till-debt-do-us-part', 'manage-it', 'sapiosexual'],
@@ -50,18 +55,27 @@ export const DECK = Object.freeze({
 
 export const ALTERNATES = Object.freeze({
   Letter: ['you-didnt-ask', 'chaff'],
-  Secret: ['the-man-i-met-at-nineteen', 'did-you-enjoy-it'],
-  Child: ['things-i-m-owed', 'anomaly'],
-  Water: [],
+  Secret: ['did-you-enjoy-it', 'ladies-diaries'],
+  Child: ['things-i-m-owed', 'your-money-cannot-save-you'],
+  Captive: [],
   Road: ['hold-your-breath-and-count-to-ten', 'notes'],
   House: ['threshold', 'pigment'],
   Debt: ['notes'],
   Grave: ['what-the-light-remembers', 'the-pill'],
 });
 
-/** A reader's fair Water alternate that this proposal does NOT take, and why. Shown on the sheet. */
+/**
+ * Stories a reader looked at for Captive and declined, because nobody is held or the story does
+ * not turn on it. Shown on the sheet, so the shortfall can be checked rather than taken on trust.
+ */
 export const DECLINED = Object.freeze([
-  { slug: 'the-call', motif: 'Water', reason: 'the rain is the night\'s weather while he waits, a mood rather than a presence in events. The R1 reader read it as atmosphere too' },
+  { slug: 'witness-me', reason: 'the arrest of HorseShoe and Yam Leg is the closing beat; the story turns on witnessing the murder' },
+  { slug: 'maid-of-honour', reason: 'Kodi is handcuffed only after the shooting, and the story does not turn on the arrest' },
+  { slug: 'proof-of-life', reason: 'the police escort Jemima to their car only in the closing lines' },
+  { slug: '1967', reason: 'the villagers are herded to the square to be shot that afternoon: a round-up for an execution, not a holding' },
+  { slug: 'hold-your-breath-and-count-to-ten', reason: 'the arrest and the binding vines are passing moments; it turns on the judgement at the bridge' },
+  { slug: 'brenda', reason: 'the abduction is staged, and the narrator is Brenda herself' },
+  { slug: 'how-are-you-my-friend', reason: 'Halimat disappears and is found dead; she is never shown held' },
 ]);
 
 const LIVERY_NAME = { short: 'Short Story', flash: 'Flash Fiction', poetry: 'Poetry', inspiring: 'Inspiring', series: 'Series' };
@@ -100,27 +114,29 @@ function sheet(cards) {
   const total = Object.values(TARGET).reduce((a, b) => a + b, 0);
   const short = total - cards.length;
   const byMotif = (m) => count((c) => c.motif === m);
-  L.push('# Shorelines — motif sheet (CARDS-R1.1, gate 1)');
+  L.push('# Shorelines — motif sheet (CARDS-R1.2, gate 1)');
   L.push('');
   L.push('**DRAFT for Ikenna.** It is ratified when Ikenna renames this file to `RATIFIED.md`, or gives a quoted authorisation that is recorded at the rename. It is never renamed on anyone else\'s judgement.');
   L.push('');
-  L.push(`Generated by \`scripts/cards/motif-sheet.mjs\` from \`cards/data/motif-draft.json\`. Every eligible story and Series instalment was re-read in full for R1.1's two new motifs. Every quote below is checked character for character against the text: \`story_bodies\` for stories, the instalment EPUBs for Series. All reads were read-only.`);
+  L.push(`Generated by \`scripts/cards/motif-sheet.mjs\` from \`cards/data/motif-draft.json\`. For R1.2 every eligible story and Series instalment was re-read in full for Captive, and each series judged as a whole. Every quote below is checked character for character against the text: \`story_bodies\` for stories, the instalment EPUBs for Series. All reads were read-only, and the database is unchanged since R1.1.`);
   L.push('');
-  L.push('**Water:** the sea, a river, a lagoon, rain or a flood as a real presence in events. **Grave:** a death, a funeral or a burial the story turns on. The other six motifs are as R1 defined them. Ring order, clockwise from the top: Letter, Secret, Child, Water, Road, House, Debt, Grave.');
+  L.push('**Captive:** a kidnapping, an arrest, a prison or a locked room that holds someone against their will, and the story turns on it, not a passing word. Feeling "trapped" in a job, a marriage or a life is a metaphor and does not count. **Grave:** a death, a funeral or a burial the story turns on. The other six motifs are as R1 defined them. Ring order, clockwise from the top: Letter, Secret, Child, Captive, Road, House, Debt, Grave. Child–Captive is THE RESCUE and Captive–Road is THE ESCAPE.');
   L.push('');
   L.push('## The short answer');
   L.push('');
-  L.push(`**The library honestly fills ${cards.length} of 54**: ${PICTURES.length} picture cards and ${cards.length - PICTURES.length} story cards. **${short} slots are left empty, all of them Water.**`);
+  L.push(`**The library honestly fills ${cards.length} of 54**: ${PICTURES.length} picture cards and ${cards.length - PICTURES.length} story cards. **${short === 1 ? 'One slot is left empty, and it is Captive.' : `${short} slots are left empty, all of them Captive.`}**`);
   L.push('');
-  L.push(`- **Water: ${byMotif('Water')} of ${TARGET.Water}.** No eligible story turns on water as its main motif. Two carry it honestly as an alternate reading:`);
-  L.push('  - *Almost Like Her*: rain on an evening walk is what makes him say "You look like her", the story\'s first real crack.');
-  L.push('  - *Widow\'s Fire*: its first part is "Still Water", and the husband\'s drowning is what the story turns on. **One flag:** he drowns in a swimming pool, which the definition doesn\'t name.');
-  L.push(`  - **Declined:** ${DECLINED.map((d) => `*${bySlug.get(d.slug).title}*, a reader's fair Water alternate, because ${d.reason}`).join('; ')}.`);
-  L.push('  - The library\'s strongest Water is Diary of a Lagos 9-5er, Chapter I ("the road was a river"). But its picture card carries Debt, the motif the series turns on. If Ikenna ruled the Diary picture card as Water, Water would be 3 of 6 and Debt would need one more story (*Notes* is the alternate).');
-  L.push(`- **Grave is the opposite case.** ${draft.stories.filter((s) => s.primary === 'Grave').length} stories now have it as their main motif, so the deck takes 7 and leaves plenty out.`);
+  const cap = cards.filter((c) => c.motif === 'Captive');
+  L.push(`- **Captive: ${byMotif('Captive')} of ${TARGET.Captive}.** ${cap.filter((c) => c.reading === 'primary').length} stories turn on it as their main motif, and ${cap.filter((c) => c.reading === 'alternate').length} carry it honestly as a fair alternate:`);
+  for (const c of cap) L.push(`  - *${c.title}* (${c.reading}, ${c.fit}): ${bySlug.get(c.slug).primary === 'Captive' ? bySlug.get(c.slug).why : { 'the-man-i-met-at-nineteen': 'the narrator is arrested and tells the story from prison; the arrest is the payoff of the secret, so Secret stays its main motif.', anomaly: 'Chike holds Nonso tied up on the kitchen floor for the reckoning; the story still turns on the abused child, so Child stays its main motif.', 'the-call': 'the whole story runs on a ransom demand for the daughter Edet abandoned. **Flag:** the kidnapping turns out to be a hoax staged by her cousins, which is why it is only fair. Child stays its main motif.' }[c.slug]}`);
+  L.push(`  - **All ${cap.length} are Short Stories**, and ${cap.filter((c) => c.author === 'Dera Okaro').length} of the ${cap.length} are by Dera Okaro. That is what the library holds; it is not a choice.`);
+  L.push(`  - **Considered and declined** (no one is held, or the story does not turn on it): ${DECLINED.map((d) => `*${bySlug.get(d.slug).title}*: ${d.reason}`).join('; ')}. Every \"trapped\", \"cage\" and \"prison\" used as a figure of speech was declined too.`);
+  L.push('  - **The series:** Beta Princess (Part One, strong: Sibry and her servants are chained and marched to Silverclaw) and The Doherty Confessions (Instalment I, fair: the police come to arrest Victoria, and she jumps before they can) both carry Captive as an alternate. Their picture cards keep the motif each series turns on most (Secret), as ruled in R1.1.');
+  L.push(`- **No story already in R1.1's deck moved to Captive**, so no motif lost a card and nothing had to be back-filled. The two R1.1 Water cards (*Widow\'s Fire*, *Almost Like Her*) leave the deck: neither carries Captive, and every other motif is already full.`);
+  L.push(`- **Grave is still the opposite case.** ${draft.stories.filter((s) => s.primary === 'Grave').length} stories have it as their main motif, so the deck takes 7 and leaves plenty out.`);
   L.push(`- **House** reaches ${byMotif('House')}, but only on alternate readings. No story has House as its main motif, and each House card is labelled.`);
   L.push('');
-  L.push('**The question for Ikenna, not something to fix by stretching:** a 50-card deck, or a ruling on Water. That could mean taking pools, or the Diary card, or replacing the motif. Replacing it would rename THE RESCUE and THE ESCAPE.');
+  L.push(`**For Ikenna:** the ruling says the deck runs at 50 if the library can't fill Captive honestly. It fills ${byMotif('Captive')} of ${TARGET.Captive}, so the honest deck is **${cards.length}**, one short. Whether that is ${cards.length} cards, or 50 with three cards taken out, is Ikenna\'s call. Nothing has been stretched to reach 54.`);
   L.push('');
   L.push('## Picture cards: one per published series');
   L.push('');
@@ -176,19 +192,20 @@ function sheet(cards) {
   L.push('');
   L.push('*Notes* is the only further honest Debt story. *Boomerang* also reads as Debt, but it is in the deck as Child.');
   L.push('');
-  L.push('## What changed from R1');
+  L.push('## What changed from R1.1');
   L.push('');
-  const r1 = new Set(['purple-rain', '7am-an-american-pulp-classic', 'skin-eater', 'a-legacy-through-time', 'love-it-enough', 'a-daub-of-blue', 'how-are-you-my-friend', 'full', 'brenda', 'the-songbird-s-birdsong', 'lagos-friendship', 'did-you-enjoy-it', 'ladies-diaries', 'mother-and-other-poems', 'dont-worry', 'you-will-love-it', 'boomerang', 'beyond-saving', 'sixth-cycle', 'the-call', 'miss-lady', 'beautifully-blue', 'arrival-again', 'odeluwa', 'final-boarding-call', 'zee-a-love-letters-story', 'seat-14b', 'the-girl-who-sang-through-the-dark', 'room-14', 'small-permissions', 'threshold', 'from-scratch', 'terms-and-conditions', 'the-enabler', 'unstoppabbl', 'safety-net', 'till-debt-do-us-part', 'manage-it', 'sapiosexual', 'notes', 'pigment', 'one-day-for-the-thief']);
+  const r11 = new Set(['purple-rain', '7am-an-american-pulp-classic', 'skin-eater', 'a-legacy-through-time', 'love-it-enough', 'a-daub-of-blue', 'my-daddy-is-a-superhero', 'how-are-you-my-friend', 'full', 'brenda', 'lagos-friendship', 'the-songbird-s-birdsong', 'mother-and-other-poems', 'dont-worry', 'you-will-love-it', 'boomerang', 'beyond-saving', 'sixth-cycle', 'chernobyl', 'widow-s-fire', 'almost-like-her', 'miss-lady', 'arrival-again', 'odeluwa', 'zee-a-love-letters-story', 'final-boarding-call', 'seat-14b', 'puppy-love', 'the-girl-who-sang-through-the-dark', 'from-scratch', 'terms-and-conditions', 'mango-season', 'small-permissions', 'room-14', 'the-enabler', 'unstoppabbl', 'safety-net', 'till-debt-do-us-part', 'manage-it', 'sapiosexual', 'the-deadline', 'the-most-dangerous-job-in-nigeria', 'beautifully-blue', 'drip-drip-drip', '1967', 'i-told-you', 'peer-pressure-from-the-dead']);
   const now = new Set(cards.filter((c) => c.kind === 'story').map((c) => c.slug));
-  L.push(`- **The picture cards:** R1 had four instalment cards (Beta Princess ×2, Diary, Doherty). Now there are ${PICTURES.length}, one per series, each wearing its poster.`);
-  L.push(`- **In:** ${[...now].filter((s) => !r1.has(s)).map((s) => `*${bySlug.get(s).title}*`).join(', ')}.`);
-  L.push(`- **Out:** ${[...r1].filter((s) => !now.has(s)).map((s) => `*${bySlug.get(s).title}*`).join(', ')}. *Did You Enjoy It?* and *Ladies' Diaries* (Secret) give way to the two Secret picture cards, and *Notes* (Debt) to the Diary picture card. *The Call* gives way to *Chernobyl* in a full Child. *Threshold*, *Pigment* and *One Day for the Thief* are now Grave, which is full. *Threshold* and *Pigment* remain as House alternates.`);
-  L.push(`- **Reclassified to Grave on the re-read:** ${draft.stories.filter((s) => s.primary === 'Grave').length} stories. In the deck, *Beautifully Blue* moves from Road to Grave, and *Threshold* (now Grave) leaves House for the alternates.`);
+  L.push(`- **In, as Captive:** ${[...now].filter((s) => !r11.has(s)).map((s) => `*${bySlug.get(s).title}*`).join(', ')}.`);
+  L.push(`- **Out, with Water:** ${[...r11].filter((s) => !now.has(s)).map((s) => `*${bySlug.get(s).title}*`).join(', ')}.`);
+  L.push('- **Reclassified on the re-read:** *Free Will* (Secret → Captive) and *The Number Thirteen* (no motif → Captive). Every other primary stands.');
+  L.push('- **Alternates:** *The Man I Met at Nineteen* (Secret) and *Anomaly* (Child) are now in the deck as Captive, so the Secret and Child alternates are the next-best: *Ladies\' Diaries* and *Your Money Cannot Save You*. Water\'s alternates are gone with Water.');
+  L.push('- **The 45 cards of the other seven motifs are unchanged**, as are the three picture cards.');
   L.push('');
   L.push('## Appendix — the draft for every eligible story and instalment');
   L.push('');
   const none = draft.stories.filter((s) => s.primary === 'none').length;
-  L.push(`${draft.stories.length} eligible stories: published \`cms_stories\`, not hidden, not retired, not scheduled for later, excluding News & Updates; none is \`ageRestricted\`. Then ${draft.instalments.length} published Series instalments, read individually; their series-level motifs are in the picture-card table above. **${none} of the ${draft.stories.length} stories turn on none of the eight motifs** (R1 had 54; Grave claimed 10 of them).`);
+  L.push(`${draft.stories.length} eligible stories: published \`cms_stories\`, not hidden, not retired, not scheduled for later, excluding News & Updates; none is \`ageRestricted\`. Then ${draft.instalments.length} published Series instalments, read individually; their series-level motifs are in the picture-card table above. **${none} of the ${draft.stories.length} stories turn on none of the eight motifs.**`);
   L.push('');
   L.push('| Title | Livery | Primary | Fit | Quote | Also fits |');
   L.push('|---|---|---|---|---|---|');

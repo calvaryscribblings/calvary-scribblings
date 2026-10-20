@@ -53,33 +53,39 @@ export const PT_PER_MM = 72 / 25.4;
 export const ptOf = (px) => mm(px) * PT_PER_MM;
 export const pxOfPt = (pt) => coverPx(pt / PT_PER_MM);
 
-// ── THE FLOORS — CHOSEN, NOT DERIVED ─────────────────────────────────────────────────────
-// 6 pt is the print convention for the smallest type a reader is asked to read, and the brief
-// names it as a choice. Scaled by width, three of the cover's rows fall under it; see
-// TYPE below. 0.25 pt is the matching convention for the thinnest rule a press will hold:
-// the cover's 1 px inner keyline scales to 0.036 mm (0.10 pt), which a printer can drop.
-export const TYPE_FLOOR_PT = 6;
+// ── SMALL TYPE — R1.2 (Ikenna's ruling) ─────────────────────────────────────────────────
+// The descriptor is set at the cover's own size, scaled by width: 54 cover px is 5.45 pt at this
+// width, tracked at the cover's own 9 px. The face scales by width from the cover, so whatever
+// fits on a cover fits on its card, and no descriptor needs its tracking touched. R1.1's 6-pt
+// floor and its one deck-wide tracking are gone.
+//
+// That size is the face's floor: nothing is set smaller than the descriptor. The eyebrow (34 px,
+// 3.43 pt) and the footer (40 px, 4.04 pt) are raised ONLY to the descriptor's size, each
+// keeping its tracking as a proportion of its size, so the eyebrow never outranks the
+// descriptor. Rows already at or above it (the author, the title) are untouched.
+//
+// 0.25 pt is the print convention for the thinnest rule a press will hold (CHOSEN): the cover's
+// 1 px inner keyline scales to 0.036 mm (0.10 pt), which a printer can drop.
+export const TYPE_FLOOR_PX = DESCRIPTOR.size;
+export const TYPE_FLOOR_PT = ptOf(TYPE_FLOOR_PX);             // 5.45
 export const LINE_FLOOR_PT = 0.25;
 export const LINE_FLOOR_PX = pxOfPt(LINE_FLOOR_PT);           // in cover px
 
-/**
- * THE PROPOSED FIX for type under the floor: raise it to the floor and keep its tracking AS A
- * PROPORTION OF ITS SIZE, so the row keeps the cover's colour of spacing. Rows already above
- * the floor are untouched.
- */
+/** Raise a row under the floor to it, its tracking held as a proportion of its size. */
 function floored(row) {
   const pt = ptOf(row.size);
-  if (pt >= TYPE_FLOOR_PT) return { ...row, scaledPt: pt, raised: false };
-  const size = pxOfPt(TYPE_FLOOR_PT);
+  if (row.size >= TYPE_FLOOR_PX) return { ...row, scaledPt: pt, raised: false };
+  const size = TYPE_FLOOR_PX;
   return { ...row, size, tracking: row.tracking * (size / row.size), scaledPt: pt, raised: true };
 }
 
 export const TYPE = Object.freeze({
   eyebrow: Object.freeze(floored(EYEBROW)),
   footer: Object.freeze(floored(FOOTER)),
-  descriptor: Object.freeze(floored({ ...DESCRIPTOR, tracking: DESCRIPTOR.tracking })),
+  descriptor: Object.freeze(floored(DESCRIPTOR)),
   author: Object.freeze(floored(AUTHOR)),
 });
+if (TYPE.eyebrow.size > TYPE.descriptor.size) throw new Error('the eyebrow outranks the descriptor');
 
 // ── THE VERTICAL MAP ─────────────────────────────────────────────────────────────────────
 // Top furniture keeps its cover y. Bottom furniture moves down by OPENING. The stack region
@@ -162,26 +168,30 @@ export const ENDING = Object.freeze({
   ground: '#2A2318', keyline: '#C9A84C', title: '#F5F0E8', glow: '#5A4A2C',
 });
 
-// Ring order, clockwise from the top. R1.1 (Ikenna): Storm became Water and Fire became Grave;
-// every Ending keeps its name.
-export const MOTIFS = Object.freeze(['Letter', 'Secret', 'Child', 'Water', 'Road', 'House', 'Debt', 'Grave']);
+// Ring order, clockwise from the top. R1.1 (Ikenna): Storm became Water and Fire became Grave.
+// R1.2 (Ikenna): Water became Captive. Every Ending keeps its name.
+export const MOTIFS = Object.freeze(['Letter', 'Secret', 'Child', 'Captive', 'Road', 'House', 'Debt', 'Grave']);
 export const ENDINGS = Object.freeze([
   { name: 'THE REVELATION', pair: ['Letter', 'Secret'] },
   { name: 'THE BIRTHRIGHT', pair: ['Secret', 'Child'] },
-  { name: 'THE RESCUE', pair: ['Child', 'Water'] },
-  { name: 'THE ESCAPE', pair: ['Water', 'Road'] },
+  { name: 'THE RESCUE', pair: ['Child', 'Captive'] },
+  { name: 'THE ESCAPE', pair: ['Captive', 'Road'] },
   { name: 'THE RETURN', pair: ['Road', 'House'] },
   { name: 'THE FALL', pair: ['House', 'Debt'] },
   { name: 'THE RECKONING', pair: ['Debt', 'Grave'] },
   { name: 'THE FAREWELL', pair: ['Grave', 'Letter'] },
 ]);
 
-// ── THE PICTURE CARDS — CHOSEN ───────────────────────────────────────────────────────────
-// One per published series, wearing its poster. A poster is 2:3, and so is the card WITH its
-// bleed (63 × 95 mm, 0.6632 against 0.6667), so the poster is fitted to the bleed HEIGHT and
-// centred: only the bleed trims it, 0.17 mm off each long side. The indices and the code sit
-// on plates in the Series livery's own ground, with their marks in its keyline.
+// ── THE PICTURE CARDS ────────────────────────────────────────────────────────────────────
+// One per published series, wearing its poster (cards/posters/, Ikenna's files). R1.2 FRAMES
+// the poster: the whole poster is shrunk, centred on the trim, until its outermost type clears
+// the safe line by POSTER_FRAME.clearMm, and the margin is filled with Series cream. The scale
+// is derived per poster from its worst element (face.mjs, frameScale). The art is never
+// cropped to make the type fit, and never enlarged past the fit to the bleed.
+//
+// The indices and the code sit on plates (CHOSEN in R1.1): Series cream, marks in Series maroon.
 export const PLATE = Object.freeze({ colour: '#E6E0D2', ink: '#6E1424', padMm: 0.8, radiusMm: 0.6 });
+export const POSTER_FRAME = Object.freeze({ colour: '#E6E0D2', clearMm: 0.5 });
 
 // ── THE STORY BACK ───────────────────────────────────────────────────────────────────────
 // Ikenna's upload, cards/Story-Island-icon.png. Its ground is one flat colour, sampled from

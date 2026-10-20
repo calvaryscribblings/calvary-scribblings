@@ -1,235 +1,287 @@
 {
- "method": "Each element is the bounding box of the pixels brighter than a luminance threshold inside a hand-set search region, rows and columns with at least 2 hits; boxes are in the poster's own pixels (1024 x 1536). Search regions and thresholds are kept beside each box so the measurement can be re-run. Drawn back over each poster and checked by eye in R1.1.",
+ "method": "Each element is the bounding box of the pixels brighter than a luminance threshold (Rec. 709 luma) inside a hand-set search region, keeping rows and columns with at least 2 hits. Boxes are in the poster file's own pixels. Search regions and thresholds are kept beside each box so the measurement can be re-run. R1.2: Beta Princess re-measured on cards/posters/beta.jpeg (1406 x 2048); the Doherty title measured line by line. Every box drawn back over its poster and checked by eye.",
  "posters": {
-  "beta-princess": [
-   {
-    "name": "title BETA",
-    "box": [
-     393,
-     120,
-     645,
-     196
-    ],
-    "searchRegion": [
-     40,
-     120,
-     990,
-     215
-    ],
-    "lumaThreshold": 120
-   },
-   {
-    "name": "title PRINCESS",
-    "box": [
-     90,
-     219,
-     942,
-     325
-    ],
-    "searchRegion": [
-     40,
-     215,
-     990,
-     345
-    ],
-    "lumaThreshold": 120
-   },
-   {
-    "name": "author MONICA GARCIA",
-    "box": [
-     233,
-     1408,
-     784,
-     1433
-    ],
-    "searchRegion": [
-     150,
-     1395,
-     840,
-     1450
-    ],
-    "lumaThreshold": 110
-   },
-   {
-    "name": "A NIGHTSONG NOVELLA",
-    "box": [
-     292,
-     1469,
-     729,
-     1484
-    ],
-    "searchRegion": [
-     150,
-     1455,
-     840,
-     1500
-    ],
-    "lumaThreshold": 60
-   },
-   {
-    "name": "Story Island badge",
-    "box": [
-     889,
-     1417,
-     955,
-     1476
-    ],
-    "searchRegion": [
-     860,
-     1390,
-     990,
-     1510
-    ],
-    "lumaThreshold": 90
-   }
-  ],
-  "diary-of-a-lagos-9-5er": [
-   {
-    "name": "title",
-    "box": [
-     82,
-     181,
-     924,
-     239
-    ],
-    "searchRegion": [
-     40,
-     160,
-     990,
-     255
-    ],
-    "lumaThreshold": 150
-   },
-   {
-    "name": "a serialised novel",
-    "box": [
-     368,
-     279,
-     655,
-     307
-    ],
-    "searchRegion": [
-     150,
-     265,
-     880,
-     320
-    ],
-    "lumaThreshold": 130
-   },
-   {
-    "name": "subtitle rules",
-    "box": [
-     232,
-     284,
-     780,
-     302
-    ],
-    "searchRegion": [
-     100,
-     284,
-     950,
-     302
-    ],
-    "lumaThreshold": 80
-   },
-   {
-    "name": "author Tricia Ajax",
-    "box": [
-     48,
-     1330,
-     314,
-     1374
-    ],
-    "searchRegion": [
-     30,
-     1300,
-     330,
-     1390
-    ],
-    "lumaThreshold": 150
-   },
-   {
-    "name": "NOVEL",
-    "box": [
-     101,
-     1402,
-     206,
-     1421
-    ],
-    "searchRegion": [
-     30,
-     1390,
-     330,
-     1435
-    ],
-    "lumaThreshold": 120
-   }
-  ],
-  "the-doherty-confessions": [
-   {
-    "name": "A CALVARY SCRIBBLINGS SERIES",
-    "box": [
-     215,
-     51,
-     807,
-     66
-    ],
-    "searchRegion": [
-     150,
-     30,
-     880,
-     80
-    ],
-    "lumaThreshold": 110
-   },
-   {
-    "name": "title THE DOHERTY CONFESSIONS",
-    "box": [
-     145,
-     137,
-     886,
-     366
-    ],
-    "searchRegion": [
-     100,
-     110,
-     940,
-     385
-    ],
-    "lumaThreshold": 150
-   },
-   {
-    "name": "rule",
-    "box": [
-     431,
-     416,
-     593,
-     418
-    ],
-    "searchRegion": [
-     380,
-     395,
-     650,
-     430
-    ],
-    "lumaThreshold": 120
-   },
-   {
-    "name": "author Dera Okaro",
-    "box": [
-     362,
-     1378,
-     666,
-     1424
-    ],
-    "searchRegion": [
-     300,
-     1350,
-     720,
-     1450
-    ],
-    "lumaThreshold": 170
-   }
-  ]
+  "beta-princess": {
+   "file": "cards/posters/beta.jpeg",
+   "px": [
+    1406,
+    2048
+   ],
+   "elements": [
+    {
+     "role": "title",
+     "name": "title BETA",
+     "box": [
+      540,
+      169,
+      886,
+      251
+     ],
+     "searchRegion": [
+      450,
+      150,
+      1000,
+      285
+     ],
+     "lumaThreshold": 120
+    },
+    {
+     "role": "title",
+     "name": "title PRINCESS",
+     "box": [
+      118,
+      311,
+      1293,
+      430
+     ],
+     "searchRegion": [
+      60,
+      285,
+      1350,
+      470
+     ],
+     "lumaThreshold": 120
+    },
+    {
+     "role": "type",
+     "name": "author MONICA GARCIA",
+     "box": [
+      320,
+      1915,
+      1076,
+      1949
+     ],
+     "searchRegion": [
+      250,
+      1895,
+      1150,
+      1978
+     ],
+     "lumaThreshold": 110
+    },
+    {
+     "role": "type",
+     "name": "A NIGHTSONG NOVELLA",
+     "box": [
+      401,
+      1998,
+      1001,
+      2019
+     ],
+     "searchRegion": [
+      300,
+      1985,
+      1100,
+      2045
+     ],
+     "lumaThreshold": 60
+    }
+   ]
+  },
+  "diary-of-a-lagos-9-5er": {
+   "file": "cards/posters/diary.jpeg",
+   "px": [
+    1024,
+    1536
+   ],
+   "elements": [
+    {
+     "role": "title",
+     "name": "title",
+     "box": [
+      82,
+      181,
+      924,
+      239
+     ],
+     "searchRegion": [
+      40,
+      160,
+      990,
+      255
+     ],
+     "lumaThreshold": 150
+    },
+    {
+     "role": "type",
+     "name": "a serialised novel",
+     "box": [
+      368,
+      279,
+      655,
+      307
+     ],
+     "searchRegion": [
+      150,
+      265,
+      880,
+      320
+     ],
+     "lumaThreshold": 130
+    },
+    {
+     "role": "rule",
+     "name": "subtitle rules",
+     "box": [
+      232,
+      284,
+      780,
+      302
+     ],
+     "searchRegion": [
+      100,
+      284,
+      950,
+      302
+     ],
+     "lumaThreshold": 80
+    },
+    {
+     "role": "type",
+     "name": "author Tricia Ajax",
+     "box": [
+      48,
+      1330,
+      314,
+      1374
+     ],
+     "searchRegion": [
+      30,
+      1300,
+      330,
+      1390
+     ],
+     "lumaThreshold": 150
+    },
+    {
+     "role": "type",
+     "name": "NOVEL",
+     "box": [
+      101,
+      1402,
+      206,
+      1421
+     ],
+     "searchRegion": [
+      30,
+      1390,
+      330,
+      1435
+     ],
+     "lumaThreshold": 120
+    }
+   ]
+  },
+  "the-doherty-confessions": {
+   "file": "cards/posters/doherty.png",
+   "px": [
+    1024,
+    1536
+   ],
+   "elements": [
+    {
+     "role": "type",
+     "name": "A CALVARY SCRIBBLINGS SERIES",
+     "box": [
+      215,
+      51,
+      807,
+      66
+     ],
+     "searchRegion": [
+      150,
+      30,
+      880,
+      80
+     ],
+     "lumaThreshold": 110
+    },
+    {
+     "role": "title",
+     "name": "title THE",
+     "box": [
+      451,
+      137,
+      572,
+      171
+     ],
+     "searchRegion": [
+      100,
+      110,
+      940,
+      185
+     ],
+     "lumaThreshold": 150
+    },
+    {
+     "role": "title",
+     "name": "title DOHERTY",
+     "box": [
+      246,
+      204,
+      788,
+      270
+     ],
+     "searchRegion": [
+      100,
+      185,
+      940,
+      285
+     ],
+     "lumaThreshold": 150
+    },
+    {
+     "role": "title",
+     "name": "title CONFESSIONS",
+     "box": [
+      145,
+      305,
+      886,
+      366
+     ],
+     "searchRegion": [
+      100,
+      285,
+      940,
+      385
+     ],
+     "lumaThreshold": 150
+    },
+    {
+     "role": "rule",
+     "name": "rule",
+     "box": [
+      431,
+      416,
+      593,
+      418
+     ],
+     "searchRegion": [
+      380,
+      395,
+      650,
+      430
+     ],
+     "lumaThreshold": 120
+    },
+    {
+     "role": "type",
+     "name": "author Dera Okaro",
+     "box": [
+      362,
+      1378,
+      666,
+      1424
+     ],
+     "searchRegion": [
+      300,
+      1350,
+      720,
+      1450
+     ],
+     "lumaThreshold": 170
+    }
+   ]
+  }
  }
 }
