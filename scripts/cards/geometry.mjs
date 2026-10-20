@@ -162,16 +162,31 @@ export const ENDING = Object.freeze({
   ground: '#2A2318', keyline: '#C9A84C', title: '#F5F0E8', glow: '#5A4A2C',
 });
 
-export const MOTIFS = Object.freeze(['Letter', 'Secret', 'Child', 'Storm', 'Road', 'House', 'Debt', 'Fire']);
+// Ring order, clockwise from the top. R1.1 (Ikenna): Storm became Water and Fire became Grave;
+// every Ending keeps its name.
+export const MOTIFS = Object.freeze(['Letter', 'Secret', 'Child', 'Water', 'Road', 'House', 'Debt', 'Grave']);
 export const ENDINGS = Object.freeze([
   { name: 'THE REVELATION', pair: ['Letter', 'Secret'] },
   { name: 'THE BIRTHRIGHT', pair: ['Secret', 'Child'] },
-  { name: 'THE RESCUE', pair: ['Child', 'Storm'] },
-  { name: 'THE ESCAPE', pair: ['Storm', 'Road'] },
+  { name: 'THE RESCUE', pair: ['Child', 'Water'] },
+  { name: 'THE ESCAPE', pair: ['Water', 'Road'] },
   { name: 'THE RETURN', pair: ['Road', 'House'] },
   { name: 'THE FALL', pair: ['House', 'Debt'] },
-  { name: 'THE RECKONING', pair: ['Debt', 'Fire'] },
-  { name: 'THE FAREWELL', pair: ['Fire', 'Letter'] },
+  { name: 'THE RECKONING', pair: ['Debt', 'Grave'] },
+  { name: 'THE FAREWELL', pair: ['Grave', 'Letter'] },
 ]);
+
+// ── THE PICTURE CARDS — CHOSEN ───────────────────────────────────────────────────────────
+// One per published series, wearing its poster. A poster is 2:3, and so is the card WITH its
+// bleed (63 × 95 mm, 0.6632 against 0.6667), so the poster is fitted to the bleed HEIGHT and
+// centred: only the bleed trims it, 0.17 mm off each long side. The indices and the code sit
+// on plates in the Series livery's own ground, with their marks in its keyline.
+export const PLATE = Object.freeze({ colour: '#E6E0D2', ink: '#6E1424', padMm: 0.8, radiusMm: 0.6 });
+
+// ── THE STORY BACK ───────────────────────────────────────────────────────────────────────
+// Ikenna's upload, cards/Story-Island-icon.png. Its ground is one flat colour, sampled from
+// the file rather than chosen, so it runs out to the bleed with no tile edge. The icon is
+// centred at the card's width: its own width equals the trim width.
+export const STORY_BACK = Object.freeze({ file: 'cards/Story-Island-icon.png', widthMm: TRIM.w });
 
 export { TITLE, RULE, STACK, DESCRIPTOR, CANVAS };

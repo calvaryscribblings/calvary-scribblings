@@ -10,9 +10,9 @@
 // glyph, and neither is scaled when a card draws a glyph. The Ending cards and the Ring draw
 // them at the same 6 mm as the corner indices.
 //
-// The drawings, as the brief proposed: Letter a sealed envelope · Secret a keyhole · Child a
-// kite · Storm a rain cloud · Road a road narrowing to the horizon · House a pitched-roof house
-// · Debt a cowrie shell · Fire a flame.
+// The drawings: Letter a sealed envelope · Secret a keyhole · Child a kite · Water three waves
+// · Road a road narrowing to the horizon · House a pitched-roof house · Debt a cowrie shell ·
+// Grave a headstone. (R1.1 dropped R1's rain cloud and flame with the motifs they drew.)
 import { Path2D } from '@napi-rs/canvas';
 import { GLYPH_MM, GLYPH_STROKE_MM } from './geometry.mjs';
 
@@ -36,9 +36,10 @@ export const GLYPHS = Object.freeze({
     'M12 16 C10.2 17.6 13.8 18.8 12 20.4 C10.8 21.5 12.6 22.4 13.4 22.6', // the tail
     'M10.9 17.6 L12.3 17 M12.4 19.6 L13.6 20.4', // two bows on the tail
   ],
-  Storm: [
-    'M7 14.5 A3.8 3.8 0 0 1 6.6 7 A5.2 5.2 0 0 1 16.6 6.2 A3.9 3.9 0 0 1 17.4 14.5 Z', // the cloud
-    'M8.2 16.8 L7 20 M12.2 16.8 L11 21.4 M16.2 16.8 L15 20',                           // the rain
+  Water: [
+    'M3 8 C5.2 6.2 7.4 6.2 9.6 8 C11.8 9.8 14 9.8 16.2 8 C18.4 6.2 20.6 6.2 21 6.6',   // three waves,
+    'M3 12.5 C5.2 10.7 7.4 10.7 9.6 12.5 C11.8 14.3 14 14.3 16.2 12.5 C18.4 10.7 20.6 10.7 21 11.1', // one
+    'M3 17 C5.2 15.2 7.4 15.2 9.6 17 C11.8 18.8 14 18.8 16.2 17 C18.4 15.2 20.6 15.2 21 15.6',     // stroke
   ],
   Road: [
     'M2 9 H22',                                 // the horizon
@@ -56,9 +57,10 @@ export const GLYPHS = Object.freeze({
     'M12 5.2 C11 8 13 10 12 12 C11 14 13 16 12 18.8',                                                            // the aperture
     'M11.5 7 H10.2 M12.5 9 H13.8 M11.5 11 H10.2 M12.5 13 H13.8 M11.5 15 H10.2 M12.5 17 H13.8',                     // its teeth
   ],
-  Fire: [
-    'M12 2.4 C14.6 6.4 18.4 9.4 18 15 C17.6 19.2 15 21.6 12 21.6 C9 21.6 6.4 19.2 6 15 C5.7 11.4 8 9.4 9.2 6.6 C10.2 9 10.4 10.6 11 11.8 C12 9.4 12.6 6 12 2.4 Z', // the flame
-    'M12 21.6 C10.2 21.6 9.2 20 9.4 18.2 C9.6 16.4 11 15.6 11.6 13.8 C13.4 15.6 14.8 16.8 14.6 18.6 C14.4 20.4 13.4 21.6 12 21.6 Z', // the heart of it
+  Grave: [
+    'M7 20.5 V9.5 A5 5 0 0 1 17 9.5 V20.5',     // the headstone
+    'M3.5 20.5 H20.5',                          // the ground
+    'M12 8.2 V14.6 M9.6 10.6 H14.4',            // the cross cut into it
   ],
 });
 

@@ -18,10 +18,10 @@ import { FLEURON_PATH, FLEURON_BBOX } from '../../assets/covers/fleuron-2766.mjs
 import { registerFonts, measureCanaries, planCover } from '../covers/render.mjs';
 import { LIVERIES, isLight } from '../covers/liveries.mjs';
 import { rngForSlug } from '../covers/random.mjs';
-import { caps, drawTracked, trackedWidth, wrapDetailed } from '../covers/text.mjs';
+import { caps, clusters, drawTracked, trackedWidth } from '../covers/text.mjs';
 import { CANVAS, DESCRIPTOR, EYEBROW, FLEURON, GLOW, GRAIN, RULE, TITLE, VIGNETTE, BORDER, instalmentFooter } from '../covers/layout.mjs';
 import {
-  BLEED_PX, CARD_H, ENDING, ENDINGS, GLYPH_MM, INDEX, K, KEYLINE, LIVERY_MARK, MOTIFS, PX_PER_MM,
+  BLEED, BLEED_PX, CARD_H, ENDING, PLATE, SAFE_MM, STORY_BACK, ENDINGS, GLYPH_MM, INDEX, K, KEYLINE, LIVERY_MARK, MOTIFS, PX_PER_MM,
   QR, RASTER, RULE_WIDTH_PX, TRIM, TYPE, Y, coverPx, mm, ptOf, pxOfPt,
 } from './geometry.mjs';
 import { drawGlyph } from './glyphs.mjs';
@@ -272,15 +272,29 @@ function drawTitleAndRule(ctx, livery, fitted, stack, boxes) {
 }
 
 /**
- * The descriptor at the floor. At 6 pt a long three-word descriptor can outrun the title's
- * measure; when it does, its tracking steps down (never its size) until it fits, and the
- * step is reported. Returns { text, tracking, width }.
+ * THE DECK'S DESCRIPTOR TRACKING — one value for every card (R1.1 ruling).
+ *
+ * At the 6-pt floor, the cover's tracking held as a proportion of size (9.9 px) makes 23 of
+ * R1's descriptors outrun the title measure. R1 stepped each of those down on its own, so the
+ * deck had 23 different trackings. Now the deck takes ONE value: the largest tracking at which
+ * its LONGEST descriptor (the widest untracked at 6 pt) still fits the measure exactly, capped
+ * at the held value. Every other descriptor is narrower at that tracking, so it fits too.
  */
-export function fitDescriptor(ctx, text) {
-  ctx.font = FONTS.meta(TYPE.descriptor.size);
-  let tracking = TYPE.descriptor.tracking;
-  while (trackedWidth(ctx, text, tracking) > TITLE.maxWidth && tracking > 0) tracking = Math.max(0, tracking - 0.5);
-  return { text, tracking, width: trackedWidth(ctx, text, tracking), stepped: tracking !== TYPE.descriptor.tracking };
+export function deckDescriptorTracking(texts) {
+  assertSameFaces();
+  c0.font = FONTS.meta(TYPE.descriptor.size);
+  let binding = null;
+  for (const text of texts) {
+    // Tracked text is set cluster by cluster (text.mjs), so its untracked width is the sum of
+    // the clusters' advances, not one kerned run.
+    const cs = clusters(text);
+    const advances = cs.reduce((a, c) => a + c0.measureText(c).width, 0);
+    const n = cs.length;
+    const t = (TITLE.maxWidth - advances) / (n - 1);
+    if (!binding || t < binding.tracking) binding = { text, tracking: t, clusters: n };
+  }
+  const tracking = Math.min(TYPE.descriptor.tracking, binding.tracking);
+  return { tracking, longest: binding.text, held: TYPE.descriptor.tracking, em: tracking / TYPE.descriptor.size };
 }
 
 // ── CORNER INDICES ───────────────────────────────────────────────────────────────────────
@@ -290,7 +304,7 @@ const MARK_PX = pxOfPt(INDEX.markPt);   // the mark's size in cover px
  * pair sits side by side); `mark` is a letter, '❦' for the fleuron, 'ring' for the Ring's
  * eight points, or null.
  */
-function drawIndices(ctx, colour, glyphs, mark, boxes) {
+function drawIndices(ctx, colour, glyphs, mark, boxes, plate = null) {
   const list = [].concat(glyphs);
   const gap = 0.6;
   const width = list.length * GLYPH_MM + (list.length - 1) * gap;
@@ -299,8 +313,16 @@ function drawIndices(ctx, colour, glyphs, mark, boxes) {
   const markCap = mm(capAscent(ctx));
   const markTop = INDEX.y + GLYPH_MM + INDEX.markGapMm;
   const fleuronH = markCap * 1.25;   // chosen: the fleuron's ink a quarter taller than a cap
+  let box = { name: 'index', x1: INDEX.x, x2: INDEX.x + width, y1: INDEX.y, y2: INDEX.y + GLYPH_MM };
+  if (mark) {
+    c0.font = FONTS.title(MARK_PX);
+    const mw = mark === '❦' ? fleuronH * 1.1 : mm(trackedWidth(c0, mark, 0));
+    box = { ...box, x1: Math.min(box.x1, cx - mw / 2), x2: Math.max(box.x2, cx + mw / 2), y2: markTop + (mark === '❦' ? fleuronH : markCap) };
+  }
+  const plateBox = plate && { x1: box.x1 - plate.padMm, y1: box.y1 - plate.padMm, x2: box.x2 + plate.padMm, y2: box.y2 + plate.padMm };
   const paint = (c) => {
     mmSpace(c);
+    if (plateBox) roundRect(c, plateBox, plate.radiusMm, plate.colour);
     list.forEach((m, i) => (m === 'ring'
       ? drawRingMark(c, INDEX.x + GLYPH_MM / 2, INDEX.y + GLYPH_MM / 2, colour)
       : drawGlyph(c, m, INDEX.x + i * (GLYPH_MM + gap), INDEX.y, GLYPH_MM, colour)));
@@ -327,14 +349,19 @@ function drawIndices(ctx, colour, glyphs, mark, boxes) {
   ctx.drawImage(l, 0, 0);
   ctx.restore();
 
-  let box = { name: 'index', x1: INDEX.x, x2: INDEX.x + width, y1: INDEX.y, y2: INDEX.y + GLYPH_MM };
-  if (mark) {
-    c0.font = FONTS.title(MARK_PX);
-    const mw = mark === '❦' ? fleuronH * 1.1 : mm(trackedWidth(c0, mark, 0));
-    box = { ...box, x1: Math.min(box.x1, cx - mw / 2), x2: Math.max(box.x2, cx + mw / 2), y2: markTop + (mark === '❦' ? fleuronH : markCap) };
-  }
-  boxes.push({ ...box, name: 'index (top left)' }, rot180(box, 'index (bottom right)'));
-  return box;
+  const outer = plateBox ?? box;
+  boxes.push({ ...outer, name: 'index (top left)' }, rot180(outer, 'index (bottom right)'));
+  return outer;
+}
+
+/** A filled rounded rectangle, in mm space. */
+function roundRect(c, b, r, colour) {
+  c.save();
+  c.fillStyle = colour;
+  c.beginPath();
+  c.roundRect(b.x1, b.y1, b.x2 - b.x1, b.y2 - b.y1, r);
+  c.fill();
+  c.restore();
 }
 const c0 = createCanvas(10, 10).getContext('2d');
 
@@ -397,7 +424,8 @@ function drawCardCode(ctx, livery, url, style, indexBox, boxes) {
  */
 export function renderStoryFace(card, opts = {}) {
   assertSameFaces();
-  if (card.livery === 'series') return renderSeriesFace(card, opts);
+  if (card.kind === 'picture') throw new Error(`${card.slug} is a picture card — renderPictureFace`);
+  if (opts.descriptorTracking == null) throw new Error('renderStoryFace: opts.descriptorTracking is required — one value for the deck');
   const livery = LIVERIES[card.livery];
   const { canvas, ctx } = surface();
   const boxes = [];
@@ -415,7 +443,9 @@ export function renderStoryFace(card, opts = {}) {
   let desc = null;
   let belowRule = 0;
   if (plan.descriptor) {
-    desc = fitDescriptor(ctx, plan.descriptor.text);
+    ctx.font = FONTS.meta(TYPE.descriptor.size);
+    desc = { text: plan.descriptor.text, tracking: opts.descriptorTracking, width: trackedWidth(ctx, plan.descriptor.text, opts.descriptorTracking) };
+    if (desc.width > TITLE.maxWidth + 0.01) throw new Error(`${card.slug}: descriptor outruns the measure at the deck tracking`);
     ctx.font = FONTS.meta(TYPE.descriptor.size);
     belowRule = DESCRIPTOR.gapBelowRule + capAscent(ctx);
   }
@@ -445,82 +475,108 @@ export function renderStoryFace(card, opts = {}) {
   };
 }
 
-// ── THE SERIES FACE ──────────────────────────────────────────────────────────────────────
-// The picture card. The Series livery's frame, eyebrow, author and footer, as built and
-// proven on the cover. The title block's place is taken by the series' curated artwork,
-// cropped to a window as wide as the title measure. The series title sits under the
-// artwork, above the rule, and the fleuron gives its room to the art.
-//
-// CHOSEN: the window runs from 1 mm below the corner index to above the title. The series
-// title is set by the cover's ladder from the 112-px rung down (at most two lines), so it
-// reads as a caption to the art and not as a second poster.
-const SERIES_TITLE_LADDER = TITLE.ladder.filter((r) => r.size <= 112);
-
-export function renderSeriesFace(card, opts = {}) {
+// ── THE PICTURE CARD ─────────────────────────────────────────────────────────────────────
+// One per published series, wearing the series' curated poster (CLAUDE.md: Series covers are
+// curated artwork by rule). A poster is 2:3, and so, within half a percent, is the card with its
+// bleed. So the poster is fitted to the bleed HEIGHT and centred, and only the bleed trims it:
+// 0.17 mm off each long side, and nothing off the top or foot. No title is set: every poster
+// carries its own. No keyline or furniture is drawn over the art. The indices and the code sit
+// on small plates (PLATE, chosen).
+export function renderPictureFace(card, opts = {}) {
   assertSameFaces();
-  if (!card.poster) throw new Error(`${card.slug}: no poster image supplied`);
-  const livery = LIVERIES.series;
+  const img = card.poster;
+  if (!img) throw new Error(`${card.slug}: no poster image supplied`);
   const { canvas, ctx } = surface();
   const boxes = [];
-  paintGround(ctx, livery, card.slug);
-  paintKeylines(ctx, livery);
-  drawEyebrow(ctx, livery, caps(livery.name), boxes);
-
-  // The series title, on the reduced ladder.
-  const text = caps(card.seriesTitle);
-  let fitted = null;
-  for (const rung of SERIES_TITLE_LADDER) {
-    ctx.font = FONTS.title(rung.size);
-    const w = wrapDetailed(ctx, text, TITLE.tracking, TITLE.maxWidth);
-    fitted = { size: rung.size, lines: w.lines };
-    if (!w.brokeWord && w.lines.length <= 2) break;
-  }
-  const lineHeight = fitted.size * TITLE.lineHeight;
-  ctx.font = FONTS.title(fitted.size);
-  const baselineOffset = (lineHeight + capAscent(ctx)) / 2;
-  // The code's band is reserved on every Series card, drawn or not, so the card does not
-  // re-lay itself when the code is switched off. The rule sits clear of the code's top.
-  const codeTopMm = codeFootMm(ctx) - panelPx(encode(card.url)) / PX_PER_MM;
-  const ruleY = Math.min(Y.stackBottom, coverPx(codeTopMm - 2 * CLEARANCE_MM));
-  const titleTop = ruleY - RULE.gapAboveFromTitle - fitted.lines.length * lineHeight;
-  const stack = { baselines: fitted.lines.map((_, i) => titleTop + i * lineHeight + baselineOffset), ruleY };
-  drawTitleAndRule(ctx, livery, fitted, stack, boxes);
-
-  // The window, measured, then the art cropped to it ("cover" fit, centred).
-  ctx.font = FONTS.title(MARK_PX);
-  const indexBottom = INDEX.y + GLYPH_MM + INDEX.markGapMm + mm(capAscent(ctx)) * 1.25;
-  const win = {
-    x1: mm((CANVAS.w - TITLE.maxWidth) / 2), x2: mm((CANVAS.w + TITLE.maxWidth) / 2),
-    y1: indexBottom + 1.0, y2: mm(titleTop) - mm(60),
-  };
-  const img = card.poster;
-  const winAspect = (win.x2 - win.x1) / (win.y2 - win.y1);
-  const imgAspect = img.width / img.height;
-  const crop = imgAspect > winAspect
-    ? { sw: img.height * winAspect, sh: img.height, sx: (img.width - img.height * winAspect) / 2, sy: 0 }
-    : { sw: img.width, sh: img.width / winAspect, sx: 0, sy: (img.height - img.width / winAspect) / 2 };
   ctx.resetTransform();
-  ctx.drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, dev(win.x1), dev(win.y1), (win.x2 - win.x1) * PX_PER_MM, (win.y2 - win.y1) * PX_PER_MM);
-  mmSpace(ctx);
-  ctx.strokeStyle = livery.keyline;
-  ctx.lineWidth = mm(RULE_WIDTH_PX);
-  ctx.strokeRect(win.x1, win.y1, win.x2 - win.x1, win.y2 - win.y1);
-  boxes.push({ name: 'artwork', ...win });
+  const scale = RASTER.h / img.height;                 // dev px per poster px — fitted to the bleed height
+  const drawnW = img.width * scale;
+  const dx = (RASTER.w - drawnW) / 2;
+  ctx.drawImage(img, 0, 0, img.width, img.height, dx, 0, drawnW, RASTER.h);
+  // poster px → mm from the trim's top-left
+  const toTrim = (b) => ({ x1: (dx + b[0] * scale) / PX_PER_MM - BLEED_PX / PX_PER_MM, y1: (b[1] * scale) / PX_PER_MM - BLEED_PX / PX_PER_MM,
+    x2: (dx + b[2] * scale) / PX_PER_MM - BLEED_PX / PX_PER_MM, y2: (b[3] * scale) / PX_PER_MM - BLEED_PX / PX_PER_MM });
 
-  drawFoot(ctx, livery, { author: card.author, footer: instalmentFooter(card.ordinal) }, boxes);
-  const indexBox = drawIndices(ctx, livery.keyline, card.motif, LIVERY_MARK.series, boxes);
-  const code = opts.qr ? drawCardCode(ctx, livery, card.url, opts.qr, indexBox, boxes) : null;
-  const collisions = assertClear(boxes, FRAME);
+  const plate = PLATE;
+  const indexBox = drawIndices(ctx, plate.ink, card.motif, LIVERY_MARK.series, boxes, plate);
+  let code = null;
+  if (opts.qr) {
+    const c = encode(card.url);
+    const side = panelPx(c) / PX_PER_MM;
+    const x2 = QR.rightMm;
+    const y2 = rot180(indexBox, 'x').y1 - QR.bottomGapAboveIndexMm;
+    drawCode(ctx, c, dev(x2 - side), dev(y2 - side), { dark: plate.ink, panel: plate.colour });
+    boxes.push({ name: 'code', x1: x2 - side, x2, y1: y2 - side, y2 });
+    code = { version: c.version, modules: c.size, text: c.text, sideMm: side, style: 'plate' };
+  }
+  // A picture card has no keyline, so its plates are held inside the SAFE line instead.
+  const collisions = assertClear(boxes, { x1: SAFE_MM, y1: SAFE_MM, x2: TRIM.w - SAFE_MM, y2: TRIM.h - SAFE_MM });
   if (collisions.length) throw new Error(`${card.slug}: marks collide — ${collisions.join('; ')}`);
-  const effDpi = crop.sw / ((win.x2 - win.x1) / 25.4);
   return {
     png: canvas.toBuffer('image/png'),
     imageData: ctx.getImageData(0, 0, RASTER.w, RASTER.h),
     layout: {
-      kind: 'series', slug: card.slug, rung: fitted.size, lines: fitted.lines, boxes, window: win,
-      crop: { ...crop, imgW: img.width, imgH: img.height, effectiveDpi: effDpi, keptFraction: (crop.sw * crop.sh) / (img.width * img.height) },
-      code: code && { version: code.code.version, modules: code.code.size, text: code.code.text, sideMm: code.side, style: code.style },
+      kind: 'picture', slug: card.slug, boxes,
+      fit: { posterW: img.width, posterH: img.height, drawnWmm: drawnW / PX_PER_MM, drawnHmm: RASTER.h / PX_PER_MM,
+        trimmedEachSideMm: -dx / PX_PER_MM, trimmedEachSidePosterPx: -dx / scale, effectiveDpi: img.height / ((RASTER.h / PX_PER_MM) / 25.4) },
+      toTrim,
+      code,
     },
+  };
+}
+
+// ── THE STORY BACK ───────────────────────────────────────────────────────────────────────
+// Ikenna's icon, cards/Story-Island-icon.png. Its ground is sampled from the file, never chosen,
+// and checked FLAT: every edge pixel must be the one colour, or the back is refused, because a
+// ground that varies would show the icon's tile edge where the flat run-out meets it. The icon
+// is then centred at the card's width (its own width = the trim width) on that colour, run out
+// to the bleed. Not rotationally symmetric, which is accepted.
+export function sampleIconGround(img) {
+  const c = createCanvas(img.width, img.height);
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  const d = g.getImageData(0, 0, img.width, img.height).data;
+  const at = (x, y) => { const o = (y * img.width + x) * 4; return [d[o], d[o + 1], d[o + 2], d[o + 3]]; };
+  const ref = at(0, 0);
+  let worst = 0;
+  let alphaMin = 255;
+  let n = 0;
+  for (let y = 0; y < img.height; y++) {
+    for (let x = 0; x < img.width; x++) {
+      const o = (y * img.width + x) * 4;
+      alphaMin = Math.min(alphaMin, d[o + 3]);
+      if (x > 0 && y > 0 && x < img.width - 1 && y < img.height - 1) continue;
+      n += 1;
+      const p = at(x, y);
+      worst = Math.max(worst, ...[0, 1, 2].map((k) => Math.abs(p[k] - ref[k])));
+    }
+  }
+  const hex = `#${ref.slice(0, 3).map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+  return { hex, rgb: ref.slice(0, 3), edgePixels: n, worstEdgeDeviation: worst, alphaMin, flat: worst === 0 && alphaMin === 255 };
+}
+
+export function renderStoryBack(img) {
+  const ground = sampleIconGround(img);
+  if (!ground.flat) throw new Error(`story back refused: the icon's ground is not flat (worst edge deviation ${ground.worstEdgeDeviation}, min alpha ${ground.alphaMin})`);
+  const { canvas, ctx } = surface();
+  ctx.resetTransform();
+  ctx.fillStyle = ground.hex;
+  ctx.fillRect(0, 0, RASTER.w, RASTER.h);
+  const w = STORY_BACK.widthMm * PX_PER_MM;
+  const h = w * (img.height / img.width);
+  const x = (RASTER.w - w) / 2;
+  const y = (RASTER.h - h) / 2;
+  ctx.drawImage(img, x, y, w, h);
+  // Seam check: the drawn icon's edge pixels against the run-out, on the rendered raster.
+  const out = ctx.getImageData(0, 0, RASTER.w, RASTER.h).data;
+  let seam = 0;
+  const px = (X, Y) => { const o = (Y * RASTER.w + X) * 4; return [out[o], out[o + 1], out[o + 2]]; };
+  for (const [X, Y] of [[Math.floor(x) - 1, Math.floor(RASTER.h / 2)], [Math.floor(x) + 1, Math.floor(RASTER.h / 4)], [Math.floor(RASTER.w / 2), Math.floor(y) - 1], [Math.floor(RASTER.w / 2), Math.floor(y) + 1], [Math.ceil(x + w) + 1, Math.floor(y) + 3], [Math.ceil(x + w) - 2, Math.ceil(y + h) - 2]]) {
+    seam = Math.max(seam, ...px(X, Y).map((v, k) => Math.abs(v - ground.rgb[k])));
+  }
+  return {
+    png: canvas.toBuffer('image/png'),
+    layout: { ground, iconPx: [img.width, img.height], drawnMm: [w / PX_PER_MM, h / PX_PER_MM], topMm: y / PX_PER_MM - BLEED, effectiveDpi: img.width / (STORY_BACK.widthMm / 25.4), seamDeviation: seam },
   };
 }
 

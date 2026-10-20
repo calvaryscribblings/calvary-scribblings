@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="6mm" height="6mm" viewBox="0 0 24 24" fill="none" stroke="#1C1418" stroke-width="0.6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Water</title>
+  <path d="M3 8 C5.2 6.2 7.4 6.2 9.6 8 C11.8 9.8 14 9.8 16.2 8 C18.4 6.2 20.6 6.2 21 6.6"/>
+  <path d="M3 12.5 C5.2 10.7 7.4 10.7 9.6 12.5 C11.8 14.3 14 14.3 16.2 12.5 C18.4 10.7 20.6 10.7 21 11.1"/>
+  <path d="M3 17 C5.2 15.2 7.4 15.2 9.6 17 C11.8 18.8 14 18.8 16.2 17 C18.4 15.2 20.6 15.2 21 15.6"/>
+</svg>

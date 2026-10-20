@@ -1,5 +1,16 @@
 {
- "generatedFrom": "cms_stories + story_bodies + series_instalments EPUBs, read-only, 20 Oct 2026",
+ "round": "CARDS-R1.1",
+ "generatedFrom": "cms_stories + story_bodies + series/series_instalments + instalment EPUBs, read-only, 20 Oct 2026",
+ "motifs": [
+  "Letter",
+  "Secret",
+  "Child",
+  "Water",
+  "Road",
+  "House",
+  "Debt",
+  "Grave"
+ ],
  "stories": [
   {
    "kind": "story",
@@ -10,11 +21,17 @@
    "subcategory": "Historical",
    "descriptor": "mercy. witness. ruin.",
    "url": "/stories/1967",
-   "primary": "Child",
-   "strength": "fair",
+   "primary": "Grave",
+   "strength": "strong",
    "quote": "I didn't stop crying. Papa was dead, and I had done absolutely nothing.",
-   "why": "An eleven-year-old boy watches the soldier who spared him execute his father, and the story is built on that child's helplessness and loss.",
-   "alternates": []
+   "why": "The story is driven to and ends on the father's execution, carried out by the soldier who spared the boy.",
+   "alternates": [
+    {
+     "motif": "Child",
+     "quote": "I was only eleven years old when the war broke out.",
+     "strength": "fair"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -55,11 +72,16 @@
    "subcategory": "Drama",
    "descriptor": "watched. robbed. abandoned.",
    "url": "/stories/beautifully-blue",
-   "primary": "Road",
-   "strength": "fair",
-   "quote": "My mum doesn’t even know I took this trip to Ibadan to see Kehinde.",
-   "why": "A doctor lies dying in the wreck of the bus taking him on a secret trip to Ibadan, a week before he was due to leave for Houston.",
+   "primary": "Grave",
+   "strength": "strong",
+   "quote": "I hear a woman yell. ‘O ti ku.’ He is dead. This time, I don’t have the strength to disagree.",
+   "why": "A young doctor narrates his own death in a bus wreck while the crowd films instead of helping, and the story ends as he dies.",
    "alternates": [
+    {
+     "motif": "Road",
+     "quote": "My mum doesn’t even know I took this trip to Ibadan to see Kehinde.",
+     "strength": "fair"
+    },
     {
      "motif": "Child",
      "quote": "She would fight like hell to keep her only son alive.",
@@ -97,10 +119,10 @@
    "subcategory": "Romance",
    "descriptor": "arrival. devotion. grief.",
    "url": "/stories/bruno",
-   "primary": "none",
-   "strength": null,
-   "quote": null,
-   "why": "A romance brought about by a wandering dog; the pregnancy at the end is a coda, not what the story turns on.",
+   "primary": "Grave",
+   "strength": "fair",
+   "quote": "That same golden retriever would later leave a silence in their home that neither she nor Tobi knew how to fill.",
+   "why": "The romance is framed by grief for the dog that brought the couple together: it opens on Vicky mourning Max and ends on the two of them facing his death.",
    "alternates": []
   },
   {
@@ -112,10 +134,10 @@
    "subcategory": "Drama",
    "descriptor": "ambition. neglect. emptiness.",
    "url": "/stories/drip-drip-drip",
-   "primary": "none",
-   "strength": null,
-   "quote": null,
-   "why": "A workaholic dies in a hit-and-run and finds no memories to replay; none of the motifs is central.",
+   "primary": "Grave",
+   "strength": "strong",
+   "quote": "Then it hits me, harder than the runaway vehicle: I have met my end.",
+   "why": "A workaholic is killed in a hit-and-run and the story is his dying moments, finding no memories to replay.",
    "alternates": []
   },
   {
@@ -152,7 +174,13 @@
    "strength": "strong",
    "quote": "If we don’t take care of him, he will find out. And once he does, we’re dead!",
    "why": "The friend who helped search for Salisu's missing wife turns out to have killed her and hidden her remains with a police officer's help.",
-   "alternates": []
+   "alternates": [
+    {
+     "motif": "Grave",
+     "quote": "The sack was filled with human bones and decomposed remains.",
+     "strength": "strong"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -226,7 +254,7 @@
    "primary": "none",
    "strength": null,
    "quote": null,
-   "why": "A poem of lovers bound across seven lives; war, drought and debt are passing obstacles, not what it turns on.",
+   "why": "A poem of lovers bound across seven lives; its rivers and water are imagery, and war, drought and debt are passing obstacles.",
    "alternates": []
   },
   {
@@ -238,11 +266,17 @@
    "subcategory": "Drama",
    "descriptor": "tradition. obedience. grief.",
    "url": "/stories/peer-pressure-from-the-dead",
-   "primary": "Child",
+   "primary": "Grave",
    "strength": "strong",
-   "quote": "He only knew that tradition had cost him his mother.",
-   "why": "A son watches his mother die from a widowhood rite he could not stop, and blames himself for her death.",
-   "alternates": []
+   "quote": "Inside, Nne lay motionless beneath a white wrapper, waiting to be buried only hours after the man she had called her husband for thirty-eight years.",
+   "why": "Set on the day of a father's burial, the story turns on the mother's death from a widowhood rite and the elders' verdict on it.",
+   "alternates": [
+    {
+     "motif": "Child",
+     "quote": "He only knew that tradition had cost him his mother.",
+     "strength": "strong"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -257,7 +291,13 @@
    "strength": "fair",
    "quote": "It had always been easier to let everyone believe they were nothing more than imaginary friends than to confront what they actually were.",
    "why": "The narrator's imaginary friends are revealed as hidden versions of himself that he has never admitted to anyone.",
-   "alternates": []
+   "alternates": [
+    {
+     "motif": "Grave",
+     "quote": "It was strange how quickly the mood at a burial ceremony could change once the coffin was in the ground.",
+     "strength": "fair"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -301,7 +341,7 @@
    "primary": "none",
    "strength": null,
    "quote": null,
-   "why": "A poem about killing and kidnapping painting a nation's flag red; none of the motifs is central.",
+   "why": "A poem about killing and kidnapping painting a nation's flag red; its dead are collective, not a death the poem turns on.",
    "alternates": []
   },
   {
@@ -347,6 +387,11 @@
     {
      "motif": "Secret",
      "quote": "He is not what he says he is. He does not want you.",
+     "strength": "fair"
+    },
+    {
+     "motif": "Grave",
+     "quote": "But six weeks later, I didn’t even feel myself die.",
      "strength": "fair"
     }
    ]
@@ -396,10 +441,10 @@
    "subcategory": "Grief",
    "descriptor": "absence. voicemail. remembrance.",
    "url": "/stories/the-deadline",
-   "primary": "none",
-   "strength": null,
-   "quote": null,
-   "why": "A sequence of poems about death and grief; the empty house and the bomb are moments, not the centre.",
+   "primary": "Grave",
+   "strength": "strong",
+   "quote": "I wished my legs could have carried me farther, faster, before the bomb went off — just so I could get home to you.",
+   "why": "A sequence of poems in the voices of the dead and the bereaved, all turning on a death and the grief left behind.",
    "alternates": []
   },
   {
@@ -429,7 +474,7 @@
    "primary": "none",
    "strength": null,
    "quote": null,
-   "why": "An essay on tactile media and convenience; none of the motifs applies.",
+   "why": "An essay on tactile media and convenience; the River Benue is a setting, and none of the motifs applies.",
    "alternates": []
   },
   {
@@ -460,7 +505,13 @@
    "strength": "strong",
    "quote": "He had simply never told her she wouldn't be the bride.",
    "why": "Zara's lover hid his reunion and wedding with his childhood sweetheart, and she sings at the wedding she thought was hers.",
-   "alternates": []
+   "alternates": [
+    {
+     "motif": "Letter",
+     "quote": "Resting on a table near the entrance was the printed order of service.",
+     "strength": "fair"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -507,10 +558,10 @@
    "subcategory": "Drama",
    "descriptor": "clues. judgement. neglect.",
    "url": "/stories/trash",
-   "primary": "none",
-   "strength": null,
-   "quote": null,
-   "why": "A neighbour reads a man's decline in his rubbish and misses his death; none of the motifs is central.",
+   "primary": "Grave",
+   "strength": "strong",
+   "quote": "They think he'd been dead for about a week.",
+   "why": "A neighbour reads a man's decline in his rubbish and realises, when his body is carried out, that she missed his death.",
    "alternates": []
   },
   {
@@ -527,6 +578,16 @@
    "quote": "Jimmy got my Afam drunk and pushed him into the pool?",
    "why": "The widow discovers that the friend she has fallen for and is carrying a child by secretly drowned her husband.",
    "alternates": [
+    {
+     "motif": "Grave",
+     "quote": "Afam had drowned. They told me he had been drinking.",
+     "strength": "strong"
+    },
+    {
+     "motif": "Water",
+     "quote": "Since Afam's death, I had developed a phobia of bodies of water.",
+     "strength": "fair"
+    },
     {
      "motif": "Child",
      "quote": "The day I discovered I was pregnant, I was happier than I was frightened.",
@@ -558,11 +619,17 @@
    "subcategory": "Thriller",
    "descriptor": "sanctuary. accident. dread.",
    "url": "/stories/5-to-9",
-   "primary": "Secret",
+   "primary": "Grave",
    "strength": "fair",
-   "quote": "Our eyes met, and she smiled at me. Small and calm, but I swear there was the tiniest bit of recognition in her face.",
-   "why": "The narrator hides that her thrown stone apparently killed her neighbour, and the concealed killing (with the wife's knowing nod) is what ends her evenings.",
-   "alternates": []
+   "quote": "the stone I had thrown had killed the man that night.",
+   "why": "The neighbour's apparent death from her thrown stone is what kills her evenings and leaves her living in fear, ending on the widow's knowing nod.",
+   "alternates": [
+    {
+     "motif": "Secret",
+     "quote": "Our eyes met, and she smiled at me. Small and calm, but I swear there was the tiniest bit of recognition in her face.",
+     "strength": "fair"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -633,6 +700,11 @@
      "motif": "Secret",
      "quote": "‘Mummy, Uncle Nonso said I should not tell you.’",
      "strength": "fair"
+    },
+    {
+     "motif": "Grave",
+     "quote": "Inside the house, the screams continued for several minutes before they suddenly stopped.",
+     "strength": "fair"
     }
    ]
   },
@@ -649,7 +721,13 @@
    "strength": "fair",
    "quote": "Every Tuesday. Same pickup. Same driver. Same destination. For the last nine years.",
    "why": "A looping taxi ride to the same destination, a ghost of a fatal trip, is the story's engine.",
-   "alternates": []
+   "alternates": [
+    {
+     "motif": "Grave",
+     "quote": "LOCAL MAN DIES IN TAXI COLLISION The date was nine years ago. The photo beside the headline was me.",
+     "strength": "fair"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -664,7 +742,13 @@
    "strength": "strong",
    "quote": "Remember how I told you the name of the missing girl? But I never told you mine…",
    "why": "The narrator turns out to be Brenda herself, who staged her disappearance, so the whole tragedy rests on a concealed truth.",
-   "alternates": []
+   "alternates": [
+    {
+     "motif": "Grave",
+     "quote": "Then she cut her wrist and bled out beside him.",
+     "strength": "strong"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -831,6 +915,11 @@
      "motif": "Road",
      "quote": "A single stretch of road starting with the Anikpa Bridge, connecting the town to the rest of Lagos.",
      "strength": "fair"
+    },
+    {
+     "motif": "Grave",
+     "quote": "Okay… give my years to Soma,' he said. 'Let her know that as I was dying, I thought of her.",
+     "strength": "fair"
     }
    ]
   },
@@ -897,6 +986,16 @@
      "motif": "Secret",
      "quote": "Just as always, my usual lie slipped out of my mouth before I could even think.",
      "strength": "fair"
+    },
+    {
+     "motif": "Grave",
+     "quote": "I was five when my mother died. After the burial, my father made it clear that he wanted nothing to do with me.",
+     "strength": "fair"
+    },
+    {
+     "motif": "House",
+     "quote": "Aunty Baby's house was nothing like Mama's.",
+     "strength": "fair"
     }
    ]
   },
@@ -924,10 +1023,10 @@
    "subcategory": "Horror",
    "descriptor": "accusation. mob. inevitability.",
    "url": "/stories/one-day-for-the-thief",
-   "primary": "Fire",
+   "primary": "Grave",
    "strength": "fair",
-   "quote": "A tyre had been forced over his body. The smell of petrol hit him before the reality did",
-   "why": "The jungle-justice nightmare climaxes in a petrol-soaked tyre and a lighter, the burning that awaits the accused.",
+   "quote": "The first time Chisom witnessed a man being beaten to death, he was seated by the window of a commercial bus",
+   "why": "A mob killing he witnesses drives the story, and he is made to face the same death himself, first in a dream and then at his own door.",
    "alternates": []
   },
   {
@@ -939,10 +1038,10 @@
    "subcategory": "Horror",
    "descriptor": "glow. curiosity. predation.",
    "url": "/stories/pigment",
-   "primary": "Fire",
+   "primary": "Grave",
    "strength": "strong",
-   "quote": "Afterward, the burning took hours. Fat crackled softly beneath the flames.",
-   "why": "The painter burns his victims to ash for his black pigment.",
+   "quote": "I moved forward, wrapped my hands around her throat, and snuffed the life out of her.",
+   "why": "The story turns on the painter's killing of Anna, whose body he burns to ash for his black pigment.",
    "alternates": [
     {
      "motif": "House",
@@ -1069,6 +1168,11 @@
     {
      "motif": "Child",
      "quote": "The child she had raised for five years was never hers.",
+     "strength": "strong"
+    },
+    {
+     "motif": "Grave",
+     "quote": "Then looked at me with a calmness that still visits me in nightmares. 'She's dead.'",
      "strength": "strong"
     }
    ]
@@ -1225,7 +1329,7 @@
    "alternates": [
     {
      "motif": "Letter",
-     "quote": "'Oh, and Collins, I also sent you an email. Check am when you free.'",
+     "quote": "what Nnamdi's email would contain, when Collins would finally open it, were the forwarded documents",
      "strength": "fair"
     }
    ]
@@ -1269,10 +1373,10 @@
    "subcategory": "Horror",
    "descriptor": "obsession. curse. violence.",
    "url": "/stories/encore",
-   "primary": "none",
-   "strength": null,
-   "quote": null,
-   "why": "A supposedly cursed song seems to drive a man to violence; the burnt chips are a trigger, not a real force of fire.",
+   "primary": "Grave",
+   "strength": "fair",
+   "quote": "Before either of them understood what was happening, his hands were around her throat.",
+   "why": "A song said to be linked to a string of killings ends, as the legend promised, with a man strangling the woman he loves on her kitchen floor.",
    "alternates": []
   },
   {
@@ -1299,10 +1403,10 @@
    "subcategory": "Fantasy",
    "descriptor": "disbelief. explanation. acceptance.",
    "url": "/stories/i-told-you",
-   "primary": "none",
-   "strength": null,
-   "quote": null,
-   "why": "A man who once explained away his grandmother's visions of the dead sees his own dead brother; no motif is central.",
+   "primary": "Grave",
+   "strength": "strong",
+   "quote": "At her burial, Joseph leaned toward me and whispered, 'I told you.'",
+   "why": "A grandmother's death, then a whole family's, shape a man's life until his dead brother comes to tell him his own death is near.",
    "alternates": []
   },
   {
@@ -1344,10 +1448,10 @@
    "subcategory": "Drama",
    "descriptor": "corruption. impunity. pothole.",
    "url": "/stories/it-can-never-be-me",
-   "primary": "none",
-   "strength": null,
-   "quote": null,
-   "why": "A corrupt governor meets the broken hospital he failed to fund; the unpaid electricity bill is a detail, not the turn.",
+   "primary": "Grave",
+   "strength": "fair",
+   "quote": "A young man died at the state hospital because there was no anti-venom for treatment.",
+   "why": "A preventable death the governor shrugs off returns as his own dying in the same broken hospital.",
    "alternates": []
   },
   {
@@ -1518,10 +1622,10 @@
    "subcategory": "Drama",
    "descriptor": "nostalgia. illusion. bereavement.",
    "url": "/stories/stuck-on-rewind",
-   "primary": "none",
-   "strength": null,
-   "quote": null,
-   "why": "An old man relives his wife's birthday party before waking to the loss of his family; no motif is central.",
+   "primary": "Grave",
+   "strength": "fair",
+   "quote": "He was in his old dingy flat and he'd lost his family in an accident 25 years ago.",
+   "why": "The party he relives dissolves into the truth that his wife and children died twenty-five years ago.",
    "alternates": []
   },
   {
@@ -1541,6 +1645,11 @@
     {
      "motif": "Secret",
      "quote": "'When you and daddy were quarrelling, he was asking who my real father was.'",
+     "strength": "fair"
+    },
+    {
+     "motif": "Road",
+     "quote": "I ran away years later with no identity and no roots.",
      "strength": "fair"
     }
    ]
@@ -1569,10 +1678,10 @@
    "subcategory": "Personal Essay",
    "descriptor": "counterfeit. integrity. defiance.",
    "url": "/stories/the-most-dangerous-job-in-nigeria",
-   "primary": "none",
-   "strength": null,
-   "quote": null,
-   "why": "A profile of Dora Akunyili's fight against fake drugs; the arson and the returned cheque are episodes, not the turn.",
+   "primary": "Grave",
+   "strength": "strong",
+   "quote": "She had buried a sister. She knew exactly what she was fighting for.",
+   "why": "Her sister's death from fake insulin is what drives Dora Akunyili's whole fight against counterfeit drugs.",
    "alternates": []
   },
   {
@@ -1599,11 +1708,17 @@
    "subcategory": "Horror",
    "descriptor": "insomnia. oblivion. unravelling.",
    "url": "/stories/the-pill",
-   "primary": "Child",
+   "primary": "Grave",
    "strength": "strong",
    "quote": "When she arrived at the morgue, a child's body had already been prepared. The report read: asthma attack.",
-   "why": "A mortuary worker takes her sleeping pills, sleeps through her son's fatal asthma attack, and later prepares his body.",
-   "alternates": []
+   "why": "A mortuary worker sleeps through her son's fatal asthma attack, and the story turns on her facing his body.",
+   "alternates": [
+    {
+     "motif": "Child",
+     "quote": "Somehow, he always woke first — some paternal frequency tuned to the specific sound of his son's lungs struggling.",
+     "strength": "strong"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -1618,7 +1733,13 @@
    "strength": "strong",
    "quote": "They had lost the baby. Okene didn’t scream. She couldn’t.",
    "why": "A woman's traumatic labour, prolonged by her callous husband, ends in the loss of her baby.",
-   "alternates": []
+   "alternates": [
+    {
+     "motif": "Grave",
+     "quote": "They had lost the baby. Okene didn’t scream. She couldn’t.",
+     "strength": "strong"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -1668,7 +1789,7 @@
    "primary": "none",
    "strength": null,
    "quote": null,
-   "why": "A meditation on war's wreckage of innocence and love; home appears only as a longed-for idea, not a place in events.",
+   "why": "A meditation on war's wreckage of innocence and love; home is a longed-for idea and no death or water is in events.",
    "alternates": []
   },
   {
@@ -1683,8 +1804,14 @@
    "primary": "none",
    "strength": null,
    "quote": null,
-   "why": "The story turns on being loved as an echo of a dead wife; none of the eight motifs is what it turns on.",
-   "alternates": []
+   "why": "The story turns on being loved as an echo of a former wife; none of the eight motifs is what it turns on.",
+   "alternates": [
+    {
+     "motif": "Water",
+     "quote": "We were taking an evening walk home when it started raining. I laughed and tilted my face up, letting the rain hit me.",
+     "strength": "fair"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -1710,11 +1837,17 @@
    "subcategory": "Drama",
    "descriptor": "grief. dissociation. refuge.",
    "url": "/stories/each-time-i-disappear",
-   "primary": "Child",
+   "primary": "Grave",
    "strength": "strong",
-   "quote": "Because each time I disappear, I meet with my father.",
-   "why": "A ten-year-old's grief for her dead father drives the episodes in which she slips away to meet him.",
-   "alternates": []
+   "quote": "looked me straight in the eye and said my father was dead.",
+   "why": "A ten-year-old's grief for her dead father drives every episode in which she slips away to meet him.",
+   "alternates": [
+    {
+     "motif": "Child",
+     "quote": "Because each time I disappear, I meet with my father.",
+     "strength": "strong"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -1725,11 +1858,17 @@
    "subcategory": "Horror",
    "descriptor": "cold. denial. revelation.",
    "url": "/stories/freezer-34",
-   "primary": "Secret",
-   "strength": "fair",
+   "primary": "Grave",
+   "strength": "strong",
    "quote": "Riko turns in shock to 33. 'Am I really dead?'",
-   "why": "The new morgue man is himself dead, a truth 33 knows and withholds until the whispers outside reveal it.",
-   "alternates": []
+   "why": "Set in a morgue, the story turns on a young man discovering and having to face his own death.",
+   "alternates": [
+    {
+     "motif": "Secret",
+     "quote": "Pause. 33 glances over at freezer 34. 'Notice my neighbour over there's hardly home?'",
+     "strength": "fair"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -1779,7 +1918,7 @@
    "primary": "none",
    "strength": null,
    "quote": null,
-   "why": "Poems on a failing nation; ruined homes and taken children are glimpsed but none is what the collection turns on.",
+   "why": "Poems on a failing nation; ruined homes, taken children and the dead are glimpsed but none is what the collection turns on.",
    "alternates": []
   },
   {
@@ -1890,7 +2029,7 @@
    "primary": "none",
    "strength": null,
    "quote": null,
-   "why": "A man finally builds his own idea after watching friends profit from his; none of the motifs is central.",
+   "why": "A man finally builds his own idea after watching friends profit from his; the Caribbean water is only a photo on a screen.",
    "alternates": []
   },
   {
@@ -1905,7 +2044,7 @@
    "primary": "none",
    "strength": null,
    "quote": null,
-   "why": "A dreamlike prose poem of an imagined village and a threshold between worlds; no motif fits.",
+   "why": "A dreamlike prose poem of an imagined village and a threshold between worlds; its streams and river are imagined, and no motif fits.",
    "alternates": []
   },
   {
@@ -1957,7 +2096,13 @@
    "strength": "fair",
    "quote": "And we kept that distance as we drove to Akwa Ibom.",
    "why": "A lovers' run-away drive to Akwa Ibom ends in a head-on crash with a tanker.",
-   "alternates": []
+   "alternates": [
+    {
+     "motif": "Grave",
+     "quote": "I tell her you're slipping away from me. That I can't feel you.",
+     "strength": "fair"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -2033,6 +2178,16 @@
      "motif": "Secret",
      "quote": "He'd changed his number and done everything he could to bury the memory, the guilt.",
      "strength": "fair"
+    },
+    {
+     "motif": "Grave",
+     "quote": "Her mother died last year. We're her cousins. We searched for you for months.",
+     "strength": "fair"
+    },
+    {
+     "motif": "Water",
+     "quote": "For a moment, all he could hear was rain.",
+     "strength": "fair"
     }
    ]
   },
@@ -2053,6 +2208,11 @@
     {
      "motif": "House",
      "quote": "It was not a cruel home, but it was not a warm one either.",
+     "strength": "fair"
+    },
+    {
+     "motif": "Grave",
+     "quote": "Her father died when her mother was seven months pregnant",
      "strength": "fair"
     }
    ]
@@ -2091,7 +2251,13 @@
    "strength": "strong",
    "quote": "there would be nothing left connecting 'Cous C' to a wife nobody in that family had ever heard of",
    "why": "A wife secretly spies on and kills her husband's lovers and then him, before becoming the hidden other woman herself.",
-   "alternates": []
+   "alternates": [
+    {
+     "motif": "Grave",
+     "quote": "I went down in my own blood, a single shot fired straight into my heart by Raymond's wife",
+     "strength": "strong"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -2102,11 +2268,16 @@
    "subcategory": "Drama",
    "descriptor": "foresight. dread. farewell.",
    "url": "/stories/threshold",
-   "primary": "Child",
+   "primary": "Grave",
    "strength": "strong",
-   "quote": "After twelve years of waiting for a child, she was finally pregnant.",
-   "why": "The narrator's dreams of loss around her sister's long-awaited pregnancy and birth drive everything she does.",
+   "quote": "Every night, I had been seeing the aftermath of my own death.",
+   "why": "The narrator's dreams of a death in the family turn out to foretell her own, and the story ends as she crosses over.",
    "alternates": [
+    {
+     "motif": "Child",
+     "quote": "After twelve years of waiting for a child, she was finally pregnant.",
+     "strength": "strong"
+    },
     {
      "motif": "Secret",
      "quote": "Instead, I was carrying a secret I had no idea how to share.",
@@ -2147,7 +2318,13 @@
    "strength": "strong",
    "quote": "But the loan was still there, and the Ass-et contributions, hanging over her head.",
    "why": "A loan for cosmetic surgery pushes Belema to a cheap backstreet surgeon and her death.",
-   "alternates": []
+   "alternates": [
+    {
+     "motif": "Grave",
+     "quote": "Her fame grew most of all after she was gone.",
+     "strength": "strong"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -2158,10 +2335,10 @@
    "subcategory": "Elegy",
    "descriptor": "breath. memory. quiet.",
    "url": "/stories/what-the-light-remembers",
-   "primary": "none",
-   "strength": null,
-   "quote": null,
-   "why": "A poem tracing a whole life from birth to death; no motif is central.",
+   "primary": "Grave",
+   "strength": "fair",
+   "quote": "And at the end, when the light comes near — not an ending, but strangely clear —",
+   "why": "The poem traces one life from first breath to the heartbeat stopping, and it ends on that death.",
    "alternates": []
   },
   {
@@ -2173,11 +2350,17 @@
    "subcategory": "Mystery",
    "descriptor": "observation. perfume. justice.",
    "url": "/stories/witness-me",
-   "primary": "Secret",
-   "strength": "fair",
-   "quote": "What made matters worse was that Ojusina knew everything one would expect no one to know.",
-   "why": "A boy who knows the town's hidden things identifies masked killers by their scent.",
-   "alternates": []
+   "primary": "Grave",
+   "strength": "strong",
+   "quote": "Bros Kennedy lay face down in a pool of his own blood.",
+   "why": "A boy grown into a man witnesses Bros Kennedy's murder, and the town's mourning and his identifying the killers follow from it.",
+   "alternates": [
+    {
+     "motif": "Secret",
+     "quote": "What made matters worse was that Ojusina knew everything one would expect no one to know.",
+     "strength": "fair"
+    }
+   ]
   },
   {
    "kind": "story",
@@ -2216,9 +2399,191 @@
    "alternates": []
   }
  ],
- "series": [
+ "pictures": [
   {
-   "kind": "series",
+   "kind": "picture",
+   "slug": "beta-princess",
+   "seriesId": "beta-princess",
+   "seriesTitle": "Beta Princess",
+   "title": "Beta Princess",
+   "author": "Monica Garcia",
+   "livery": "series",
+   "status": "published",
+   "url": "/series/beta-princess",
+   "posterUrl": "https://firebasestorage.googleapis.com/v0/b/calvary-scribblings.firebasestorage.app/o/covers%2F1782847449565_BF6439BF_92F4_42E6_B28A_10FBC48DD717.png?alt=media&token=98b46480-faea-4354-8f1f-636e2e0971c9",
+   "primary": "Secret",
+   "strength": "strong",
+   "quote": "Servant after servant, they held my gaze and nodded, agreeing to keep my secret, just as my brother said they would.",
+   "quoteFrom": "beta-princess-i1",
+   "quoteFromTitle": "Part One",
+   "why": "The series runs on concealment: Sibry hides her identity to survive, Valen secretly poisoned the king, and the war rests on a lie about her brother's reply.",
+   "alternates": [
+    {
+     "motif": "Child",
+     "quote": "'Our cubs are the most precious treasure. Anyone who can help with their upkeep must stay to assist them.",
+     "quoteFrom": "beta-princess-i3",
+     "strength": "fair"
+    },
+    {
+     "motif": "Letter",
+     "quote": "'This was the last correspondence between your brother and me,' he told me softly. He lifted the parchment and read:",
+     "quoteFrom": "beta-princess-i2",
+     "strength": "fair"
+    },
+    {
+     "motif": "Grave",
+     "quote": "She now lay dead on my chamber floor for the sin of looking out the window during a siege.",
+     "quoteFrom": "beta-princess-i1",
+     "strength": "fair"
+    },
+    {
+     "motif": "House",
+     "quote": "'Silverclaw will not fall!' I bellowed. 'We will defend this castle with everything that we have!'",
+     "quoteFrom": "beta-princess-i3",
+     "strength": "fair"
+    }
+   ],
+   "instalments": [
+    {
+     "id": "beta-princess-i1",
+     "ordinal": 1,
+     "status": "published",
+     "releaseAtMs": 1786877711075
+    },
+    {
+     "id": "beta-princess-i2",
+     "ordinal": 2,
+     "status": "published",
+     "releaseAtMs": 1786877711075
+    },
+    {
+     "id": "beta-princess-i3",
+     "ordinal": 3,
+     "status": "published",
+     "releaseAtMs": 1788171540000
+    }
+   ]
+  },
+  {
+   "kind": "picture",
+   "slug": "diary-of-a-lagos-9-5er",
+   "seriesId": "diary-of-a-lagos-9-5er",
+   "seriesTitle": "Diary of a Lagos 9-5er",
+   "title": "Diary of a Lagos 9-5er",
+   "author": "Tricia Ajax",
+   "livery": "series",
+   "status": "published",
+   "url": "/series/diary-of-a-lagos-9-5er",
+   "posterUrl": "https://firebasestorage.googleapis.com/v0/b/calvary-scribblings.firebasestorage.app/o/series_covers%2Fdiary-of-a-lagos-9-5er%2F1789461769262-6cfe2130-d281-4c74-aff9-564c3cefcea9.jpeg?alt=media&token=dd9066ec-1059-490a-9fc0-ffb652ea8786",
+   "primary": "Debt",
+   "strength": "strong",
+   "quote": "the slow accumulation of favours, the weight of owing people, and the way debt moves between friends and colleagues",
+   "quoteFrom": "diary-of-a-lagos-9-5er-i2",
+   "quoteFromTitle": "Chapter II: Tuesday Doesn't Care How Monday Ended",
+   "why": "Every chapter counts Yemi's balance down against the rent he owes, his uncle's hospital bill and the loan from Chidi.",
+   "alternates": [
+    {
+     "motif": "Road",
+     "quote": "I had been on the road for four hours and seven minutes. I had paid ₦2,200 in fares.",
+     "quoteFrom": "diary-of-a-lagos-9-5er-i1",
+     "strength": "fair"
+    },
+    {
+     "motif": "Water",
+     "quote": "Lagos rain does not negotiate. It arrived all at once, and within sixty seconds, the road was a river.",
+     "quoteFrom": "diary-of-a-lagos-9-5er-i1",
+     "strength": "fair"
+    },
+    {
+     "motif": "Letter",
+     "quote": "Hey. Hope you got home okay. I know it's not easy at the moment. Lagos takes more than it gives",
+     "quoteFrom": "diary-of-a-lagos-9-5er-i4",
+     "strength": "fair"
+    }
+   ],
+   "instalments": [
+    {
+     "id": "diary-of-a-lagos-9-5er-i1",
+     "ordinal": 1,
+     "status": "published",
+     "releaseAtMs": 1789465920000
+    },
+    {
+     "id": "diary-of-a-lagos-9-5er-i2",
+     "ordinal": 2,
+     "status": "published",
+     "releaseAtMs": 1791360000000
+    },
+    {
+     "id": "diary-of-a-lagos-9-5er-i3",
+     "ordinal": 3,
+     "status": "published",
+     "releaseAtMs": 1791955800000
+    },
+    {
+     "id": "diary-of-a-lagos-9-5er-i4",
+     "ordinal": 4,
+     "status": "published",
+     "releaseAtMs": 1791997200000
+    }
+   ]
+  },
+  {
+   "kind": "picture",
+   "slug": "the-doherty-confessions",
+   "seriesId": "the-doherty-confessions",
+   "seriesTitle": "The Doherty Confessions",
+   "title": "The Doherty Confessions",
+   "author": "Dera Okaro",
+   "livery": "series",
+   "status": "published",
+   "url": "/series/the-doherty-confessions",
+   "posterUrl": "https://firebasestorage.googleapis.com/v0/b/calvary-scribblings.firebasestorage.app/o/series_covers%2Fthe-doherty-confessions%2F1791997447329-IMG_0919.png?alt=media&token=294588d7-60d4-4191-b839-8edf88ff4726",
+   "primary": "Secret",
+   "strength": "strong",
+   "quote": "They said… they said Madam called them herself last night. She confessed to terrible things.",
+   "quoteFrom": "the-doherty-confessions-i1",
+   "quoteFromTitle": "Instalment I",
+   "why": "The series is named for Victoria's withheld confession, and Kamara's past is shaped by a concealment of its own: a father she was forbidden to name.",
+   "alternates": [
+    {
+     "motif": "Grave",
+     "quote": "Madam Victoria had fallen. Or, more precisely, she had just jumped to her death.",
+     "quoteFrom": "the-doherty-confessions-i1",
+     "strength": "strong"
+    },
+    {
+     "motif": "Child",
+     "quote": "They were gone. The locks hadn’t been forced; they had simply slipped away at night, leaving me behind.",
+     "quoteFrom": "the-doherty-confessions-i2",
+     "strength": "fair"
+    },
+    {
+     "motif": "House",
+     "quote": "You are not sleeping another night in that dirt. You are coming home with me.",
+     "quoteFrom": "the-doherty-confessions-i2",
+     "strength": "fair"
+    }
+   ],
+   "instalments": [
+    {
+     "id": "the-doherty-confessions-i1",
+     "ordinal": 1,
+     "status": "published",
+     "releaseAtMs": 1792224000000
+    },
+    {
+     "id": "the-doherty-confessions-i2",
+     "ordinal": 2,
+     "status": "published",
+     "releaseAtMs": 1792224000000
+    }
+   ]
+  }
+ ],
+ "instalments": [
+  {
+   "kind": "instalment",
    "slug": "beta-princess-i1",
    "seriesId": "beta-princess",
    "seriesTitle": "Beta Princess",
@@ -2228,12 +2593,16 @@
    "author": "Monica Garcia",
    "livery": "series",
    "url": "/series/instalment/beta-princess-i1",
-   "posterUrl": "https://firebasestorage.googleapis.com/v0/b/calvary-scribblings.firebasestorage.app/o/covers%2F1782847449565_BF6439BF_92F4_42E6_B28A_10FBC48DD717.png?alt=media&token=98b46480-faea-4354-8f1f-636e2e0971c9",
    "primary": "Secret",
    "strength": "strong",
    "quote": "Servant after servant, they held my gaze and nodded, agreeing to keep my secret, just as my brother said they would.",
-   "why": "Sibry survives by disguising herself as her dead servant Nimue, and the instalment closes on that hidden identity being exposed at the mating ball.",
+   "why": "Sibry survives by passing herself off as her dead servant Nimue, and the instalment ends with that hidden identity exposed at the mating ball.",
    "alternates": [
+    {
+     "motif": "Grave",
+     "quote": "She now lay dead on my chamber floor for the sin of looking out the window during a siege.",
+     "strength": "fair"
+    },
     {
      "motif": "Road",
      "quote": "we were tied together and marched through the mud in a great caravan",
@@ -2242,7 +2611,7 @@
    ]
   },
   {
-   "kind": "series",
+   "kind": "instalment",
    "slug": "beta-princess-i2",
    "seriesId": "beta-princess",
    "seriesTitle": "Beta Princess",
@@ -2252,26 +2621,30 @@
    "author": "Monica Garcia",
    "livery": "series",
    "url": "/series/instalment/beta-princess-i2",
-   "posterUrl": "https://firebasestorage.googleapis.com/v0/b/calvary-scribblings.firebasestorage.app/o/covers%2F1782847449565_BF6439BF_92F4_42E6_B28A_10FBC48DD717.png?alt=media&token=98b46480-faea-4354-8f1f-636e2e0971c9",
    "primary": "Letter",
    "strength": "fair",
    "quote": "'This was the last correspondence between your brother and me,' he told me softly. He lifted the parchment and read:",
-   "why": "Darius's marriage-proposal letter to Silas is the hinge of the instalment, revealing his love for Sibry and that the war was built on a lie about its reply.",
+   "why": "Darius's marriage-proposal letter to Silas is the hinge of the instalment: it shows he loved Sibry, and that the war was built on a lie about the reply.",
    "alternates": [
+    {
+     "motif": "Secret",
+     "quote": "'Officially, it was an insult to start a war between two good friends and neighbours,' he answered.",
+     "strength": "fair"
+    },
     {
      "motif": "Child",
      "quote": "my mate for the next year, or for life if I bore him a healthy cub",
      "strength": "fair"
     },
     {
-     "motif": "Secret",
-     "quote": "'Officially, it was an insult to start a war between two good friends and neighbours,' he answered.",
+     "motif": "Grave",
+     "quote": "The same Omegas who reported the army were from the hunting party. I'm sorry, but it looks like Darius is dead.",
      "strength": "fair"
     }
    ]
   },
   {
-   "kind": "series",
+   "kind": "instalment",
    "slug": "beta-princess-i3",
    "seriesId": "beta-princess",
    "seriesTitle": "Beta Princess",
@@ -2281,11 +2654,10 @@
    "author": "Monica Garcia",
    "livery": "series",
    "url": "/series/instalment/beta-princess-i3",
-   "posterUrl": "https://firebasestorage.googleapis.com/v0/b/calvary-scribblings.firebasestorage.app/o/covers%2F1782847449565_BF6439BF_92F4_42E6_B28A_10FBC48DD717.png?alt=media&token=98b46480-faea-4354-8f1f-636e2e0971c9",
    "primary": "Child",
    "strength": "strong",
    "quote": "'Our cubs are the most precious treasure. Anyone who can help with their upkeep must stay to assist them.",
-   "why": "Sibry defends the castle around the cubs, has mothers hand their pelts to their children, and names a shifted boy Prince Alpha to lead the young to safety.",
+   "why": "Sibry builds the castle's defence around the cubs: mothers hand their pelts to their children, and a boy who shifts early is named Prince Alpha to lead the young to safety.",
    "alternates": [
     {
      "motif": "House",
@@ -2293,14 +2665,14 @@
      "strength": "fair"
     },
     {
-     "motif": "Fire",
-     "quote": "twelve of ours have been captured attempting to light a fire in the royal wardrobe.",
+     "motif": "Grave",
+     "quote": "'To the glorious dead, may they lead the way to Lycandra's feast hall.'",
      "strength": "fair"
     }
    ]
   },
   {
-   "kind": "series",
+   "kind": "instalment",
    "slug": "diary-of-a-lagos-9-5er-i1",
    "seriesId": "diary-of-a-lagos-9-5er",
    "seriesTitle": "Diary of a Lagos 9-5er",
@@ -2310,14 +2682,13 @@
    "author": "Tricia Ajax",
    "livery": "series",
    "url": "/series/instalment/diary-of-a-lagos-9-5er-i1",
-   "posterUrl": "https://firebasestorage.googleapis.com/v0/b/calvary-scribblings.firebasestorage.app/o/series_covers%2Fdiary-of-a-lagos-9-5er%2F1789461769262-6cfe2130-d281-4c74-aff9-564c3cefcea9.jpeg?alt=media&token=dd9066ec-1059-490a-9fc0-ffb652ea8786",
    "primary": "Road",
    "strength": "strong",
    "quote": "I had been on the road for four hours and seven minutes. I had paid ₦2,200 in fares.",
-   "why": "The chapter is built around Yemi's brutal four-hour commute across Lagos, which shapes his money, his lateness and his chance meeting with Bolaji.",
+   "why": "The chapter is built around Yemi's four-hour commute across Lagos, which drains his money, makes him late and puts him beside Bolaji on the bus home.",
    "alternates": [
     {
-     "motif": "Storm",
+     "motif": "Water",
      "quote": "Lagos rain does not negotiate. It arrived all at once, and within sixty seconds, the road was a river.",
      "strength": "strong"
     },
@@ -2329,7 +2700,7 @@
    ]
   },
   {
-   "kind": "series",
+   "kind": "instalment",
    "slug": "diary-of-a-lagos-9-5er-i2",
    "seriesId": "diary-of-a-lagos-9-5er",
    "seriesTitle": "Diary of a Lagos 9-5er",
@@ -2339,11 +2710,10 @@
    "author": "Tricia Ajax",
    "livery": "series",
    "url": "/series/instalment/diary-of-a-lagos-9-5er-i2",
-   "posterUrl": "https://firebasestorage.googleapis.com/v0/b/calvary-scribblings.firebasestorage.app/o/series_covers%2Fdiary-of-a-lagos-9-5er%2F1789461769262-6cfe2130-d281-4c74-aff9-564c3cefcea9.jpeg?alt=media&token=dd9066ec-1059-490a-9fc0-ffb652ea8786",
    "primary": "Debt",
    "strength": "strong",
    "quote": "the slow accumulation of favours, the weight of owing people, and the way debt moves between friends and colleagues",
-   "why": "Yemi's mother commits him to his uncle's 25,000 naira hospital balance that he cannot cover, while the unanswered rent text hangs over him.",
+   "why": "Yemi's mother commits him to his uncle's 25,000 naira hospital balance, which he cannot cover, while the landlord's rent text goes unanswered.",
    "alternates": [
     {
      "motif": "Letter",
@@ -2353,7 +2723,7 @@
    ]
   },
   {
-   "kind": "series",
+   "kind": "instalment",
    "slug": "diary-of-a-lagos-9-5er-i3",
    "seriesId": "diary-of-a-lagos-9-5er",
    "seriesTitle": "Diary of a Lagos 9-5er",
@@ -2363,11 +2733,10 @@
    "author": "Tricia Ajax",
    "livery": "series",
    "url": "/series/instalment/diary-of-a-lagos-9-5er-i3",
-   "posterUrl": "https://firebasestorage.googleapis.com/v0/b/calvary-scribblings.firebasestorage.app/o/series_covers%2Fdiary-of-a-lagos-9-5er%2F1789461769262-6cfe2130-d281-4c74-aff9-564c3cefcea9.jpeg?alt=media&token=dd9066ec-1059-490a-9fc0-ffb652ea8786",
    "primary": "Debt",
    "strength": "strong",
    "quote": "I need at least half by Friday. One hundred and fifty thousand.",
-   "why": "The landlord demands six weeks' overdue rent by Friday and Yemi borrows 25,000 naira from Chidi to pay his uncle's bill.",
+   "why": "The landlord demands half of six weeks' overdue rent by Friday, and Yemi borrows 25,000 naira from Chidi to pay his uncle's bill.",
    "alternates": [
     {
      "motif": "House",
@@ -2377,7 +2746,7 @@
    ]
   },
   {
-   "kind": "series",
+   "kind": "instalment",
    "slug": "diary-of-a-lagos-9-5er-i4",
    "seriesId": "diary-of-a-lagos-9-5er",
    "seriesTitle": "Diary of a Lagos 9-5er",
@@ -2387,11 +2756,10 @@
    "author": "Tricia Ajax",
    "livery": "series",
    "url": "/series/instalment/diary-of-a-lagos-9-5er-i4",
-   "posterUrl": "https://firebasestorage.googleapis.com/v0/b/calvary-scribblings.firebasestorage.app/o/series_covers%2Fdiary-of-a-lagos-9-5er%2F1789461769262-6cfe2130-d281-4c74-aff9-564c3cefcea9.jpeg?alt=media&token=dd9066ec-1059-490a-9fc0-ffb652ea8786",
    "primary": "Letter",
    "strength": "fair",
    "quote": "Hey. Hope you got home okay. I know it's not easy at the moment. Lagos takes more than it gives",
-   "why": "After being passed over for promotion, Yemi's night is turned by Bolaji's unexpected text, which he rereads and will carry into the morning.",
+   "why": "After being passed over for promotion, Yemi's night is turned by an unexpected text from Bolaji, which he rereads and will carry into the morning.",
    "alternates": [
     {
      "motif": "Debt",
@@ -2401,7 +2769,7 @@
    ]
   },
   {
-   "kind": "series",
+   "kind": "instalment",
    "slug": "the-doherty-confessions-i1",
    "seriesId": "the-doherty-confessions",
    "seriesTitle": "The Doherty Confessions",
@@ -2411,12 +2779,16 @@
    "author": "Dera Okaro",
    "livery": "series",
    "url": "/series/instalment/the-doherty-confessions-i1",
-   "posterUrl": "https://firebasestorage.googleapis.com/v0/b/calvary-scribblings.firebasestorage.app/o/series_covers%2Fthe-doherty-confessions%2F1791997447329-IMG_0919.png?alt=media&token=294588d7-60d4-4191-b839-8edf88ff4726",
-   "primary": "Secret",
+   "primary": "Grave",
    "strength": "strong",
-   "quote": "They said… they said Madam called them herself last night. She confessed to terrible things.",
-   "why": "The instalment turns on Victoria Doherty's unexplained confession of terrible things, withheld from Kamara, just before she jumps to her death.",
+   "quote": "Madam Victoria had fallen. Or, more precisely, she had just jumped to her death.",
+   "why": "The whole instalment drives towards Victoria Doherty's suicide, and it ends on her body on the marble just after she has confessed to the police.",
    "alternates": [
+    {
+     "motif": "Secret",
+     "quote": "They said… they said Madam called them herself last night. She confessed to terrible things.",
+     "strength": "strong"
+    },
     {
      "motif": "House",
      "quote": "the day Victoria had arranged for Toby and me to move out of the slum and into the spare quarters of her home",
@@ -2430,7 +2802,7 @@
    ]
   },
   {
-   "kind": "series",
+   "kind": "instalment",
    "slug": "the-doherty-confessions-i2",
    "seriesId": "the-doherty-confessions",
    "seriesTitle": "The Doherty Confessions",
@@ -2440,11 +2812,10 @@
    "author": "Dera Okaro",
    "livery": "series",
    "url": "/series/instalment/the-doherty-confessions-i2",
-   "posterUrl": "https://firebasestorage.googleapis.com/v0/b/calvary-scribblings.firebasestorage.app/o/series_covers%2Fthe-doherty-confessions%2F1791997447329-IMG_0919.png?alt=media&token=294588d7-60d4-4191-b839-8edf88ff4726",
    "primary": "Child",
    "strength": "strong",
    "quote": "They were gone. The locks hadn’t been forced; they had simply slipped away at night, leaving me behind.",
-   "why": "Kamara's backstory turns on her mother fleeing her father with her and then abandoning her in the night, leaving her homeless at nineteen.",
+   "why": "Kamara's backstory turns on her mother, who fled her father with her and then abandoned her in the night, leaving her homeless at nineteen.",
    "alternates": [
     {
      "motif": "House",

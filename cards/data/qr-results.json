@@ -38,21 +38,6 @@
   ]
  },
  {
-  "slug": "beta-princess-i2",
-  "livery": "series",
-  "text": "https://calvaryscribblings.co.uk/series/instalment/beta-princess-i2",
-  "version": 5,
-  "modules": 37,
-  "sideMm": 11.43,
-  "style": "direct",
-  "tried": [
-   {
-    "style": "direct",
-    "decoded": "yes"
-   }
-  ]
- },
- {
   "slug": "skin-eater",
   "livery": "short",
   "text": "https://calvaryscribblings.co.uk/stories/skin-eater",
@@ -129,6 +114,25 @@
   ]
  },
  {
+  "slug": "my-daddy-is-a-superhero",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/my-daddy-is-a-superhero",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
   "slug": "how-are-you-my-friend",
   "livery": "flash",
   "text": "https://calvaryscribblings.co.uk/stories/how-are-you-my-friend",
@@ -186,25 +190,6 @@
   ]
  },
  {
-  "slug": "the-songbird-s-birdsong",
-  "livery": "short",
-  "text": "https://calvaryscribblings.co.uk/stories/the-songbird-s-birdsong",
-  "version": 5,
-  "modules": 37,
-  "sideMm": 11.43,
-  "style": "panel",
-  "tried": [
-   {
-    "style": "direct",
-    "decoded": "no"
-   },
-   {
-    "style": "panel",
-    "decoded": "yes"
-   }
-  ]
- },
- {
   "slug": "lagos-friendship",
   "livery": "short",
   "text": "https://calvaryscribblings.co.uk/stories/lagos-friendship",
@@ -224,31 +209,12 @@
   ]
  },
  {
-  "slug": "did-you-enjoy-it",
+  "slug": "the-songbird-s-birdsong",
   "livery": "short",
-  "text": "https://calvaryscribblings.co.uk/stories/did-you-enjoy-it",
-  "version": 4,
-  "modules": 33,
-  "sideMm": 10.414,
-  "style": "panel",
-  "tried": [
-   {
-    "style": "direct",
-    "decoded": "no"
-   },
-   {
-    "style": "panel",
-    "decoded": "yes"
-   }
-  ]
- },
- {
-  "slug": "ladies-diaries",
-  "livery": "short",
-  "text": "https://calvaryscribblings.co.uk/stories/ladies-diaries",
-  "version": 4,
-  "modules": 33,
-  "sideMm": 10.414,
+  "text": "https://calvaryscribblings.co.uk/stories/the-songbird-s-birdsong",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
   "style": "panel",
   "tried": [
    {
@@ -372,9 +338,9 @@
   ]
  },
  {
-  "slug": "the-call",
+  "slug": "chernobyl",
   "livery": "short",
-  "text": "https://calvaryscribblings.co.uk/stories/the-call",
+  "text": "https://calvaryscribblings.co.uk/stories/chernobyl",
   "version": 4,
   "modules": 33,
   "sideMm": 10.414,
@@ -391,16 +357,39 @@
   ]
  },
  {
-  "slug": "diary-of-a-lagos-9-5er-i1",
-  "livery": "series",
-  "text": "https://calvaryscribblings.co.uk/series/instalment/diary-of-a-lagos-9-5er-i1",
-  "version": 5,
-  "modules": 37,
-  "sideMm": 11.43,
-  "style": "direct",
+  "slug": "widow-s-fire",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/widow-s-fire",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
   "tried": [
    {
     "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "almost-like-her",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/almost-like-her",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
     "decoded": "yes"
    }
   ]
@@ -409,25 +398,6 @@
   "slug": "miss-lady",
   "livery": "flash",
   "text": "https://calvaryscribblings.co.uk/stories/miss-lady",
-  "version": 4,
-  "modules": 33,
-  "sideMm": 10.414,
-  "style": "panel",
-  "tried": [
-   {
-    "style": "direct",
-    "decoded": "no"
-   },
-   {
-    "style": "panel",
-    "decoded": "yes"
-   }
-  ]
- },
- {
-  "slug": "beautifully-blue",
-  "livery": "flash",
-  "text": "https://calvaryscribblings.co.uk/stories/beautifully-blue",
   "version": 4,
   "modules": 33,
   "sideMm": 10.414,
@@ -482,12 +452,12 @@
   ]
  },
  {
-  "slug": "final-boarding-call",
+  "slug": "zee-a-love-letters-story",
   "livery": "short",
-  "text": "https://calvaryscribblings.co.uk/stories/final-boarding-call",
-  "version": 4,
-  "modules": 33,
-  "sideMm": 10.414,
+  "text": "https://calvaryscribblings.co.uk/stories/zee-a-love-letters-story",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
   "style": "panel",
   "tried": [
    {
@@ -501,12 +471,12 @@
   ]
  },
  {
-  "slug": "zee-a-love-letters-story",
+  "slug": "final-boarding-call",
   "livery": "short",
-  "text": "https://calvaryscribblings.co.uk/stories/zee-a-love-letters-story",
-  "version": 5,
-  "modules": 37,
-  "sideMm": 11.43,
+  "text": "https://calvaryscribblings.co.uk/stories/final-boarding-call",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
   "style": "panel",
   "tried": [
    {
@@ -539,16 +509,20 @@
   ]
  },
  {
-  "slug": "the-doherty-confessions-i2",
-  "livery": "series",
-  "text": "https://calvaryscribblings.co.uk/series/instalment/the-doherty-confessions-i2",
-  "version": 5,
-  "modules": 37,
-  "sideMm": 11.43,
-  "style": "direct",
+  "slug": "puppy-love",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/puppy-love",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
   "tried": [
    {
     "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
     "decoded": "yes"
    }
   ]
@@ -560,63 +534,6 @@
   "version": 5,
   "modules": 37,
   "sideMm": 11.43,
-  "style": "panel",
-  "tried": [
-   {
-    "style": "direct",
-    "decoded": "no"
-   },
-   {
-    "style": "panel",
-    "decoded": "yes"
-   }
-  ]
- },
- {
-  "slug": "room-14",
-  "livery": "short",
-  "text": "https://calvaryscribblings.co.uk/stories/room-14",
-  "version": 4,
-  "modules": 33,
-  "sideMm": 10.414,
-  "style": "panel",
-  "tried": [
-   {
-    "style": "direct",
-    "decoded": "no"
-   },
-   {
-    "style": "panel",
-    "decoded": "yes"
-   }
-  ]
- },
- {
-  "slug": "small-permissions",
-  "livery": "short",
-  "text": "https://calvaryscribblings.co.uk/stories/small-permissions",
-  "version": 4,
-  "modules": 33,
-  "sideMm": 10.414,
-  "style": "panel",
-  "tried": [
-   {
-    "style": "direct",
-    "decoded": "no"
-   },
-   {
-    "style": "panel",
-    "decoded": "yes"
-   }
-  ]
- },
- {
-  "slug": "threshold",
-  "livery": "short",
-  "text": "https://calvaryscribblings.co.uk/stories/threshold",
-  "version": 4,
-  "modules": 33,
-  "sideMm": 10.414,
   "style": "panel",
   "tried": [
    {
@@ -652,6 +569,63 @@
   "slug": "terms-and-conditions",
   "livery": "short",
   "text": "https://calvaryscribblings.co.uk/stories/terms-and-conditions",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "mango-season",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/mango-season",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "small-permissions",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/small-permissions",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "room-14",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/room-14",
   "version": 4,
   "modules": 33,
   "sideMm": 10.414,
@@ -782,73 +756,175 @@
   ]
  },
  {
-  "slug": "notes",
-  "livery": "short",
-  "text": "https://calvaryscribblings.co.uk/stories/notes",
+  "slug": "the-deadline",
+  "livery": "poetry",
+  "text": "https://calvaryscribblings.co.uk/stories/the-deadline",
   "version": 4,
   "modules": 33,
   "sideMm": 10.414,
-  "style": "panel",
-  "tried": [
-   {
-    "style": "direct",
-    "decoded": "no"
-   },
-   {
-    "style": "panel",
-    "decoded": "yes"
-   }
-  ]
- },
- {
-  "slug": "pigment",
-  "livery": "short",
-  "text": "https://calvaryscribblings.co.uk/stories/pigment",
-  "version": 4,
-  "modules": 33,
-  "sideMm": 10.414,
-  "style": "panel",
-  "tried": [
-   {
-    "style": "direct",
-    "decoded": "no"
-   },
-   {
-    "style": "panel",
-    "decoded": "yes"
-   }
-  ]
- },
- {
-  "slug": "one-day-for-the-thief",
-  "livery": "short",
-  "text": "https://calvaryscribblings.co.uk/stories/one-day-for-the-thief",
-  "version": 4,
-  "modules": 33,
-  "sideMm": 10.414,
-  "style": "panel",
-  "tried": [
-   {
-    "style": "direct",
-    "decoded": "no"
-   },
-   {
-    "style": "panel",
-    "decoded": "yes"
-   }
-  ]
- },
- {
-  "slug": "beta-princess-i3",
-  "livery": "series",
-  "text": "https://calvaryscribblings.co.uk/series/instalment/beta-princess-i3",
-  "version": 5,
-  "modules": 37,
-  "sideMm": 11.43,
   "style": "direct",
   "tried": [
    {
     "style": "direct",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "the-most-dangerous-job-in-nigeria",
+  "livery": "inspiring",
+  "text": "https://calvaryscribblings.co.uk/stories/the-most-dangerous-job-in-nigeria",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "beautifully-blue",
+  "livery": "flash",
+  "text": "https://calvaryscribblings.co.uk/stories/beautifully-blue",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "drip-drip-drip",
+  "livery": "flash",
+  "text": "https://calvaryscribblings.co.uk/stories/drip-drip-drip",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "1967",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/1967",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "i-told-you",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/i-told-you",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "peer-pressure-from-the-dead",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/peer-pressure-from-the-dead",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "beta-princess",
+  "livery": "series",
+  "text": "https://calvaryscribblings.co.uk/series/beta-princess",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "plate",
+  "tried": [
+   {
+    "style": "plate",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "diary-of-a-lagos-9-5er",
+  "livery": "series",
+  "text": "https://calvaryscribblings.co.uk/series/diary-of-a-lagos-9-5er",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "plate",
+  "tried": [
+   {
+    "style": "plate",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "the-doherty-confessions",
+  "livery": "series",
+  "text": "https://calvaryscribblings.co.uk/series/the-doherty-confessions",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
+  "style": "plate",
+  "tried": [
+   {
+    "style": "plate",
     "decoded": "yes"
    }
   ]
