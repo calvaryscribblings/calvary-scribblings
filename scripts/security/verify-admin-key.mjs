@@ -29,7 +29,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { decodeBase64ServiceAccount, readServiceAccountFile } from './service-account.mjs';
+import { readSaKeySecret, readServiceAccountFile } from './service-account.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const EMAIL = 'firebase-adminsdk-fbsvc@calvary-scribblings.iam.gserviceaccount.com';
@@ -233,8 +233,8 @@ async function checkAuthWorker() {
 console.log(`Admin key verification — ${new Date().toISOString()}${EXPECT ? `, expecting kid=${EXPECT}` : ''}\n`);
 
 const fromSecret = process.env.FIREBASE_SA_KEY
-  ? await checkKey('Codespace secret FIREBASE_SA_KEY (base64)', () => decodeBase64ServiceAccount(process.env.FIREBASE_SA_KEY))
-  : (report('N/A', 'Codespace secret FIREBASE_SA_KEY (base64)', null, 'not set in this shell'), null);
+  ? await checkKey('Codespace secret FIREBASE_SA_KEY', () => readSaKeySecret(process.env.FIREBASE_SA_KEY))
+  : (report('N/A', 'Codespace secret FIREBASE_SA_KEY', null, 'not set in this shell'), null);
 
 const file = join(ROOT, 'serviceAccountKey.json');
 const fromFile = existsSync(file)

@@ -121,22 +121,26 @@ And before concluding anything is unrecoverable: **check
 `calvary-scribblings-default-rtdb-backups`.** Daily archives, 30-day retention. See
 `scripts/backup/RESTORE.md`.
 
-## 🚨 CREDENTIAL VALUES ARE NEVER PRINTED. `FIREBASE_SA_KEY` IS BASE64.
+## 🚨 CREDENTIAL VALUES ARE NEVER PRINTED.
 
 **SECURITY-R1 (20 Oct 2026).** The Firebase admin private key went into a Claude session **three
 times** (25 Sep, 17 Oct, 20 Oct), each time from the same scratch line:
-`JSON.parse(process.env.FIREBASE_SA_KEY)`. The value is **base64**, not JSON, so the parse throws, and
+`JSON.parse(process.env.FIREBASE_SA_KEY)`. The value was **base64**, not JSON, so the parse threw, and
 Node then prints **the whole input** as the error's source line (`<anonymous_script>:1`). The truncated
 message beneath it ("… is not valid JSON") hides that the entire key just went to the terminal.
+Now that the secret can hold the key file itself (R1.2), that line usually parses, but a truncated or
+mangled paste would leak the same way. The rules below still hold.
 
 1. **Never print, log, echo or commit a credential's value, or any part of one.** That covers keys,
    tokens, webhook secrets and deploy-hook URLs. No `cat`, `env`, `printenv`, `echo $SECRET`, and no
    "first N characters" either. For a service account, the printable fields are `project_id`,
    `client_email` and `private_key_id`, and nothing else.
-2. **`FIREBASE_SA_KEY` is base64 of the key file.** The Actions secret `FIREBASE_SERVICE_ACCOUNT` is raw
-   JSON. Cloudflare's `FIREBASE_PRIVATE_KEY` is the bare PEM.
+2. **`FIREBASE_SA_KEY` is the whole key file pasted as it is, or base64 of it** (SECURITY-R1.2: either
+   form; a value starting with `{` is the file). Don't assume which it holds: read it with
+   `readSaKeySecret`. The Actions secret `FIREBASE_SERVICE_ACCOUNT` is raw JSON. Cloudflare's
+   `FIREBASE_PRIVATE_KEY` is the bare PEM.
 3. **Parse credentials only through `scripts/security/service-account.mjs`**
-   (`decodeBase64ServiceAccount`, `parseServiceAccount`, `readServiceAccountFile`). Its errors name the
+   (`readSaKeySecret`, `parseServiceAccount`, `readServiceAccountFile`). Its errors name the
    source and withhold the value. In a scratch script too: a bare `JSON.parse` on a secret is the leak.
 4. **To compare keys, compare `private_key_id`.** To prove a consumer works, run
    `node scripts/security/verify-admin-key.mjs`.

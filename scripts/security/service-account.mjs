@@ -4,7 +4,7 @@
 //
 //   JSON.parse(process.env.FIREBASE_SA_KEY)
 //
-// FIREBASE_SA_KEY is BASE64, not JSON, so the parse threw — and Node, on an uncaught
+// FIREBASE_SA_KEY was BASE64, not JSON, so the parse threw — and Node, on an uncaught
 // SyntaxError from JSON.parse, prints the WHOLE INPUT as the "source line" of the error
 // (`<anonymous_script>:1` followed by the full string). The truncated message under it
 // ("Unexpected token ... is not valid JSON") makes it look as if only ten characters
@@ -15,9 +15,11 @@
 //
 // Sources, first match wins:
 //   1. a path in one of the given env vars (the workflows' COVERS_SERVICE_ACCOUNT etc.)
-//   2. FIREBASE_SA_KEY — the Codespaces secret, BASE64 of the key file
+//   2. FIREBASE_SA_KEY — the Codespaces secret: the whole key file pasted as it is, or (the
+//      older form) BASE64 of it. A value starting with "{" is the file; anything else is base64,
+//      whose alphabet has no "{" (SECURITY-R1.2).
 //   3. FIREBASE_SERVICE_ACCOUNT — raw JSON (the GitHub Actions secret's format)
-//   4. serviceAccountKey.json at the repo root (git-ignored; decoded from 2 by .devcontainer)
+//   4. serviceAccountKey.json at the repo root (git-ignored; written from 2 by .devcontainer)
 
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -39,9 +41,16 @@ export function parseServiceAccount(text, source) {
   return sa;
 }
 
-/** FIREBASE_SA_KEY is base64 of the key file. Decode first, then parse. */
+/** Base64 of the key file. Decode first, then parse. */
 export function decodeBase64ServiceAccount(b64, source = 'FIREBASE_SA_KEY') {
   return parseServiceAccount(Buffer.from(String(b64).trim(), 'base64').toString('utf8'), `${source} (base64-decoded)`);
+}
+
+/** FIREBASE_SA_KEY in either form: the key file as it is (starts with "{"), or base64 of it. */
+export function readSaKeySecret(value, source = 'FIREBASE_SA_KEY') {
+  return String(value).trimStart().startsWith('{')
+    ? parseServiceAccount(value, source)
+    : decodeBase64ServiceAccount(value, source);
 }
 
 export function readServiceAccountFile(path) {
@@ -57,7 +66,7 @@ export function readServiceAccountFile(path) {
 /** The service account, from the first source present. `pathVars`: env vars that hold a PATH. */
 export function loadServiceAccount({ pathVars = [], env = process.env } = {}) {
   for (const v of pathVars) if (env[v]) return readServiceAccountFile(env[v]);
-  if (env.FIREBASE_SA_KEY) return decodeBase64ServiceAccount(env.FIREBASE_SA_KEY);
+  if (env.FIREBASE_SA_KEY) return readSaKeySecret(env.FIREBASE_SA_KEY);
   if (env.FIREBASE_SERVICE_ACCOUNT) return parseServiceAccount(env.FIREBASE_SERVICE_ACCOUNT, 'FIREBASE_SERVICE_ACCOUNT');
   return readServiceAccountFile(join(ROOT, 'serviceAccountKey.json'));
 }

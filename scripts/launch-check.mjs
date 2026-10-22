@@ -16,8 +16,8 @@
 // The verdicts are pure functions of that evidence and the clock, so tests/ci/w7-launch-check
 // can force each row green, red and not-yet-due without a network.
 //
-// Credentials, in order: LAUNCH_SERVICE_ACCOUNT (a path), FIREBASE_SA_KEY (base64 JSON, the
-// codespace), serviceAccountKey.json. The email is signed with the same key (see
+// Credentials, in order: LAUNCH_SERVICE_ACCOUNT (a path), FIREBASE_SA_KEY (the key file or
+// base64 of it, the codespace), serviceAccountKey.json. The email is signed with the same key (see
 // functions/api/ops/_opsAuth.js) — no Resend key lives outside the Pages project.
 
 import { readFileSync } from 'node:fs';
@@ -28,7 +28,7 @@ import { GATE_ON_MS, gatingOn, freeUntilFor, servesAsReader } from '../app/lib/s
 import { endingOf } from './check-built-gate.mjs';
 import { LAUNCH_DATE_SHORT } from '../app/lib/launch.js';
 import { dictionaryLookup, DICT_BASE, DICT_SOURCE } from '../app/lib/dictionary.js';
-import { readServiceAccountFile, decodeBase64ServiceAccount } from './security/service-account.mjs';
+import { readServiceAccountFile, readSaKeySecret } from './security/service-account.mjs';
 
 export const SITE = process.env.LAUNCH_SITE || 'https://calvaryscribblings.co.uk';
 export const GREEN = 'green';
@@ -199,7 +199,7 @@ export function renderHtml(rows, now) {
 function serviceAccount() {
   // Parsed by service-account.mjs: a failed JSON.parse prints its whole input (SECURITY-R1).
   if (process.env.LAUNCH_SERVICE_ACCOUNT) return readServiceAccountFile(process.env.LAUNCH_SERVICE_ACCOUNT);
-  if (process.env.FIREBASE_SA_KEY) return decodeBase64ServiceAccount(process.env.FIREBASE_SA_KEY);
+  if (process.env.FIREBASE_SA_KEY) return readSaKeySecret(process.env.FIREBASE_SA_KEY);
   return readServiceAccountFile('serviceAccountKey.json');
 }
 

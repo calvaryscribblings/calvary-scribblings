@@ -109,7 +109,7 @@ row 5.
 
 | # | Consumer | Secret name | Where it's set | Format | What breaks without it |
 |---|---|---|---|---|---|
-| 1 | Codespaces | `FIREBASE_SA_KEY` | **github.com → Settings → Codespaces → Secrets.** This is a *user-level* secret, not a repo one. Its repository access must include `calvary-scribblings`. | **base64 of the whole key file**, one line | `.devcontainer/devcontainer.json` decodes it into `serviceAccountKey.json`, and only when a Codespace is **created or rebuilt**. `scripts/launch-check.mjs` and `scripts/dictionary/coverage.mjs` also read it directly. |
+| 1 | Codespaces | `FIREBASE_SA_KEY` | **github.com → Settings → Codespaces → Secrets.** This is a *user-level* secret, not a repo one. Its repository access must include `calvary-scribblings`. | **the whole key file, pasted as it is** (since SECURITY-R1.2; the older base64 form still works) | `.devcontainer/devcontainer.json` writes it to `serviceAccountKey.json`, and only when a Codespace is **created or rebuilt**. `scripts/launch-check.mjs` and `scripts/dictionary/coverage.mjs` also read it directly. |
 | 2 | `serviceAccountKey.json` | none (a file) | repo root of the Codespace, git-ignored | raw JSON | About 70 scripts under `scripts/`, `npm run rules:deploy*` / `rules:pull` / `rules:check`, `tests/live/test-reader.mjs` (mints the test reader's sign-in), and `scripts/backup/export.mjs`. All are run by hand. |
 | 3 | GitHub Actions | `FIREBASE_SERVICE_ACCOUNT` | **repo → Settings → Secrets and variables → Actions** | **raw JSON**: paste the file's contents as they are | Every */15 job: `covers.yml` (covers + publishing held stories), `account-scrub.yml` (finishing deletions), `index-reconcile.yml`, `push-announce.yml` (story pushes). Also `withdrawals.yml` (hourly), `square-horizon.yml`, `backup-liveness.yml` (daily 09:00 UTC), `launch-check.yml` (Mondays), `rules-and-hygiene.yml` (the rules drift check, only on pushes that change rules; skipped with a warning if unset) and `w33-proof.yml` (by hand). |
 | 4 | Cloudflare Pages, project `calvary-scribblings`, **Production** | `FIREBASE_PRIVATE_KEY` (secret, encrypted) | **dash.cloudflare.com → Workers & Pages → calvary-scribblings → Settings → Variables and Secrets** | **The `private_key` PEM only**, not the whole JSON. Paste it as `jq -r .private_key key.json` prints it, with real line breaks. The JSON-escaped form with literal `\n` also works: every signer goes through `normalisePem()` in `functions/api/bookstore/_lib.js` or its own `.replace(/\\n/g, '\n')`. | Nearly every live endpoint. `/api/story` answers 502, so gated stories won't open. The Stripe and Paystack webhooks for **books and memberships** can't grant purchases. Also book streaming, account deletion, Square posts, DM images, comment screening, Open Pages moderation, quiz attempts, the hit counter, the rate limiter (fails closed, so `/api/rebuild` refuses), Series reads and notes, and the admin lookups. **Takes effect only on the next deployment.** |
@@ -145,13 +145,13 @@ needed" before deleting it, and "You cannot undelete a deleted key." A disabled 
     organisation, the constraint doesn't apply.
   - *On an iPad*, Cloud Shell (the `>_` icon at the top of the console) is the easiest place to handle the
     file. Upload it there and use:
-    `base64 -w0 key.json` for row 1,
-    `cat key.json` for row 3,
+    `cat key.json` for rows 1 and 3,
     `jq -r .private_key key.json` for rows 4 and 5.
     Run `clear` after each copy.
 - [ ] **2. Update every consumer** (§3), in any order. Until the old key is disabled, both keys work.
   1. Actions `FIREBASE_SERVICE_ACCOUNT`: raw JSON.
-  2. Codespaces `FIREBASE_SA_KEY`: base64. Then **rebuild the Codespace** (Command Palette →
+  2. Codespaces `FIREBASE_SA_KEY`: the whole key file, pasted as it is, the same as the Actions
+     secret. Then **rebuild the Codespace** (Command Palette →
      *Codespaces: Rebuild Container*). A changed Codespaces secret is not in a running shell, and
      `serviceAccountKey.json` is rewritten only on create or rebuild.
   3. Pages `FIREBASE_PRIVATE_KEY`: PEM with real line breaks. Then **redeploy**: Deployments → latest
@@ -256,7 +256,7 @@ All three exposures ran the same line in a scratch script:
 JSON.parse(process.env.FIREBASE_SA_KEY)
 ```
 
-`FIREBASE_SA_KEY` is base64, so the parse throws. On an uncaught `JSON.parse` error, Node (v24 here)
+`FIREBASE_SA_KEY` was base64, so the parse threw. On an uncaught `JSON.parse` error, Node (v24 here)
 prints **the whole input** as the error's source line, under `<anonymous_script>:1`. The message after it,
 `Unexpected token … "eyJ0eXBlIj"... is not valid JSON`, is truncated, which makes the leak look like ten
 characters. It is the entire key.
@@ -268,8 +268,9 @@ The fix:
   817 bytes, and none of them come from the secret.
 - `scripts/launch-check.mjs`, `scripts/dictionary/coverage.mjs` and `scripts/bookstore/author-copy.mjs`
   parsed env credentials with a bare `JSON.parse`. They now use it.
-- `CLAUDE.md` carries the rule: credential values are never printed, `FIREBASE_SA_KEY` is base64, and
-  parsing goes through this loader.
+- `CLAUDE.md` carries the rule: credential values are never printed, and
+  parsing goes through this loader. Since SECURITY-R1.2 `FIREBASE_SA_KEY` may hold the key file as it is
+  or base64 of it; `readSaKeySecret` reads either.
 
 ---
 
