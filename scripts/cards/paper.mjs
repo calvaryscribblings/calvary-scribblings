@@ -79,7 +79,7 @@ export const LEDGER = Object.freeze({
 export const SCORE = Object.freeze({
   players: 8,                      // ruled
   rows: 13,                        // ruled: Last Page with six players runs to 13 hands
-  games: ['The Turn', 'First Lines', 'Last Page'],
+  games: ['Last Page', 'First Lines', 'The Turn'],   // the rulebook's order (R3.1)
   handCol: 14,                     // C
   nameRow: 13,                     // C
 });
@@ -171,7 +171,7 @@ function circle(doc, cx, cy, d) {
 }
 
 /** The furniture every sheet carries: what it is, how to print it, the check line, the legend. */
-export function furniture(doc, title, note) {
+export function furniture(doc, title, note, { legend = true } = {}) {
   text(doc, title, MARGIN, HEAD.titleBase, { size: 12, track: 0.06 });
   text(doc, note, MARGIN, HEAD.noteBase, { size: TYPE_MIN });
   // The check line, with end ticks.
@@ -180,7 +180,8 @@ export function furniture(doc, title, note) {
   line(doc, x0, FOOT.lineY - 1.6, x0, FOOT.lineY + 1, 0.6);
   line(doc, x0 + CHECK_MM, FOOT.lineY - 1.6, x0 + CHECK_MM, FOOT.lineY + 1, 0.6);
   text(doc, `Check: this line is ${CHECK_MM} mm. If it is not, the page was scaled. Print at Actual size, 100%.`, x0 + CHECK_MM + 3, FOOT.lineY + 0.9, { size: TYPE_MIN });
-  // The legend, right-aligned on the check line's row: cut, then fold.
+  // The legend, right-aligned on the check line's row: cut, then fold. Only where there is a cut.
+  if (!legend) return;
   const right = A4.w - MARGIN;
   const base = FOOT.lineY + 0.9;
   const fw = text(doc, 'fold', right, base, { size: TYPE_MIN, align: 'right' });
@@ -259,7 +260,7 @@ function ledgerSizeFor(doc, cards, w) {
   const measure = w - 2 * L.inset;
   const linesAt = (s, size) => wrap(doc, s, size, measure).length;
   // The hidden band: the longest line, at the floor.
-  const byLines = cards.map((c) => ({ c, n: linesAt(c.line, TYPE_MIN) })).sort((a, b) => b.n - a.n);
+  const byLines = cards.map((c) => ({ c, n: linesAt(c.print, TYPE_MIN) })).sort((a, b) => b.n - a.n);
   const box = (n) => n * TYPE_MIN * L.leading / PT;
   const lineBox = box(byLines[0].n);
   const hidden = L.hiddenTopPad + lineBox + L.hiddenFootPad;
@@ -301,8 +302,8 @@ export function drawLedgerSlip(doc, P, c, x, y) {
   hatch(doc, x, y, P.w, P.hidden);
   flapLabel(doc, 'FIRST LINES · fold down', x + P.w / 2, y + P.hidden / 2);
   foldLine(doc, x, y + P.hidden, x + P.w);
-  const size = linePt(doc, P, c.line);
-  const lines = wrap(doc, c.line, size, P.measure);
+  const size = linePt(doc, P, c.print);
+  const lines = wrap(doc, c.print, size, P.measure);
   const lead = size * L.leading / PT;
   // Centred in the box, first baseline one cap-ish below the box top.
   const boxTop = y + P.hidden + L.hiddenTopPad + (P.lineBox - lines.length * lead) / 2;
@@ -340,7 +341,7 @@ export function ledgerSheets(doc, cards) {
 
 export function scorepad(doc) {
   doc.addPage();
-  furniture(doc, 'SHORELINES · SCORE', 'One sheet a game: tick the game, write the players across the top, a hand to a row. Nothing to cut or fold.');
+  furniture(doc, 'SHORELINES · SCORE', 'One sheet a game: tick the game, write the players across the top, one round to a row (in Last Page, one hand). Nothing to cut or fold.', { legend: false });
   const S = SCORE;
   const top = AREA.top;
   // The games, each with a tick box.
@@ -376,9 +377,11 @@ export function scorepad(doc) {
 }
 
 // ── THE NIGHT ────────────────────────────────────────────────────────────────────────────────
-// What a six-player night prints. The Turn's count rests on two readings of the rules, stated in
-// PAPER.md: every player fills one slip each round, and the night plays one round per player.
-export const NIGHT = Object.freeze({ players: 6, turnRounds: 6, scoreGames: 3 });
+// What a six-player night prints. The Turn (R3.1, Ikenna): one slip per Reader per round, and the
+// Writer doesn't guess. With 4 to 6 players everyone is the Writer once; with 2 or 3, twice.
+export const NIGHT = Object.freeze({ players: 6, scoreGames: 3 });
+export const turnRounds = (players) => (players <= 3 ? 2 : 1) * players;
+export const turnSlips = (players) => turnRounds(players) * (players - 1);
 
 // ── run ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -418,7 +421,7 @@ async function main() {
   writeFileSync(MD, measurements({ guess, ledger, score, cards, doc: ld }));
   const n = NIGHT;
   console.log(`guess: ${guess.P.perSheet}/sheet (${guess.P.w} × ${guess.P.h.toFixed(1)} mm); ledger: ${ledger.P.perSheet}/sheet × ${ledger.P.sheets} sheets (${ledger.P.w.toFixed(2)} × ${ledger.P.h.toFixed(2)} mm)${ledger.P.unreasonable ? ' FLAG: longest line' : ''}; scorepad: 1`);
-  console.log(`six-player night: turn ${Math.ceil(n.players * n.turnRounds / guess.P.perSheet)}, ledger ${ledger.P.sheets}, scorepad ${n.scoreGames}`);
+  console.log(`six-player night: turn ${Math.ceil(turnSlips(n.players) / guess.P.perSheet)}, ledger ${ledger.P.sheets}, scorepad ${n.scoreGames}`);
 }
 
 function measurements({ guess, ledger, score, cards }) {
@@ -428,9 +431,10 @@ function measurements({ guess, ledger, score, cards }) {
   const sizes = {};
   for (const s of ledger.placed) sizes[s.size] = (sizes[s.size] || 0) + 1;
   const n = NIGHT;
-  const turnSlips = n.players * n.turnRounds;
+  const slips = turnSlips(n.players);
+  const turnSheets = Math.ceil(slips / G.perSheet);
   const out = [];
-  out.push('# Shorelines: the playtest paper (CARDS-R3)', '');
+  out.push('# Shorelines: the playtest paper (CARDS-R3, R3.1)', '');
   out.push('Generated by `scripts/cards/paper.mjs`. **D** marks a number derived; **C** a number chosen here. All sizes in mm unless marked; positions from each slip\'s top-left corner.', '');
   out.push('Three PDFs, vector, single-sided A4, black ink only, EB Garamond Regular (the cards\' own file). Nothing is set under 8 pt: `text()` refuses it. They are delivered with the draft release `shorelines-playtest-1`, never committed.', '');
   out.push('## Every sheet', '', '| | | |', '|---|---|---|');
@@ -456,7 +460,8 @@ function measurements({ guess, ledger, score, cards }) {
   out.push(`| Slip | ${G.w} × ${f(G.h, 1)} open; ${G.w} × ${f(G.hidden + G.visible, 1)} folded | D |`);
   out.push(`| Per sheet | ${G.cols} × ${G.rows} = ${G.perSheet} | D |`);
   out.push('', '## First Lines: the Ledger', '', '| | | |', '|---|---|---|');
-  out.push(`| Slips | ${cards.length}: every card with a line (FIRST-LINES.md), sorted by title ignoring a leading The, A or An | D |`);
+  out.push(`| Slips | ${cards.length}: every card, the three picture cards included (FIRST-LINES.md), sorted by title ignoring a leading The, A or An | D |`);
+  out.push('| The line printed | `print`: the stored line with straight quotes turned to the house\'s curly single quotes (FIRST-LINES.md lists each) | ruled (R3.1) |');
   out.push(`| The size, derived | ${L.candidates.map((c) => `${c.cols} across: ${f(c.w)} × ${f(c.h)}, ${c.perSheet}/sheet`).join('; ')} → **${L.cols} across** | D: for each width the height follows from the longest line at ${TYPE_MIN} pt; the most slips a sheet wins |`);
   out.push(`| Slip | ${f(L.w)} × ${f(L.h)} open; ${f(L.w)} × ${f(L.hidden + L.visible)} folded | D |`);
   out.push(`| Inset, measure | ${LEDGER.inset}, ${f(L.measure)} | C, D |`);
@@ -468,15 +473,16 @@ function measurements({ guess, ledger, score, cards }) {
   out.push(`| Visible strip | ${f(L.visible)}: title ${LEDGER.titlePt} pt (${L.titleLines === 1 ? 'every title on one line' : `up to ${L.titleLines} lines`}), author ${LEDGER.authorPt} pt | D (sizes C) |`);
   out.push(`| Per sheet, sheets | ${L.cols} × ${L.rows} = ${L.perSheet}; ${L.sheets} sheets | D |`);
   out.push('', '## The scorepad', '', '| | | |', '|---|---|---|');
-  out.push(`| Games | ${SCORE.games.join(', ')}, each with a 4.5 tick box | ruled (box C) |`);
+  out.push(`| Games | ${SCORE.games.join(', ')}, in the rulebook's order, each with a 4.5 tick box | ruled (box C) |`);
   out.push(`| Players | ${SCORE.players} columns, ${f(score.colW)} wide | ruled; width D |`);
   out.push(`| Rows | ${SCORE.rows} numbered hands and a total, ${f(score.rowH)} each; the name row ${SCORE.nameRow} | ruled (Last Page, six players, 13 hands); heights D (name row C) |`);
-  out.push('| Cut, fold | none: one pad is the whole sheet, and it hides nothing | — |');
+  out.push('| Cut, fold | none: one pad is the whole sheet, and it hides nothing; so no cut and fold key either (R3.1). It keeps the check line | ruled |');
   out.push('', '## A six-player night', '', '| Part | Sheets | Why |', '|---|---|---|');
-  out.push(`| The Turn | ${Math.ceil(turnSlips / G.perSheet)} | ${turnSlips} slips at ${G.perSheet} a sheet. **Assumed** (no rulebook in this repo): every player fills one slip each round, and the night plays one round per player. Sheets = players × rounds ÷ ${G.perSheet} |`);
+  out.push(`| The Turn | ${turnSheets} | ${turnRounds(n.players)} rounds × ${n.players - 1} Readers = ${slips} slips, at ${G.perSheet} a sheet. One slip per Reader per round; the Writer doesn't guess; with 4 to 6 players everyone is the Writer once, with 2 or 3 twice (R3.1, Ikenna) |`);
   out.push(`| First Lines | ${L.sheets} | one Ledger of ${cards.length} slips, kept and reused |`);
   out.push(`| Scorepad | ${n.scoreGames} | one per game, each game played once |`);
-  out.push(`| **Total** | **${Math.ceil(turnSlips / G.perSheet) + L.sheets + n.scoreGames}** | |`);
+  out.push(`| **Total** | **${turnSheets + L.sheets + n.scoreGames}** | |`);
+  out.push('', 'The Turn at other sizes: ' + [2, 3, 4, 5, 6].map((p) => `${p} players, ${turnRounds(p)} rounds × ${p - 1} = ${turnSlips(p)} slips, ${Math.ceil(turnSlips(p) / G.perSheet)} sheet${Math.ceil(turnSlips(p) / G.perSheet) > 1 ? 's' : ''}`).join('; ') + '.');
   out.push('');
   return out.join('\n');
 }

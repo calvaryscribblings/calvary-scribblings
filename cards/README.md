@@ -23,7 +23,7 @@ A physical deck of real island stories. Each card wears its typographic cover, r
 | `print/mpc-playtest/MANIFEST.md` | The MakePlayingCards upload set for playtest deck 1: slot, files, title, motif, livery, code. The images themselves are delivered privately (draft release `shorelines-playtest-1`), never committed |
 | `review/MPC-PROOF.png` | Every upload image, decoded from the exported JPEGs, with MPC's trim and safe area |
 | `glyphs/*.svg` | The eight motif glyphs, 6 mm with a 0.15 mm stroke |
-| `data/first-lines.json`, `review/FIRST-LINES.md` | **CARDS-R3.** Every card's first sentence, verbatim, read signed out, with every flag (furniture passed over, verse, dialogue, sentence-boundary judgements, over 40 words). The three picture cards have none: the series endpoint refuses a signed-out reader |
+| `data/first-lines.json`, `review/FIRST-LINES.md` | **CARDS-R3.** Every card's first sentence, verbatim (a poem's first line of verse, whole), with every flag, and the line as printed with the house's curly quotes. Stories read signed out; the picture cards from their series' first instalment (R3.1) |
 | `review/PAPER.md`, `review/PAPER-SHEET.png` | **CARDS-R3.** The playtest paper: The Turn's guess slips, the First Lines Ledger, the scorepad. Every measurement D or C, the sheets a six-player night needs, and every sheet rendered from the PDFs with details at 100%. The PDFs are delivered with the draft release, never committed |
 
 ## Rebuilding
@@ -45,4 +45,4 @@ A full-raster `getImageData` in @napi-rs/canvas 1.0.6 is never freed (about 14 M
 
 Both gates are passed (RATIFIED.md, SIGNOFF.md). The first print export is the MakePlayingCards playtest set (CARDS-R2).
 
-`first-lines.mjs --fetch` asks `/api/story` with no token and no telemetry fields, so each call adds one to `story_clients/<day>/story/unknown`, as any unlabelled open does. The responses are kept in `~/calvary-private/cards-first-lines/`, outside the work tree, and a plain run rebuilds from them without calling anything.
+`first-lines.mjs` reads from `~/calvary-private/cards-first-lines/`, outside the work tree, and a plain run calls nothing. `--fetch` asks `/api/story` again with no token and `client: 'cards-script'`, so it is never counted in `story_clients`' `unknown` bucket (R3's unlabelled calls were, and were taken back out: ruling 232). `--series` reads the three series' first-instalment EPUBs from Storage, read-only, through `scripts/security/service-account.mjs` (R3.1).

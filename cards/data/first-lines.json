@@ -9,14 +9,27 @@
    "motif": "Secret",
    "title": "Beta Princess",
    "author": "Monica Garcia",
-   "line": null,
-   "runs": null,
-   "words": null,
-   "source": "POST /api/series/stream { instalmentId: beta-princess-i1 }, signed out",
+   "line": "My hands trembled as I pulled on the blood-soaked gown.",
+   "runs": [
+    {
+     "t": "My hands trembled as I pulled on the blood-soaked gown.",
+     "i": false
+    }
+   ],
+   "words": 10,
+   "print": "My hands trembled as I pulled on the blood-soaked gown.",
+   "printRuns": [
+    {
+     "t": "My hands trembled as I pulled on the blood-soaked gown.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
+   "source": "series_epubs/beta-princess-i1/master.epub (Storage, read-only, admin key): the series is closed to a signed-out reader (/api/series/stream answers 401 signed_out)",
    "flags": [
     {
-     "kind": "unavailable",
-     "note": "not readable signed out: the series endpoint answers 401 signed_out (the Series gate is on, and no instalment is Free to read)"
+     "kind": "furniture",
+     "note": "passed over before the first sentence: editorial note; heading (\"Part One\")"
     }
    ]
   },
@@ -27,14 +40,27 @@
    "motif": "Debt",
    "title": "Diary of a Lagos 9-5er",
    "author": "Tricia Ajax",
-   "line": null,
-   "runs": null,
-   "words": null,
-   "source": "POST /api/series/stream { instalmentId: diary-of-a-lagos-9-5er-i1 }, signed out",
+   "line": "The alarm did not wake me.",
+   "runs": [
+    {
+     "t": "The alarm did not wake me.",
+     "i": false
+    }
+   ],
+   "words": 6,
+   "print": "The alarm did not wake me.",
+   "printRuns": [
+    {
+     "t": "The alarm did not wake me.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
+   "source": "series_epubs/diary-of-a-lagos-9-5er-i1/master.epub (Storage, read-only, admin key): the series is closed to a signed-out reader (/api/series/stream answers 401 signed_out)",
    "flags": [
     {
-     "kind": "unavailable",
-     "note": "not readable signed out: the series endpoint answers 401 signed_out (the Series gate is on, and no instalment is Free to read)"
+     "kind": "furniture",
+     "note": "passed over before the first sentence: heading (\"Chapter I: It's Monday Again\"); dateline (\"4:30 AM\")"
     }
    ]
   },
@@ -45,14 +71,27 @@
    "motif": "Secret",
    "title": "The Doherty Confessions",
    "author": "Dera Okaro",
-   "line": null,
-   "runs": null,
-   "words": null,
-   "source": "POST /api/series/stream { instalmentId: the-doherty-confessions-i1 }, signed out",
+   "line": "We are taught that confessions belong at the very end of things, but Victoria Doherty’s proved to be the exact point where everything began.",
+   "runs": [
+    {
+     "t": "We are taught that confessions belong at the very end of things, but Victoria Doherty’s proved to be the exact point where everything began.",
+     "i": false
+    }
+   ],
+   "words": 24,
+   "print": "We are taught that confessions belong at the very end of things, but Victoria Doherty’s proved to be the exact point where everything began.",
+   "printRuns": [
+    {
+     "t": "We are taught that confessions belong at the very end of things, but Victoria Doherty’s proved to be the exact point where everything began.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
+   "source": "series_epubs/the-doherty-confessions-i1/master.epub (Storage, read-only, admin key): the series is closed to a signed-out reader (/api/series/stream answers 401 signed_out)",
    "flags": [
     {
-     "kind": "unavailable",
-     "note": "not readable signed out: the series endpoint answers 401 signed_out (the Series gate is on, and no instalment is Free to read)"
+     "kind": "furniture",
+     "note": "passed over before the first sentence: heading (\"Instalment I\"); content note"
     }
    ]
   },
@@ -71,6 +110,14 @@
     }
    ],
    "words": 12,
+   "print": "We were on our first date, but it felt like the tenth.",
+   "printRuns": [
+    {
+     "t": "We were on our first date, but it felt like the tenth.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -89,6 +136,14 @@
     }
    ],
    "words": 9,
+   "print": "It was me in the park sometime this week.",
+   "printRuns": [
+    {
+     "t": "It was me in the park sometime this week.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": [
     {
@@ -112,6 +167,14 @@
     }
    ],
    "words": 17,
+   "print": "My mother kept this old, worn-out diary as if it were some kind of safe deposit box.",
+   "printRuns": [
+    {
+     "t": "My mother kept this old, worn-out diary as if it were some kind of safe deposit box.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -130,6 +193,21 @@
     }
    ],
    "words": 8,
+   "print": "Elizabeth hadn’t seen her home in twenty-three days.",
+   "printRuns": [
+    {
+     "t": "Elizabeth hadn’t seen her home in twenty-three days.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [
+    {
+     "at": 14,
+     "from": "'",
+     "to": "’",
+     "as": "apostrophe"
+    }
+   ],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -148,6 +226,14 @@
     }
    ],
    "words": 8,
+   "print": "Editors, I have learned, are not cruel people.",
+   "printRuns": [
+    {
+     "t": "Editors, I have learned, are not cruel people.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -166,6 +252,14 @@
     }
    ],
    "words": 19,
+   "print": "The instant Sornen hit the sheets, he sank into deep and dreamless slumber like he was in a coma.",
+   "printRuns": [
+    {
+     "t": "The instant Sornen hit the sheets, he sank into deep and dreamless slumber like he was in a coma.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -184,6 +278,14 @@
     }
    ],
    "words": 11,
+   "print": "I am twenty years old, and I still call him Daddy.",
+   "printRuns": [
+    {
+     "t": "I am twenty years old, and I still call him Daddy.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -202,6 +304,14 @@
     }
    ],
    "words": 9,
+   "print": "Salisu lit a cigarette and took a long drag.",
+   "printRuns": [
+    {
+     "t": "Salisu lit a cigarette and took a long drag.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": [
     {
@@ -225,6 +335,27 @@
     }
    ],
    "words": 5,
+   "print": "‘You can have some, B.’",
+   "printRuns": [
+    {
+     "t": "‘You can have some, B.’",
+     "i": false
+    }
+   ],
+   "quoteChanges": [
+    {
+     "at": 0,
+     "from": "'",
+     "to": "‘",
+     "as": "opening quote"
+    },
+    {
+     "at": 22,
+     "from": "'",
+     "to": "’",
+     "as": "closing quote"
+    }
+   ],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": [
     {
@@ -252,6 +383,14 @@
     }
    ],
    "words": 10,
+   "print": "Everyone in Jos knew the story of the missing girl.",
+   "printRuns": [
+    {
+     "t": "Everyone in Jos knew the story of the missing girl.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -270,6 +409,33 @@
     }
    ],
    "words": 25,
+   "print": "Tamara had always known that somewhere in Lagos, the ‘r’ in friendship had gone missing, and she wasn’t interested in helping Lagosians look for it.",
+   "printRuns": [
+    {
+     "t": "Tamara had always known that somewhere in Lagos, the ‘r’ in friendship had gone missing, and she wasn’t interested in helping Lagosians look for it.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [
+    {
+     "at": 53,
+     "from": "'",
+     "to": "‘",
+     "as": "opening quote"
+    },
+    {
+     "at": 55,
+     "from": "'",
+     "to": "’",
+     "as": "closing quote"
+    },
+    {
+     "at": 101,
+     "from": "'",
+     "to": "’",
+     "as": "apostrophe"
+    }
+   ],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -288,6 +454,14 @@
     }
    ],
    "words": 6,
+   "print": "Zara barely slept the previous night.",
+   "printRuns": [
+    {
+     "t": "Zara barely slept the previous night.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -298,46 +472,29 @@
    "motif": "Child",
    "title": "Mother and Other Poems",
    "author": "Ikenna Okpara",
-   "line": "If I could touch heaven's soul / I could find the peace I need — / the peace to love, / to be loved, / to hold my kind of love.",
+   "line": "If I could touch heaven's soul",
    "runs": [
     {
      "t": "If I could touch heaven's soul",
      "i": false
-    },
+    }
+   ],
+   "words": 6,
+   "print": "If I could touch heaven’s soul",
+   "printRuns": [
     {
-     "t": " / ",
-     "i": false
-    },
-    {
-     "t": "I could find the peace I need —",
-     "i": false
-    },
-    {
-     "t": " / ",
-     "i": false
-    },
-    {
-     "t": "the peace to love,",
-     "i": false
-    },
-    {
-     "t": " / ",
-     "i": false
-    },
-    {
-     "t": "to be loved,",
-     "i": false
-    },
-    {
-     "t": " / ",
-     "i": false
-    },
-    {
-     "t": "to hold my kind of love.",
+     "t": "If I could touch heaven’s soul",
      "i": false
     }
    ],
-   "words": 26,
+   "quoteChanges": [
+    {
+     "at": 23,
+     "from": "'",
+     "to": "’",
+     "as": "apostrophe"
+    }
+   ],
    "source": "POST /api/story { slug }, signed out (access: full)",
    "flags": [
     {
@@ -346,7 +503,7 @@
     },
     {
      "kind": "verse",
-     "note": "the sentence runs over 5 lines of verse, joined with \" / \""
+     "note": "a poem: its first line of verse, whole, by ruling (the sentence runs on past it)"
     }
    ]
   },
@@ -365,6 +522,27 @@
     }
    ],
    "words": 20,
+   "print": "‘As a woman, there are two things you should never ever trust in your lifetime: men and your menstrual cycle.’",
+   "printRuns": [
+    {
+     "t": "‘As a woman, there are two things you should never ever trust in your lifetime: men and your menstrual cycle.’",
+     "i": false
+    }
+   ],
+   "quoteChanges": [
+    {
+     "at": 0,
+     "from": "'",
+     "to": "‘",
+     "as": "opening quote"
+    },
+    {
+     "at": 109,
+     "from": "'",
+     "to": "’",
+     "as": "closing quote"
+    }
+   ],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": [
     {
@@ -388,6 +566,14 @@
     }
    ],
    "words": 7,
+   "print": "The baby finally sleeps at 4:46 a.m.",
+   "printRuns": [
+    {
+     "t": "The baby finally sleeps at 4:46 a.m.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": [
     {
@@ -411,6 +597,14 @@
     }
    ],
    "words": 16,
+   "print": "Unemployment had clung to you like a cold sore on the corner of a gigolo’s lip.",
+   "printRuns": [
+    {
+     "t": "Unemployment had clung to you like a cold sore on the corner of a gigolo’s lip.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -429,6 +623,14 @@
     }
    ],
    "words": 11,
+   "print": "Doris had a saying she repeated whenever Ejiro criticised her marriage.",
+   "printRuns": [
+    {
+     "t": "Doris had a saying she repeated whenever Ejiro criticised her marriage.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -447,6 +649,14 @@
     }
    ],
    "words": 14,
+   "print": "By the time you get to your sixth IVF cycle, you stop announcing dates.",
+   "printRuns": [
+    {
+     "t": "By the time you get to your sixth IVF cycle, you stop announcing dates.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -465,6 +675,14 @@
     }
    ],
    "words": 39,
+   "print": "Sometimes, I wish my parents would take me to the supermarket the way it is in Hollywood films, where a child would be held in the middle, skipping happily with father and mother as they walk through the aisle.",
+   "printRuns": [
+    {
+     "t": "Sometimes, I wish my parents would take me to the supermarket the way it is in Hollywood films, where a child would be held in the middle, skipping happily with father and mother as they walk through the aisle.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -483,6 +701,14 @@
     }
    ],
    "words": 14,
+   "print": "The rickety bus had barely made a stop when I fought my way in.",
+   "printRuns": [
+    {
+     "t": "The rickety bus had barely made a stop when I fought my way in.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -501,6 +727,14 @@
     }
    ],
    "words": 7,
+   "print": "Dayo was afraid of the number thirteen.",
+   "printRuns": [
+    {
+     "t": "Dayo was afraid of the number thirteen.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -519,6 +753,14 @@
     }
    ],
    "words": 11,
+   "print": "They say the man you meet at nineteen will traumatise you.",
+   "printRuns": [
+    {
+     "t": "They say the man you meet at nineteen will traumatise you.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -537,6 +779,14 @@
     }
    ],
    "words": 15,
+   "print": "‘Uncle Nonso, Mummy says I am old enough now to help her in the kitchen.",
+   "printRuns": [
+    {
+     "t": "‘Uncle Nonso, Mummy says I am old enough now to help her in the kitchen.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": [
     {
@@ -568,6 +818,14 @@
     }
    ],
    "words": 8,
+   "print": "Edet was marking essays when the call came.",
+   "printRuns": [
+    {
+     "t": "Edet was marking essays when the call came.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -586,6 +844,14 @@
     }
    ],
    "words": 13,
+   "print": "My eyes met hers before I had the chance to think about it.",
+   "printRuns": [
+    {
+     "t": "My eyes met hers before I had the chance to think about it.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -604,6 +870,14 @@
     }
    ],
    "words": 19,
+   "print": "I sat in the back seat of the cab, phone in hand, scrolling, when I heard his coarse voice.",
+   "printRuns": [
+    {
+     "t": "I sat in the back seat of the cab, phone in hand, scrolling, when I heard his coarse voice.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -622,6 +896,14 @@
     }
    ],
    "words": 24,
+   "print": "The world now knows about a great writer, standing tall and strong, but not everyone knows she’s a phoenix that rose from the ashes.",
+   "printRuns": [
+    {
+     "t": "The world now knows about a great writer, standing tall and strong, but not everyone knows she’s a phoenix that rose from the ashes.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -640,6 +922,14 @@
     }
    ],
    "words": 19,
+   "print": "As was customary for Chizitere and her family, they were back in their hometown once again after two years.",
+   "printRuns": [
+    {
+     "t": "As was customary for Chizitere and her family, they were back in their hometown once again after two years.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -658,6 +948,14 @@
     }
    ],
    "words": 20,
+   "print": "Edith had rehearsed the moment so many times it had begun to feel less like imagination and more like memory.",
+   "printRuns": [
+    {
+     "t": "Edith had rehearsed the moment so many times it had begun to feel less like imagination and more like memory.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -676,6 +974,14 @@
     }
    ],
    "words": 22,
+   "print": "I had been staring at him for approximately three minutes when I decided three minutes was long enough to qualify as embarrassing.",
+   "printRuns": [
+    {
+     "t": "I had been staring at him for approximately three minutes when I decided three minutes was long enough to qualify as embarrassing.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -694,6 +1000,21 @@
     }
    ],
    "words": 13,
+   "print": "There’s a way old things stay with you beyond the measure of nostalgia.",
+   "printRuns": [
+    {
+     "t": "There’s a way old things stay with you beyond the measure of nostalgia.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [
+    {
+     "at": 5,
+     "from": "'",
+     "to": "’",
+     "as": "apostrophe"
+    }
+   ],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -712,6 +1033,14 @@
     }
    ],
    "words": 15,
+   "print": "Before Chinny ever opened her eyes to this world, grief had already found her family.",
+   "printRuns": [
+    {
+     "t": "Before Chinny ever opened her eyes to this world, grief had already found her family.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -730,6 +1059,14 @@
     }
    ],
    "words": 13,
+   "print": "I was somewhere between sleep and awake when I heard my phone ringing.",
+   "printRuns": [
+    {
+     "t": "I was somewhere between sleep and awake when I heard my phone ringing.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": [
     {
@@ -753,6 +1090,14 @@
     }
    ],
    "words": 32,
+   "print": "The ultimatum came on a Sunday, calmly delivered by his father over a meal, with the quiet authority of a man who had never needed to raise his voice to be obeyed.",
+   "printRuns": [
+    {
+     "t": "The ultimatum came on a Sunday, calmly delivered by his father over a meal, with the quiet authority of a man who had never needed to raise his voice to be obeyed.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -771,6 +1116,14 @@
     }
    ],
    "words": 31,
+   "print": "I was still adjusting my skirt into place, smiling as Echezona buckled his belt and serenaded me with sweet names, when his eyes suddenly drifted past me and his smile vanished.",
+   "printRuns": [
+    {
+     "t": "I was still adjusting my skirt into place, smiling as Echezona buckled his belt and serenaded me with sweet names, when his eyes suddenly drifted past me and his smile vanished.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -789,6 +1142,21 @@
     }
    ],
    "words": 5,
+   "print": "Chidera thinks I don’t notice.",
+   "printRuns": [
+    {
+     "t": "Chidera thinks I don’t notice.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [
+    {
+     "at": 20,
+     "from": "'",
+     "to": "’",
+     "as": "apostrophe"
+    }
+   ],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -807,6 +1175,14 @@
     }
    ],
    "words": 15,
+   "print": "I first saw the man on a Tuesday evening, on my way back from work.",
+   "printRuns": [
+    {
+     "t": "I first saw the man on a Tuesday evening, on my way back from work.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -825,6 +1201,14 @@
     }
    ],
    "words": 7,
+   "print": "As evening falls, the city comes alive.",
+   "printRuns": [
+    {
+     "t": "As evening falls, the city comes alive.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -843,6 +1227,27 @@
     }
    ],
    "words": 9,
+   "print": "‘Hi guys, GRWM as I go get my BBL!’",
+   "printRuns": [
+    {
+     "t": "‘Hi guys, GRWM as I go get my BBL!’",
+     "i": false
+    }
+   ],
+   "quoteChanges": [
+    {
+     "at": 0,
+     "from": "'",
+     "to": "‘",
+     "as": "opening quote"
+    },
+    {
+     "at": 34,
+     "from": "'",
+     "to": "’",
+     "as": "closing quote"
+    }
+   ],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": [
     {
@@ -870,6 +1275,14 @@
     }
    ],
    "words": 7,
+   "print": "Absolutely nobody is coming to save you.",
+   "printRuns": [
+    {
+     "t": "Absolutely nobody is coming to save you.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -888,6 +1301,14 @@
     }
    ],
    "words": 11,
+   "print": "Tara had never been so eager for Abigail to come home.",
+   "printRuns": [
+    {
+     "t": "Tara had never been so eager for Abigail to come home.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -906,6 +1327,21 @@
     }
    ],
    "words": 45,
+   "print": "On my way to my lodge from a string of boring, exhausting lectures — and a surprise test that, like almost everyone else, I hadn’t prepared for — I climbed the hills of Odenigwe with a quiet wish: that my roommate had somehow made a sumptuous meal.",
+   "printRuns": [
+    {
+     "t": "On my way to my lodge from a string of boring, exhausting lectures — and a surprise test that, like almost everyone else, I hadn’t prepared for — I climbed the hills of Odenigwe with a quiet wish: that my roommate had somehow made a sumptuous meal.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [
+    {
+     "at": 128,
+     "from": "'",
+     "to": "’",
+     "as": "apostrophe"
+    }
+   ],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": [
     {
@@ -929,6 +1365,21 @@
     }
    ],
    "words": 15,
+   "print": "I’m halfway through folding laundry when the podcast host says something that makes me freeze.",
+   "printRuns": [
+    {
+     "t": "I’m halfway through folding laundry when the podcast host says something that makes me freeze.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [
+    {
+     "at": 1,
+     "from": "'",
+     "to": "’",
+     "as": "apostrophe"
+    }
+   ],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -939,14 +1390,22 @@
    "motif": "Grave",
    "title": "The Deadline",
    "author": "Ufedo-Ojo Adaji",
-   "line": "Please wait.",
+   "line": "Please wait. Your call is being forwarded.",
    "runs": [
     {
-     "t": "Please wait.",
+     "t": "Please wait. Your call is being forwarded.",
      "i": false
     }
    ],
-   "words": 2,
+   "words": 7,
+   "print": "Please wait. Your call is being forwarded.",
+   "printRuns": [
+    {
+     "t": "Please wait. Your call is being forwarded.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: full)",
    "flags": [
     {
@@ -955,7 +1414,7 @@
     },
     {
      "kind": "verse",
-     "note": "set as verse; the sentence ends inside its first line"
+     "note": "a poem: its first line of verse, whole, by ruling (the line holds more than one sentence)"
     }
    ]
   },
@@ -974,6 +1433,14 @@
     }
    ],
    "words": 17,
+   "print": "A Nigeria free from fake drugs today was only possible because of the fierceness of a lioness.",
+   "printRuns": [
+    {
+     "t": "A Nigeria free from fake drugs today was only possible because of the fierceness of a lioness.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -992,6 +1459,14 @@
     }
    ],
    "words": 5,
+   "print": "I can’t feel my legs.",
+   "printRuns": [
+    {
+     "t": "I can’t feel my legs.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -1010,6 +1485,14 @@
     }
    ],
    "words": 3,
+   "print": "Drip. Drip. Drip.",
+   "printRuns": [
+    {
+     "t": "Drip. Drip. Drip.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": [
     {
@@ -1037,6 +1520,14 @@
     }
    ],
    "words": 11,
+   "print": "I was only eleven years old when the war broke out.",
+   "printRuns": [
+    {
+     "t": "I was only eleven years old when the war broke out.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": [
     {
@@ -1060,6 +1551,14 @@
     }
    ],
    "words": 11,
+   "print": "My grandmother used to talk to her dead husband every evening.",
+   "printRuns": [
+    {
+     "t": "My grandmother used to talk to her dead husband every evening.",
+     "i": false
+    }
+   ],
+   "quoteChanges": [],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": []
   },
@@ -1078,6 +1577,27 @@
     }
    ],
    "words": 4,
+   "print": "‘I killed my mother.’",
+   "printRuns": [
+    {
+     "t": "‘I killed my mother.’",
+     "i": false
+    }
+   ],
+   "quoteChanges": [
+    {
+     "at": 0,
+     "from": "'",
+     "to": "‘",
+     "as": "opening quote"
+    },
+    {
+     "at": 20,
+     "from": "'",
+     "to": "’",
+     "as": "closing quote"
+    }
+   ],
    "source": "POST /api/story { slug }, signed out (access: preview)",
    "flags": [
     {

@@ -1,29 +1,42 @@
-// FIRST LINES — the data for the Ledger (CARDS-R3).
+// FIRST LINES — the data for the Ledger (CARDS-R3, R3.1).
 //
-//   node scripts/cards/first-lines.mjs --fetch   # ask the live site, signed out, then build
-//   node scripts/cards/first-lines.mjs           # build from the responses already fetched
+//   node scripts/cards/first-lines.mjs           # build from the responses already fetched (no network)
+//   node scripts/cards/first-lines.mjs --fetch   # ask the live site for the stories again, then build
+//   node scripts/cards/first-lines.mjs --series  # read the series' first instalments again, then build
 //   → cards/data/first-lines.json + cards/review/FIRST-LINES.md
 //
 // For every card in cards/data/deck.json, the first sentence of the story's body, verbatim: its
 // quotes, dashes, ellipses and italics as stored. A picture card takes the first sentence of its
-// series' first instalment.
+// series' first instalment. A poem takes its first line of verse, whole (R3.1, Ikenna's ruling).
 //
-// HOW THE TEXT IS READ: the way a signed-out reader gets it. POST /api/story { slug } with no
-// token and no telemetry fields (so each call counts once in story_clients/<day>/story/unknown,
-// as any unlabelled open does), and POST /api/series/stream { instalmentId } with no token. No
-// credentials are loaded, and /api/hit is never called. A gated story answers a preview, which
-// always holds the opening. The byline and title come from the story's static page (a GET; no
-// script runs), because the endpoint does not carry them and deck.json's can be stale.
+// HOW THE TEXT IS READ.
+//   Stories: the way a signed-out reader gets them, POST /api/story { slug } with no token. Since
+//   R3.1 the call carries client: 'cards-script', so it is counted under its own name and never in
+//   story_clients' `unknown` bucket. R3's 50 unlabelled calls landed there and were taken back out
+//   (ruling 232; docs/OWED-APP-ENDPOINT-SILENCE.md). /api/hit is never called. A gated story
+//   answers a preview, which always holds the opening. The byline and title come from the story's
+//   static page (a GET; no script runs), because the endpoint does not carry them and deck.json's
+//   can be stale.
+//   Series: closed to a signed-out reader (/api/series/stream answers 401), so the first
+//   instalment's EPUB is read from Storage (series_epubs/<id>/master.epub), READ-ONLY, with the
+//   admin key loaded through scripts/security/service-account.mjs, which never prints it. The
+//   title page is passed over; the reading starts at the first spine item after it.
 //
-// The responses are stored OUTSIDE the work tree (RAW, below), never in it: only the first
-// sentence, which the Ledger prints, comes into the repo. A rebuild reads them back and calls
-// nothing, so the counter is touched once per card per --fetch.
+// The responses and the EPUBs are stored OUTSIDE the work tree (RAW, below), never in it: only
+// the first sentence, which the Ledger prints, comes into the repo. A plain run reads them back
+// and calls nothing.
+//
+// QUOTES IN PRINT (R3.1). The line is kept verbatim. The Ledger PRINTS `print`, the same line with
+// straight quotes turned to the house's curly single quotes: ‘ ’, and ’ for an apostrophe. Every
+// change is listed in FIRST-LINES.md.
 //
 // THE READING, and every place it needs a judgement, is flagged on the card:
-//   - furniture before the prose is passed over and named: a content note (p.intro-note), a
-//     heading (h1–h6), an epigraph or dateline (a paragraph set wholly in italics);
-//   - verse (consecutive unindented lines) is read across its lines until the sentence ends, the
-//     lines joined by " / " as verse is quoted in prose;
+//   - furniture before the prose is passed over and named: a content note (p.intro-note,
+//     p.content-note), an editorial note (p.editorial-note), a heading (h1–h6, p.part-heading,
+//     .chapter-title), a dateline (p.timestamp, or a short paragraph set wholly in italics), an
+//     epigraph (a longer one);
+//   - verse (consecutive unindented lines): the first line of verse, whole, whether or not the
+//     sentence ends there (R3.1);
 //   - a sentence ends at . ! ? or … followed, after any closing quotes, by a space and a capital
 //     or an opening quote, or by the end of the paragraph. Where that rule meets an
 //     abbreviation, a quotation left open, or a run of fragments, the card says so;
@@ -32,6 +45,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { readZip, parseEpub } from '../make-sample-epub.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DECK = join(ROOT, 'cards/data/deck.json');
@@ -40,6 +54,7 @@ const OUT_MD = join(ROOT, 'cards/review/FIRST-LINES.md');
 export const RAW = join(homedir(), 'calvary-private', 'cards-first-lines');
 const SITE = 'https://calvaryscribblings.co.uk';
 const DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
+const CLIENT = 'cards-script';                // story_clients' bucket for this script, never `unknown`
 
 export const LONG_WORDS = 40;                 // the brief's threshold
 // The rulebook prints this card's line. If the reading ever gives anything else, nothing is built.
@@ -153,8 +168,10 @@ export function readFirstLine(html, slug) {
   for (; i < bs.length; i++) {
     const b = bs[i];
     if (isEmpty(b)) continue;
-    if (/intro-note/.test(b.cls)) { skipped.push('content note'); continue; }
-    if (/^h[1-6]$/.test(b.tag)) { skipped.push(`heading ("${textOf(b).trim()}")`); continue; }
+    if (/intro-note|content-note/.test(b.cls)) { skipped.push('content note'); continue; }
+    if (/editorial-note/.test(b.cls)) { skipped.push('editorial note'); continue; }
+    if (/^h[1-6]$/.test(b.tag) || /part-heading|chapter-title/.test(b.cls)) { skipped.push(`heading ("${textOf(b).trim()}")`); continue; }
+    if (/timestamp/.test(b.cls)) { skipped.push(`dateline ("${textOf(b).trim()}")`); continue; }
     if (allItalic(b)) {
       const t = textOf(b).trim();
       skipped.push(words(t) <= 3 ? `dateline ("${t}", in italics)` : 'epigraph (a line in italics)');
@@ -168,20 +185,12 @@ export function readFirstLine(html, slug) {
   const reading = READINGS[slug];
   let runs;
   if (isVerseLine(bs[i])) {
-    // Verse: read line after line until a sentence ends.
-    const lines = [];
-    for (let k = i; k < bs.length && isVerseLine(bs[k]) && !isEmpty(bs[k]); k++) {
-      lines.push(bs[k].runs.map((r) => ({ ...r, t: r.t.replace(/\s+$/, '') })));
-      const joined = lines.map((l) => l.map((r) => r.t).join('')).join(' / ');
-      const { end } = firstSentenceEnd(joined);
-      if (end !== -1) break;
-    }
-    const merged = [];
-    lines.forEach((l, n) => { if (n) merged.push({ t: ' / ', i: false }); merged.push(...l); });
-    const joined = merged.map((r) => r.t).join('');
-    const { end } = firstSentenceEnd(joined);
-    runs = cutRuns(merged, end === -1 ? joined.length : end);
-    flags.push({ kind: 'verse', note: lines.length > 1 ? `the sentence runs over ${lines.length} lines of verse, joined with " / "` : 'set as verse; the sentence ends inside its first line' });
+    // Verse: the first line, whole (R3.1, Ikenna's ruling), whatever the sentence does.
+    runs = bs[i].runs;
+    const s = textOf(bs[i]).trim();
+    const { end } = firstSentenceEnd(s);
+    const how = end === -1 ? 'the sentence runs on past it' : end >= s.length ? 'the line is one sentence' : 'the line holds more than one sentence';
+    flags.push({ kind: 'verse', note: `a poem: its first line of verse, whole, by ruling (${how})` });
   } else {
     const b = bs[i];
     const s = textOf(b);
@@ -212,6 +221,39 @@ export function readFirstLine(html, slug) {
   return { line, runs, words: n, flags };
 }
 
+// ── QUOTES IN PRINT ──────────────────────────────────────────────────────────────────────
+
+/**
+ * The house's curly single quotes for a line stored with straight ones. A straight quote opens
+ * (‘) at the start or after a space, a bracket, a dash or a slash; anywhere else it closes or is
+ * an apostrophe (’). A straight double quote becomes the single pair too: house style is single.
+ * Returns the text and each change, as { at, from, to, as }.
+ */
+export function houseQuotes(s) {
+  const changes = [];
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch !== "'" && ch !== '"') { out += ch; continue; }
+    const prev = i === 0 ? '' : s[i - 1];
+    const opens = i === 0 || /[\s([{\u2014\u2013/]/.test(prev);
+    const next = s[i + 1] || '';
+    const to = opens ? '‘' : '’';
+    const as = opens ? 'opening quote' : /\p{L}/u.test(prev) && /\p{L}/u.test(next) ? 'apostrophe' : 'closing quote';
+    changes.push({ at: i, from: ch, to, as });
+    out += to;
+  }
+  return { text: out, changes };
+}
+
+/** The card's line fields: verbatim, and as printed. */
+function printed(r) {
+  const q = houseQuotes(r.line);
+  let k = 0;
+  const printRuns = r.runs.map((run) => { const t = q.text.slice(k, k + run.t.length); k += run.t.length; return { t, i: run.i }; });
+  return { line: r.line, runs: r.runs, words: r.words, print: q.text, printRuns, quoteChanges: q.changes };
+}
+
 // ── IO ────────────────────────────────────────────────────────────────────────────────────
 
 async function fetchAll(deck) {
@@ -219,7 +261,8 @@ async function fetchAll(deck) {
   const pages = {};
   for (const c of deck) {
     if (c.kind === 'story') {
-      const r = await fetch(`${SITE}/api/story`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug: c.slug }) });
+      // Labelled, so it is never counted as an unmigrated app (ruling 232).
+      const r = await fetch(`${SITE}/api/story`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug: c.slug, client: CLIENT }) });
       writeFileSync(join(RAW, `${c.slug}.json`), await r.text(), { mode: 0o600 });
       const h = await (await fetch(`${SITE}/stories/${c.slug}`)).text();
       const dec = (s) => decode(s || '');
@@ -227,17 +270,47 @@ async function fetchAll(deck) {
         title: dec((/<title>([^<]*) — Calvary Scribblings<\/title>/.exec(h) || [])[1]),
         author: dec((/name="description" content="By ([^·"]*?) ·/.exec(h) || [])[1]),
       };
-    } else {
-      const rows = await (await fetch(`${DB}/series_instalments.json?orderBy=%22seriesId%22&equalTo=%22${encodeURIComponent(c.seriesId)}%22`)).json();
-      const first = Object.entries(rows || {}).sort((a, b) => (a[1].ordinal ?? 0) - (b[1].ordinal ?? 0))[0]?.[0] ?? null;
-      const r = await fetch(`${SITE}/api/series/stream`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ instalmentId: first }) });
-      const j = await r.json().catch(() => ({}));
-      // Only the refusal is kept. A granted answer carries a signed URL, which is never stored.
-      writeFileSync(join(RAW, `${c.slug}.series.json`), JSON.stringify({ instalmentId: first, status: r.status, code: j.code ?? null, granted: !!j.url }), { mode: 0o600 });
     }
     await new Promise((res) => setTimeout(res, 300));
   }
   writeFileSync(join(RAW, '_pages.json'), JSON.stringify(pages, null, 1), { mode: 0o600 });
+}
+
+/** The first instalment's id: the lowest ordinal among the series' public rows. */
+async function firstInstalment(seriesId) {
+  const rows = await (await fetch(`${DB}/series_instalments.json?orderBy=%22seriesId%22&equalTo=%22${encodeURIComponent(seriesId)}%22`)).json();
+  return Object.entries(rows || {}).sort((a, b) => (a[1].ordinal ?? 0) - (b[1].ordinal ?? 0))[0]?.[0] ?? null;
+}
+
+/** Read each picture card's first instalment from Storage, read-only, into RAW. */
+async function fetchSeries(deck) {
+  mkdirSync(RAW, { recursive: true, mode: 0o700 });
+  const { loadServiceAccount } = await import('../security/service-account.mjs');
+  const { initializeApp, cert } = await import('firebase-admin/app');
+  const { getStorage } = await import('firebase-admin/storage');
+  const app = initializeApp({ credential: cert(loadServiceAccount()), storageBucket: 'calvary-scribblings.firebasestorage.app' }, 'first-lines');
+  const index = {};
+  for (const c of deck.filter((x) => x.kind !== 'story')) {
+    const id = await firstInstalment(c.seriesId);
+    const [bytes] = await getStorage(app).bucket().file(`series_epubs/${id}/master.epub`).download();
+    writeFileSync(join(RAW, `${id}.epub`), bytes, { mode: 0o600 });
+    index[c.slug] = id;
+  }
+  writeFileSync(join(RAW, '_series.json'), JSON.stringify(index, null, 1), { mode: 0o600 });
+}
+
+/** The instalment's text: the spine's linear items after the title page, bodies joined. */
+function instalmentHtml(bytes) {
+  const files = readZip(bytes);
+  const epub = parseEpub(files);
+  const bodies = [];
+  for (const s of epub.spine.filter((x) => x.linear)) {
+    const h = files.get(s.item.full)?.toString('utf8') || '';
+    const body = (/<body[^>]*>([\s\S]*)<\/body>/.exec(h) || [])[1] || '';
+    if (/class="title-page"/.test(body)) continue;
+    bodies.push(body);
+  }
+  return bodies.join('\n');
 }
 
 function build(deck) {
@@ -245,12 +318,12 @@ function build(deck) {
   const cards = deck.map((c, deckIndex) => {
     const base = { deckIndex, slug: c.slug, kind: c.kind, motif: c.motif };
     if (c.kind !== 'story') {
-      const p = join(RAW, `${c.slug}.series.json`);
-      const s = existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : { instalmentId: `${c.seriesId}-i1`, status: 401, code: 'signed_out' };
+      const id = JSON.parse(readFileSync(join(RAW, '_series.json'), 'utf8'))[c.slug];
+      const r = readFirstLine(instalmentHtml(readFileSync(join(RAW, `${id}.epub`))), c.slug);
       return {
-        ...base, title: c.title, author: c.author, line: null, runs: null, words: null,
-        source: `POST /api/series/stream { instalmentId: ${s.instalmentId} }, signed out`,
-        flags: [{ kind: 'unavailable', note: `not readable signed out: the series endpoint answers ${s.status} ${s.code} (the Series gate is on, and no instalment is Free to read)` }],
+        ...base, title: c.title, author: c.author, ...printed(r),
+        source: `series_epubs/${id}/master.epub (Storage, read-only, admin key): the series is closed to a signed-out reader (/api/series/stream answers 401 signed_out)`,
+        flags: r.flags,
       };
     }
     const res = JSON.parse(readFileSync(join(RAW, `${c.slug}.json`), 'utf8'));
@@ -261,8 +334,7 @@ function build(deck) {
     const flags = [...r.flags];
     if (page.author && page.author !== c.author) flags.push({ kind: 'byline', note: `byline from the story page; deck.json still has "${c.author}"` });
     return {
-      ...base, title: page.title || c.title, author: page.author || c.author,
-      line: r.line, runs: r.runs, words: r.words,
+      ...base, title: page.title || c.title, author: page.author || c.author, ...printed(r),
       source: `POST /api/story { slug }, signed out (access: ${res.access})`, flags,
     };
   });
@@ -275,13 +347,18 @@ function markdown(cards) {
   const esc = (s) => s.replace(/\|/g, '\\|');
   const styled = (runs) => runs.map((r) => (r.i ? `*${esc(r.t)}*` : esc(r.t))).join('');
   const flagged = cards.filter((c) => c.flags.length);
-  const straight = cards.filter((c) => c.line && /['"]/.test(c.line)).length;
+  const curled = cards.filter((c) => c.quoteChanges?.length);
   const L = [];
-  L.push('# Shorelines: first lines (CARDS-R3)', '');
-  L.push('Generated by `scripts/cards/first-lines.mjs` from `cards/data/deck.json`. Each line is the first sentence of the story\'s body, verbatim, read as a signed-out reader gets it: `POST /api/story` with no token and no telemetry fields; for a picture card, `POST /api/series/stream` for its series\' first instalment. Bylines and titles come from each story\'s page. *Italics* are the story\'s own.', '');
+  L.push('# Shorelines: first lines (CARDS-R3, R3.1)', '');
+  L.push('Generated by `scripts/cards/first-lines.mjs` from `cards/data/deck.json`. Each line is the first sentence of the story\'s body, verbatim; a poem gives its first line of verse, whole (R3.1, Ikenna\'s ruling). Stories are read as a signed-out reader gets them, from `POST /api/story`. The three series are closed to a signed-out reader, so each picture card\'s line is read from its series\' first instalment EPUB in Storage, read-only (R3.1, Ikenna\'s ruling). Bylines and titles come from each story\'s page. *Italics* are the story\'s own.', '');
   L.push(`**${cards.filter((c) => c.line).length} of ${cards.length} cards have a line.** ${flagged.length} carry a flag. The Number Thirteen reads "${PINNED.line}", as the rulebook prints it.`, '');
-  L.push(`Quotes are as stored: ${straight} lines use straight (typewriter) quotes or apostrophes, and none was changed.`, '');
-  L.push('## Flags', '');
+  L.push('## Quotes in print', '');
+  L.push(`\`first-lines.json\` keeps each line as stored (\`line\`). The Ledger prints \`print\`: the same line, with straight quotes turned to the house's curly single quotes (‘ ’, and ’ for an apostrophe). ${curled.length} lines change:`, '');
+  for (const c of curled) {
+    const what = c.quoteChanges.map((q) => `${q.from === '"' ? 'double' : 'straight'} \`${q.from}\` → \`${q.to}\` (${q.as})`).join('; ');
+    L.push(`- **${c.title}**: ${esc(c.line)} → ${esc(c.print)} (${what})`);
+  }
+  L.push('', '## Flags', '');
   for (const c of flagged) {
     L.push(`- **${c.title}** (${c.author}): ${c.flags.map((f) => `${f.kind}: ${f.note}`).join(' · ')}`);
   }
@@ -296,6 +373,7 @@ function markdown(cards) {
 async function main() {
   const deck = JSON.parse(readFileSync(DECK, 'utf8'));
   if (process.argv.includes('--fetch')) await fetchAll(deck);
+  if (process.argv.includes('--series')) await fetchSeries(deck);
   const cards = build(deck);
   writeFileSync(OUT_JSON, `${JSON.stringify({ generated: 'scripts/cards/first-lines.mjs', longWords: LONG_WORDS, cards }, null, 1)}\n`);
   mkdirSync(dirname(OUT_MD), { recursive: true });
