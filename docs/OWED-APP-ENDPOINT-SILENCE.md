@@ -123,3 +123,18 @@ second reason to answer question 1 before the cut rather than after.
 
 See [`STORY-SERVING-CONTRACT.md`](../STORY-SERVING-CONTRACT.md) §7 and §9, and
 [`docs/APP-DEEP-LINKS.md`](APP-DEEP-LINKS.md) for the round that found this.
+
+## Corrections made to the counters
+
+Each entry is a write made by hand to `story_clients`. Read these before trusting a day's figure.
+
+- **22 Oct 2026, ruling 232: `story_clients/2026-10-22/story/unknown` went from 50 to 0.** The
+  card-game round CARDS-R3 read 50 first lines from `POST /api/story` with no token and no client
+  label, 03:48:49–03:49:28 UTC (04:48–04:49 London). Each call counted one `unknown` story open.
+  None of them was a reader or an app. The value was backed up first
+  (`~/calvary-private/backups/stats-fix-story-unknown-2026-10-22-*.json`). The 50 were then taken
+  off in one conditional write on the counter's ETag, so an open landing at the same moment would
+  have been kept: there was none, and the re-read was 0. Only the `story` surface was touched;
+  `/api/hit` was never called. A script that reads `/api/story` should send a `client` label of
+  its own (as `verify-admin-key.mjs --probe-pages` does with `key-verify`), so it never lands in
+  `unknown`.

@@ -5,7 +5,8 @@
 //
 // READ-ONLY. Writes nothing, changes nothing.
 //
-// See STORY-SERVING-CONTRACT.md §7 (T2/T3) and functions/api/_telemetry.js.
+// See STORY-SERVING-CONTRACT.md §7 (T2/T3) and functions/api/_telemetry.js. Corrections made to
+// the counters by hand are listed, dated, at the end of docs/OWED-APP-ENDPOINT-SILENCE.md.
 //
 // ── HOW TO READ THIS ─────────────────────────────────────────────────────────
 //
