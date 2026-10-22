@@ -1,5 +1,5 @@
 {
   "name": "calvary-scribblings",
-  "//": "No image/build key: keep the Codespaces default universal image (unchanged from before this file existed). This config exists only to restore deploy credentials after a rebuild — the FIREBASE_SA_KEY Codespaces secret (base64 of serviceAccountKey.json) is decoded back to the gitignored key file so `npm run rules:deploy` and the rules:pull/check scripts keep working. See RULES.md.",
-  "postCreateCommand": "if [ -n \"$FIREBASE_SA_KEY\" ]; then echo \"$FIREBASE_SA_KEY\" | base64 -d > serviceAccountKey.json; fi"
+  "//": "No image/build key: keep the Codespaces default universal image (unchanged from before this file existed). This config exists only to restore deploy credentials after a rebuild — the FIREBASE_SA_KEY Codespaces secret is written back to the gitignored serviceAccountKey.json so `npm run rules:deploy` and the rules:pull/check scripts keep working. The secret takes the whole key file, pasted as it is (it starts with \"{\" and is written straight through); the older base64 form is still decoded. printf, never echo: sh's echo turns the key's \\n sequences into real line breaks and breaks the JSON. See RULES.md and security/KEY-ROTATION.md.",
+  "postCreateCommand": "if [ -n \"$FIREBASE_SA_KEY\" ]; then v=\"$FIREBASE_SA_KEY\"; case \"${v#\"${v%%[![:space:]]*}\"}\" in \"{\"*) printf \"%s\" \"$v\" > serviceAccountKey.json ;; *) printf \"%s\" \"$v\" | base64 -d > serviceAccountKey.json ;; esac; fi"
 }

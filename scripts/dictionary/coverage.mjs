@@ -13,21 +13,23 @@
 // name is a word that NEVER appears in lowercase anywhere in the samples ("Lagos", "Edna"): a
 // sentence-initial common word is almost always lowercase somewhere else, so it stays in.
 //
-// Credentials: FIREBASE_SA_KEY (base64 JSON, the codespace) or serviceAccountKey.json.
+// Credentials: FIREBASE_SA_KEY (the key file or base64 of it, the codespace) or serviceAccountKey.json.
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { unzip } from './build.mjs';
 import { lookupWord, normaliseWord, isSingleWord, DICT_BASE } from '../../app/lib/dictionary.js';
+import { readServiceAccountFile, readSaKeySecret } from '../security/service-account.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i >= 0 ? process.argv[i + 1] : d; };
 const MISSES = Number(arg('--misses', 20));
 
+// Parsed by service-account.mjs: a failed JSON.parse prints its whole input (SECURITY-R1).
 const sa = process.env.FIREBASE_SA_KEY
-  ? JSON.parse(Buffer.from(process.env.FIREBASE_SA_KEY, 'base64').toString())
-  : JSON.parse(readFileSync(join(ROOT, 'serviceAccountKey.json'), 'utf8'));
+  ? readSaKeySecret(process.env.FIREBASE_SA_KEY)
+  : readServiceAccountFile(join(ROOT, 'serviceAccountKey.json'));
 const { initializeApp, cert } = await import('firebase-admin/app');
 const { getDatabase } = await import('firebase-admin/database');
 const { getStorage } = await import('firebase-admin/storage');
