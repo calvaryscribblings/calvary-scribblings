@@ -23,14 +23,19 @@ A physical deck of real island stories. Each card wears its typographic cover, r
 | `print/mpc-playtest/MANIFEST.md` | The MakePlayingCards upload set for playtest deck 1: slot, files, title, motif, livery, code. The images themselves are delivered privately (draft release `shorelines-playtest-1`), never committed |
 | `review/MPC-PROOF.png` | Every upload image, decoded from the exported JPEGs, with MPC's trim and safe area |
 | `glyphs/*.svg` | The eight motif glyphs, 6 mm with a 0.15 mm stroke |
+| `data/first-lines.json`, `review/FIRST-LINES.md` | **CARDS-R3.** Every card's first sentence, verbatim, read signed out, with every flag (furniture passed over, verse, dialogue, sentence-boundary judgements, over 40 words). The three picture cards have none: the series endpoint refuses a signed-out reader |
+| `review/PAPER.md`, `review/PAPER-SHEET.png` | **CARDS-R3.** The playtest paper: The Turn's guess slips, the First Lines Ledger, the scorepad. Every measurement D or C, the sheets a six-player night needs, and every sheet rendered from the PDFs with details at 100%. The PDFs are delivered with the draft release, never committed |
 
 ## Rebuilding
 
 ```
-cd scripts/cards && npm ci && cd ../..        # qrcode + jsqr, pinned, kept out of the site's install
+cd scripts/cards && npm ci && cd ../..        # qrcode, jsqr, pdfkit, pdfjs-dist: pinned, kept out of the site's install
 node scripts/cards/motif-sheet.mjs            # refuses now: the deck is ratified (RATIFIED.md)
 node --expose-gc scripts/cards/contact-sheet.mjs   # CONTACT-SHEET.png + MEASUREMENTS.md (reads posters/ and the icon)
 node --expose-gc scripts/cards/mpc-export.mjs     # the MPC upload set + MANIFEST.md + MPC-PROOF.png
+node scripts/cards/first-lines.mjs           # FIRST-LINES (add --fetch to ask the live site again, signed out)
+node scripts/cards/paper.mjs                  # the three playtest PDFs (cards/print/paper/) + PAPER.md
+node scripts/cards/paper-sheet.mjs            # PAPER-SHEET.png, rasterised from those PDFs
 npm run covers:lock:check                     # the covers pipeline must still say its probes are unchanged
 ```
 
@@ -39,3 +44,5 @@ The card code imports the cover generator's modules from `scripts/covers/` and n
 A full-raster `getImageData` in @napi-rs/canvas 1.0.6 is never freed (about 14 MB a call). The sheet reads only the region around each code, and collects between cards when run with `--expose-gc`.
 
 Both gates are passed (RATIFIED.md, SIGNOFF.md). The first print export is the MakePlayingCards playtest set (CARDS-R2).
+
+`first-lines.mjs --fetch` asks `/api/story` with no token and no telemetry fields, so each call adds one to `story_clients/<day>/story/unknown`, as any unlabelled open does. The responses are kept in `~/calvary-private/cards-first-lines/`, outside the work tree, and a plain run rebuilds from them without calling anything.

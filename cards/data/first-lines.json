@@ -1,0 +1,1090 @@
+{
+ "generated": "scripts/cards/first-lines.mjs",
+ "longWords": 40,
+ "cards": [
+  {
+   "deckIndex": 0,
+   "slug": "beta-princess",
+   "kind": "picture",
+   "motif": "Secret",
+   "title": "Beta Princess",
+   "author": "Monica Garcia",
+   "line": null,
+   "runs": null,
+   "words": null,
+   "source": "POST /api/series/stream { instalmentId: beta-princess-i1 }, signed out",
+   "flags": [
+    {
+     "kind": "unavailable",
+     "note": "not readable signed out: the series endpoint answers 401 signed_out (the Series gate is on, and no instalment is Free to read)"
+    }
+   ]
+  },
+  {
+   "deckIndex": 1,
+   "slug": "diary-of-a-lagos-9-5er",
+   "kind": "picture",
+   "motif": "Debt",
+   "title": "Diary of a Lagos 9-5er",
+   "author": "Tricia Ajax",
+   "line": null,
+   "runs": null,
+   "words": null,
+   "source": "POST /api/series/stream { instalmentId: diary-of-a-lagos-9-5er-i1 }, signed out",
+   "flags": [
+    {
+     "kind": "unavailable",
+     "note": "not readable signed out: the series endpoint answers 401 signed_out (the Series gate is on, and no instalment is Free to read)"
+    }
+   ]
+  },
+  {
+   "deckIndex": 2,
+   "slug": "the-doherty-confessions",
+   "kind": "picture",
+   "motif": "Secret",
+   "title": "The Doherty Confessions",
+   "author": "Dera Okaro",
+   "line": null,
+   "runs": null,
+   "words": null,
+   "source": "POST /api/series/stream { instalmentId: the-doherty-confessions-i1 }, signed out",
+   "flags": [
+    {
+     "kind": "unavailable",
+     "note": "not readable signed out: the series endpoint answers 401 signed_out (the Series gate is on, and no instalment is Free to read)"
+    }
+   ]
+  },
+  {
+   "deckIndex": 3,
+   "slug": "purple-rain",
+   "kind": "story",
+   "motif": "Letter",
+   "title": "Purple Rain",
+   "author": "Ikenna Okpara",
+   "line": "We were on our first date, but it felt like the tenth.",
+   "runs": [
+    {
+     "t": "We were on our first date, but it felt like the tenth.",
+     "i": false
+    }
+   ],
+   "words": 12,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 4,
+   "slug": "7am-an-american-pulp-classic",
+   "kind": "story",
+   "motif": "Letter",
+   "title": "7AM: An American Pulp Classic",
+   "author": "Enyinnaya Arua",
+   "line": "It was me in the park sometime this week.",
+   "runs": [
+    {
+     "t": "It was me in the park sometime this week.",
+     "i": false
+    }
+   ],
+   "words": 9,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": [
+    {
+     "kind": "furniture",
+     "note": "passed over before the first sentence: heading (\"The Price of Beauty\")"
+    }
+   ]
+  },
+  {
+   "deckIndex": 5,
+   "slug": "skin-eater",
+   "kind": "story",
+   "motif": "Letter",
+   "title": "Skin Eater",
+   "author": "Stanley Princewill McDaniels",
+   "line": "My mother kept this old, worn-out diary as if it were some kind of safe deposit box.",
+   "runs": [
+    {
+     "t": "My mother kept this old, worn-out diary as if it were some kind of safe deposit box.",
+     "i": false
+    }
+   ],
+   "words": 17,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 6,
+   "slug": "a-legacy-through-time",
+   "kind": "story",
+   "motif": "Letter",
+   "title": "A Legacy Through Time",
+   "author": "Dera Okaro",
+   "line": "Elizabeth hadn't seen her home in twenty-three days.",
+   "runs": [
+    {
+     "t": "Elizabeth hadn't seen her home in twenty-three days.",
+     "i": false
+    }
+   ],
+   "words": 8,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 7,
+   "slug": "love-it-enough",
+   "kind": "story",
+   "motif": "Letter",
+   "title": "Love It Enough",
+   "author": "Kalu Rebecca",
+   "line": "Editors, I have learned, are not cruel people.",
+   "runs": [
+    {
+     "t": "Editors, I have learned, are not cruel people.",
+     "i": false
+    }
+   ],
+   "words": 8,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 8,
+   "slug": "a-daub-of-blue",
+   "kind": "story",
+   "motif": "Letter",
+   "title": "A Daub of Blue",
+   "author": "Maurice Bur",
+   "line": "The instant Sornen hit the sheets, he sank into deep and dreamless slumber like he was in a coma.",
+   "runs": [
+    {
+     "t": "The instant Sornen hit the sheets, he sank into deep and dreamless slumber like he was in a coma.",
+     "i": false
+    }
+   ],
+   "words": 19,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 9,
+   "slug": "my-daddy-is-a-superhero",
+   "kind": "story",
+   "motif": "Letter",
+   "title": "My Daddy is a Superhero",
+   "author": "Tricia Ajax",
+   "line": "I am twenty years old, and I still call him Daddy.",
+   "runs": [
+    {
+     "t": "I am twenty years old, and I still call him Daddy.",
+     "i": false
+    }
+   ],
+   "words": 11,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 10,
+   "slug": "how-are-you-my-friend",
+   "kind": "story",
+   "motif": "Secret",
+   "title": "How Are You, My Friend?",
+   "author": "Stanley Princewill McDaniels",
+   "line": "Salisu lit a cigarette and took a long drag.",
+   "runs": [
+    {
+     "t": "Salisu lit a cigarette and took a long drag.",
+     "i": false
+    }
+   ],
+   "words": 9,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": [
+    {
+     "kind": "furniture",
+     "note": "passed over before the first sentence: dateline (\"Evening.\", in italics)"
+    }
+   ]
+  },
+  {
+   "deckIndex": 11,
+   "slug": "full",
+   "kind": "story",
+   "motif": "Secret",
+   "title": "Full",
+   "author": "Godsglory Boma",
+   "line": "'You can have some, B.'",
+   "runs": [
+    {
+     "t": "'You can have some, B.'",
+     "i": false
+    }
+   ],
+   "words": 5,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": [
+    {
+     "kind": "dialogue",
+     "note": "opens on dialogue"
+    },
+    {
+     "kind": "boundary",
+     "note": "the quoted sentence is read alone; the narration after it in the same paragraph is a new sentence"
+    }
+   ]
+  },
+  {
+   "deckIndex": 12,
+   "slug": "brenda",
+   "kind": "story",
+   "motif": "Secret",
+   "title": "Brenda",
+   "author": "Dera Okaro",
+   "line": "Everyone in Jos knew the story of the missing girl.",
+   "runs": [
+    {
+     "t": "Everyone in Jos knew the story of the missing girl.",
+     "i": false
+    }
+   ],
+   "words": 10,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 13,
+   "slug": "lagos-friendship",
+   "kind": "story",
+   "motif": "Secret",
+   "title": "Lagos Fiendship",
+   "author": "Dera Okaro",
+   "line": "Tamara had always known that somewhere in Lagos, the 'r' in friendship had gone missing, and she wasn't interested in helping Lagosians look for it.",
+   "runs": [
+    {
+     "t": "Tamara had always known that somewhere in Lagos, the 'r' in friendship had gone missing, and she wasn't interested in helping Lagosians look for it.",
+     "i": false
+    }
+   ],
+   "words": 25,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 14,
+   "slug": "the-songbird-s-birdsong",
+   "kind": "story",
+   "motif": "Secret",
+   "title": "The Songbird’s Birdsong",
+   "author": "Dera Okaro",
+   "line": "Zara barely slept the previous night.",
+   "runs": [
+    {
+     "t": "Zara barely slept the previous night.",
+     "i": false
+    }
+   ],
+   "words": 6,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 15,
+   "slug": "mother-and-other-poems",
+   "kind": "story",
+   "motif": "Child",
+   "title": "Mother and Other Poems",
+   "author": "Ikenna Okpara",
+   "line": "If I could touch heaven's soul / I could find the peace I need — / the peace to love, / to be loved, / to hold my kind of love.",
+   "runs": [
+    {
+     "t": "If I could touch heaven's soul",
+     "i": false
+    },
+    {
+     "t": " / ",
+     "i": false
+    },
+    {
+     "t": "I could find the peace I need —",
+     "i": false
+    },
+    {
+     "t": " / ",
+     "i": false
+    },
+    {
+     "t": "the peace to love,",
+     "i": false
+    },
+    {
+     "t": " / ",
+     "i": false
+    },
+    {
+     "t": "to be loved,",
+     "i": false
+    },
+    {
+     "t": " / ",
+     "i": false
+    },
+    {
+     "t": "to hold my kind of love.",
+     "i": false
+    }
+   ],
+   "words": 26,
+   "source": "POST /api/story { slug }, signed out (access: full)",
+   "flags": [
+    {
+     "kind": "furniture",
+     "note": "passed over before the first sentence: epigraph (a line in italics); heading (\"Lost\")"
+    },
+    {
+     "kind": "verse",
+     "note": "the sentence runs over 5 lines of verse, joined with \" / \""
+    }
+   ]
+  },
+  {
+   "deckIndex": 16,
+   "slug": "dont-worry",
+   "kind": "story",
+   "motif": "Child",
+   "title": "Don't Worry",
+   "author": "Ufedo-Ojo Adaji",
+   "line": "'As a woman, there are two things you should never ever trust in your lifetime: men and your menstrual cycle.'",
+   "runs": [
+    {
+     "t": "'As a woman, there are two things you should never ever trust in your lifetime: men and your menstrual cycle.'",
+     "i": false
+    }
+   ],
+   "words": 20,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": [
+    {
+     "kind": "dialogue",
+     "note": "opens on dialogue"
+    }
+   ]
+  },
+  {
+   "deckIndex": 17,
+   "slug": "you-will-love-it",
+   "kind": "story",
+   "motif": "Child",
+   "title": "You Will Love It",
+   "author": "Kalu Rebecca",
+   "line": "The baby finally sleeps at 4:46 a.m.",
+   "runs": [
+    {
+     "t": "The baby finally sleeps at 4:46 a.m.",
+     "i": false
+    }
+   ],
+   "words": 7,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": [
+    {
+     "kind": "boundary",
+     "note": "the sentence ends on an abbreviation's full stop, read as the end"
+    }
+   ]
+  },
+  {
+   "deckIndex": 18,
+   "slug": "boomerang",
+   "kind": "story",
+   "motif": "Child",
+   "title": "Boomerang",
+   "author": "Ufedo-Ojo Adaji",
+   "line": "Unemployment had clung to you like a cold sore on the corner of a gigolo’s lip.",
+   "runs": [
+    {
+     "t": "Unemployment had clung to you like a cold sore on the corner of a gigolo’s lip.",
+     "i": false
+    }
+   ],
+   "words": 16,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 19,
+   "slug": "beyond-saving",
+   "kind": "story",
+   "motif": "Child",
+   "title": "Beyond Saving",
+   "author": "Dera Okaro",
+   "line": "Doris had a saying she repeated whenever Ejiro criticised her marriage.",
+   "runs": [
+    {
+     "t": "Doris had a saying she repeated whenever Ejiro criticised her marriage.",
+     "i": false
+    }
+   ],
+   "words": 11,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 20,
+   "slug": "sixth-cycle",
+   "kind": "story",
+   "motif": "Child",
+   "title": "Sixth Cycle",
+   "author": "Kalu Rebecca",
+   "line": "By the time you get to your sixth IVF cycle, you stop announcing dates.",
+   "runs": [
+    {
+     "t": "By the time you get to your sixth IVF cycle, you stop announcing dates.",
+     "i": false
+    }
+   ],
+   "words": 14,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 21,
+   "slug": "chernobyl",
+   "kind": "story",
+   "motif": "Child",
+   "title": "Chernobyl",
+   "author": "Stanley Princewill McDaniels",
+   "line": "Sometimes, I wish my parents would take me to the supermarket the way it is in Hollywood films, where a child would be held in the middle, skipping happily with father and mother as they walk through the aisle.",
+   "runs": [
+    {
+     "t": "Sometimes, I wish my parents would take me to the supermarket the way it is in Hollywood films, where a child would be held in the middle, skipping happily with father and mother as they walk through the aisle.",
+     "i": false
+    }
+   ],
+   "words": 39,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 22,
+   "slug": "free-will",
+   "kind": "story",
+   "motif": "Captive",
+   "title": "Free Will",
+   "author": "Dera Okaro",
+   "line": "The rickety bus had barely made a stop when I fought my way in.",
+   "runs": [
+    {
+     "t": "The rickety bus had barely made a stop when I fought my way in.",
+     "i": false
+    }
+   ],
+   "words": 14,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 23,
+   "slug": "the-number-thirteen",
+   "kind": "story",
+   "motif": "Captive",
+   "title": "The Number Thirteen",
+   "author": "Dera Okaro",
+   "line": "Dayo was afraid of the number thirteen.",
+   "runs": [
+    {
+     "t": "Dayo was afraid of the number thirteen.",
+     "i": false
+    }
+   ],
+   "words": 7,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 24,
+   "slug": "the-man-i-met-at-nineteen",
+   "kind": "story",
+   "motif": "Captive",
+   "title": "The Man I Met At Nineteen",
+   "author": "Dera Okaro",
+   "line": "They say the man you meet at nineteen will traumatise you.",
+   "runs": [
+    {
+     "t": "They say the man you meet at nineteen will traumatise you.",
+     "i": false
+    }
+   ],
+   "words": 11,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 25,
+   "slug": "anomaly",
+   "kind": "story",
+   "motif": "Captive",
+   "title": "Anomaly",
+   "author": "Arthur Eze",
+   "line": "‘Uncle Nonso, Mummy says I am old enough now to help her in the kitchen.",
+   "runs": [
+    {
+     "t": "‘Uncle Nonso, Mummy says I am old enough now to help her in the kitchen.",
+     "i": false
+    }
+   ],
+   "words": 15,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": [
+    {
+     "kind": "furniture",
+     "note": "passed over before the first sentence: content note"
+    },
+    {
+     "kind": "dialogue",
+     "note": "opens on dialogue"
+    },
+    {
+     "kind": "boundary",
+     "note": "the sentence ends inside a quotation, so its opening quote is left open, as printed"
+    }
+   ]
+  },
+  {
+   "deckIndex": 26,
+   "slug": "the-call",
+   "kind": "story",
+   "motif": "Captive",
+   "title": "The Call",
+   "author": "Maurice Bur",
+   "line": "Edet was marking essays when the call came.",
+   "runs": [
+    {
+     "t": "Edet was marking essays when the call came.",
+     "i": false
+    }
+   ],
+   "words": 8,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 27,
+   "slug": "miss-lady",
+   "kind": "story",
+   "motif": "Road",
+   "title": "Miss Lady",
+   "author": "Calvary",
+   "line": "My eyes met hers before I had the chance to think about it.",
+   "runs": [
+    {
+     "t": "My eyes met hers before I had the chance to think about it.",
+     "i": false
+    }
+   ],
+   "words": 13,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 28,
+   "slug": "arrival-again",
+   "kind": "story",
+   "motif": "Road",
+   "title": "Arrival: Again",
+   "author": "Tricia Ajax",
+   "line": "I sat in the back seat of the cab, phone in hand, scrolling, when I heard his coarse voice.",
+   "runs": [
+    {
+     "t": "I sat in the back seat of the cab, phone in hand, scrolling, when I heard his coarse voice.",
+     "i": false
+    }
+   ],
+   "words": 19,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 29,
+   "slug": "odeluwa",
+   "kind": "story",
+   "motif": "Road",
+   "title": "Odeluwa",
+   "author": "Tricia Ajax",
+   "line": "The world now knows about a great writer, standing tall and strong, but not everyone knows she’s a phoenix that rose from the ashes.",
+   "runs": [
+    {
+     "t": "The world now knows about a great writer, standing tall and strong, but not everyone knows she’s a phoenix that rose from the ashes.",
+     "i": false
+    }
+   ],
+   "words": 24,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 30,
+   "slug": "zee-a-love-letters-story",
+   "kind": "story",
+   "motif": "Road",
+   "title": "Zee (a Love Letters story)",
+   "author": "Ikenna Okpara",
+   "line": "As was customary for Chizitere and her family, they were back in their hometown once again after two years.",
+   "runs": [
+    {
+     "t": "As was customary for Chizitere and her family, they were back in their hometown once again after two years.",
+     "i": false
+    }
+   ],
+   "words": 19,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 31,
+   "slug": "final-boarding-call",
+   "kind": "story",
+   "motif": "Road",
+   "title": "Final Boarding Call",
+   "author": "Dera Okaro",
+   "line": "Edith had rehearsed the moment so many times it had begun to feel less like imagination and more like memory.",
+   "runs": [
+    {
+     "t": "Edith had rehearsed the moment so many times it had begun to feel less like imagination and more like memory.",
+     "i": false
+    }
+   ],
+   "words": 20,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 32,
+   "slug": "seat-14b",
+   "kind": "story",
+   "motif": "Road",
+   "title": "Seat 14B",
+   "author": "Kalu Rebecca",
+   "line": "I had been staring at him for approximately three minutes when I decided three minutes was long enough to qualify as embarrassing.",
+   "runs": [
+    {
+     "t": "I had been staring at him for approximately three minutes when I decided three minutes was long enough to qualify as embarrassing.",
+     "i": false
+    }
+   ],
+   "words": 22,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 33,
+   "slug": "puppy-love",
+   "kind": "story",
+   "motif": "Road",
+   "title": "Puppy Love",
+   "author": "Stanley Princewill McDaniels",
+   "line": "There's a way old things stay with you beyond the measure of nostalgia.",
+   "runs": [
+    {
+     "t": "There's a way old things stay with you beyond the measure of nostalgia.",
+     "i": false
+    }
+   ],
+   "words": 13,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 34,
+   "slug": "the-girl-who-sang-through-the-dark",
+   "kind": "story",
+   "motif": "House",
+   "title": "The Girl Who Sang Through the Dark",
+   "author": "Tricia Ajax",
+   "line": "Before Chinny ever opened her eyes to this world, grief had already found her family.",
+   "runs": [
+    {
+     "t": "Before Chinny ever opened her eyes to this world, grief had already found her family.",
+     "i": false
+    }
+   ],
+   "words": 15,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 35,
+   "slug": "from-scratch",
+   "kind": "story",
+   "motif": "House",
+   "title": "From Scratch",
+   "author": "Kalu Rebecca",
+   "line": "I was somewhere between sleep and awake when I heard my phone ringing.",
+   "runs": [
+    {
+     "t": "I was somewhere between sleep and awake when I heard my phone ringing.",
+     "i": false
+    }
+   ],
+   "words": 13,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": [
+    {
+     "kind": "furniture",
+     "note": "passed over before the first sentence: content note"
+    }
+   ]
+  },
+  {
+   "deckIndex": 36,
+   "slug": "terms-and-conditions",
+   "kind": "story",
+   "motif": "House",
+   "title": "Terms and Conditions",
+   "author": "Tricia Ajax",
+   "line": "The ultimatum came on a Sunday, calmly delivered by his father over a meal, with the quiet authority of a man who had never needed to raise his voice to be obeyed.",
+   "runs": [
+    {
+     "t": "The ultimatum came on a Sunday, calmly delivered by his father over a meal, with the quiet authority of a man who had never needed to raise his voice to be obeyed.",
+     "i": false
+    }
+   ],
+   "words": 32,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 37,
+   "slug": "mango-season",
+   "kind": "story",
+   "motif": "House",
+   "title": "Mango Season",
+   "author": "Dera Okaro",
+   "line": "I was still adjusting my skirt into place, smiling as Echezona buckled his belt and serenaded me with sweet names, when his eyes suddenly drifted past me and his smile vanished.",
+   "runs": [
+    {
+     "t": "I was still adjusting my skirt into place, smiling as Echezona buckled his belt and serenaded me with sweet names, when his eyes suddenly drifted past me and his smile vanished.",
+     "i": false
+    }
+   ],
+   "words": 31,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 38,
+   "slug": "small-permissions",
+   "kind": "story",
+   "motif": "House",
+   "title": "Small Permissions",
+   "author": "Kalu Rebecca",
+   "line": "Chidera thinks I don't notice.",
+   "runs": [
+    {
+     "t": "Chidera thinks I don't notice.",
+     "i": false
+    }
+   ],
+   "words": 5,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 39,
+   "slug": "room-14",
+   "kind": "story",
+   "motif": "House",
+   "title": "Room 14",
+   "author": "Arthur Eze",
+   "line": "I first saw the man on a Tuesday evening, on my way back from work.",
+   "runs": [
+    {
+     "t": "I first saw the man on a Tuesday evening, on my way back from work.",
+     "i": false
+    }
+   ],
+   "words": 15,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 40,
+   "slug": "the-enabler",
+   "kind": "story",
+   "motif": "Debt",
+   "title": "The Enabler",
+   "author": "Ufedo-Ojo Adaji",
+   "line": "As evening falls, the city comes alive.",
+   "runs": [
+    {
+     "t": "As evening falls, the city comes alive.",
+     "i": false
+    }
+   ],
+   "words": 7,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 41,
+   "slug": "unstoppabbl",
+   "kind": "story",
+   "motif": "Debt",
+   "title": "unstoppaBBL",
+   "author": "Ufedo-Ojo Adaji",
+   "line": "'Hi guys, GRWM as I go get my BBL!'",
+   "runs": [
+    {
+     "t": "'Hi guys, GRWM as I go get my BBL!'",
+     "i": false
+    }
+   ],
+   "words": 9,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": [
+    {
+     "kind": "dialogue",
+     "note": "opens on dialogue"
+    },
+    {
+     "kind": "byline",
+     "note": "byline from the story page; deck.json still has \"Ufedo Adaji\""
+    }
+   ]
+  },
+  {
+   "deckIndex": 42,
+   "slug": "safety-net",
+   "kind": "story",
+   "motif": "Debt",
+   "title": "Safety Net",
+   "author": "Dera Okaro",
+   "line": "Absolutely nobody is coming to save you.",
+   "runs": [
+    {
+     "t": "Absolutely nobody is coming to save you.",
+     "i": false
+    }
+   ],
+   "words": 7,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 43,
+   "slug": "till-debt-do-us-part",
+   "kind": "story",
+   "motif": "Debt",
+   "title": "Till Debt Do Us Part",
+   "author": "Dera Okaro",
+   "line": "Tara had never been so eager for Abigail to come home.",
+   "runs": [
+    {
+     "t": "Tara had never been so eager for Abigail to come home.",
+     "i": false
+    }
+   ],
+   "words": 11,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 44,
+   "slug": "manage-it",
+   "kind": "story",
+   "motif": "Debt",
+   "title": "Manage It",
+   "author": "Nzubechukwu Okere",
+   "line": "On my way to my lodge from a string of boring, exhausting lectures — and a surprise test that, like almost everyone else, I hadn't prepared for — I climbed the hills of Odenigwe with a quiet wish: that my roommate had somehow made a sumptuous meal.",
+   "runs": [
+    {
+     "t": "On my way to my lodge from a string of boring, exhausting lectures — and a surprise test that, like almost everyone else, I hadn't prepared for — I climbed the hills of Odenigwe with a quiet wish: that my roommate had somehow made a sumptuous meal.",
+     "i": false
+    }
+   ],
+   "words": 45,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": [
+    {
+     "kind": "long",
+     "note": "45 words, over 40"
+    }
+   ]
+  },
+  {
+   "deckIndex": 45,
+   "slug": "sapiosexual",
+   "kind": "story",
+   "motif": "Debt",
+   "title": "Sapiosexual",
+   "author": "Kalu Rebecca",
+   "line": "I'm halfway through folding laundry when the podcast host says something that makes me freeze.",
+   "runs": [
+    {
+     "t": "I'm halfway through folding laundry when the podcast host says something that makes me freeze.",
+     "i": false
+    }
+   ],
+   "words": 15,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 46,
+   "slug": "the-deadline",
+   "kind": "story",
+   "motif": "Grave",
+   "title": "The Deadline",
+   "author": "Ufedo-Ojo Adaji",
+   "line": "Please wait.",
+   "runs": [
+    {
+     "t": "Please wait.",
+     "i": false
+    }
+   ],
+   "words": 2,
+   "source": "POST /api/story { slug }, signed out (access: full)",
+   "flags": [
+    {
+     "kind": "furniture",
+     "note": "passed over before the first sentence: epigraph (a line in italics); heading (\"Call Forwarding\")"
+    },
+    {
+     "kind": "verse",
+     "note": "set as verse; the sentence ends inside its first line"
+    }
+   ]
+  },
+  {
+   "deckIndex": 47,
+   "slug": "the-most-dangerous-job-in-nigeria",
+   "kind": "story",
+   "motif": "Grave",
+   "title": "The Most Dangerous Job in Nigeria",
+   "author": "Tricia Ajax",
+   "line": "A Nigeria free from fake drugs today was only possible because of the fierceness of a lioness.",
+   "runs": [
+    {
+     "t": "A Nigeria free from fake drugs today was only possible because of the fierceness of a lioness.",
+     "i": false
+    }
+   ],
+   "words": 17,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 48,
+   "slug": "beautifully-blue",
+   "kind": "story",
+   "motif": "Grave",
+   "title": "Beautifully Blue",
+   "author": "Kalu Rebecca",
+   "line": "I can’t feel my legs.",
+   "runs": [
+    {
+     "t": "I can’t feel my legs.",
+     "i": false
+    }
+   ],
+   "words": 5,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 49,
+   "slug": "drip-drip-drip",
+   "kind": "story",
+   "motif": "Grave",
+   "title": "Drip. Drip. Drip.",
+   "author": "Ufedo-Ojo Adaji",
+   "line": "Drip. Drip. Drip.",
+   "runs": [
+    {
+     "t": "Drip. Drip. Drip.",
+     "i": false
+    }
+   ],
+   "words": 3,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": [
+    {
+     "kind": "boundary",
+     "note": "a run of three one-word fragments (\"Drip.\" alone by the rule); read whole, as the title prints it"
+    },
+    {
+     "kind": "byline",
+     "note": "byline from the story page; deck.json still has \"Ufedo Adaji\""
+    }
+   ]
+  },
+  {
+   "deckIndex": 50,
+   "slug": "1967",
+   "kind": "story",
+   "motif": "Grave",
+   "title": "1967",
+   "author": "Ikenna Okpara",
+   "line": "I was only eleven years old when the war broke out.",
+   "runs": [
+    {
+     "t": "I was only eleven years old when the war broke out.",
+     "i": false
+    }
+   ],
+   "words": 11,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": [
+    {
+     "kind": "furniture",
+     "note": "passed over before the first sentence: content note"
+    }
+   ]
+  },
+  {
+   "deckIndex": 51,
+   "slug": "i-told-you",
+   "kind": "story",
+   "motif": "Grave",
+   "title": "I Told You",
+   "author": "Dera Okaro",
+   "line": "My grandmother used to talk to her dead husband every evening.",
+   "runs": [
+    {
+     "t": "My grandmother used to talk to her dead husband every evening.",
+     "i": false
+    }
+   ],
+   "words": 11,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": []
+  },
+  {
+   "deckIndex": 52,
+   "slug": "peer-pressure-from-the-dead",
+   "kind": "story",
+   "motif": "Grave",
+   "title": "Peer Pressure From the Dead",
+   "author": "Dera Okaro",
+   "line": "'I killed my mother.'",
+   "runs": [
+    {
+     "t": "'I killed my mother.'",
+     "i": false
+    }
+   ],
+   "words": 4,
+   "source": "POST /api/story { slug }, signed out (access: preview)",
+   "flags": [
+    {
+     "kind": "dialogue",
+     "note": "opens on dialogue"
+    }
+   ]
+  }
+ ]
+}

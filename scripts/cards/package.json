@@ -2,9 +2,11 @@
   "name": "calvary-cards",
   "private": true,
   "type": "module",
-  "description": "Story Island card game — card faces. Its own two dependencies, pinned exact, so the site's install and the covers pipeline never see them.",
+  "description": "Story Island card game — card faces and the playtest paper. Its own dependencies, pinned exact, so the site's install and the covers pipeline never see them. .npmrc omits optional ones, so pdfjs-dist never installs a second @napi-rs/canvas over the root's.",
   "dependencies": {
     "jsqr": "1.4.0",
+    "pdfjs-dist": "6.4.299",
+    "pdfkit": "0.20.2",
     "qrcode": "1.5.4"
   }
 }

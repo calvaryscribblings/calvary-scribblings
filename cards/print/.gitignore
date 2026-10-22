@@ -2,3 +2,7 @@
 mpc-playtest/*.jpg
 mpc-playtest/*.png
 mpc-playtest/*.zip
+
+# CARDS-R3: the playtest paper, delivered with the same draft release.
+paper/*.pdf
+paper/*.png
