@@ -611,3 +611,7 @@ rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest
 
 - **226:** Message images stay in the main storage bucket, with its 30-day safety copy, rather than getting a separate bucket of their own.
 - **227:** If a report goes through but its image couldn't be kept with it, the reader sees "Your report was sent, but the image didn’t go with it. Try again." (app/components/square/MessagesPanel.js).
+
+## 27 Oct 2026 (Ikenna): where The Series sits
+
+- **233:** On Home, The Series sits directly under Just Added, on web and in the app.

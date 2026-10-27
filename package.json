@@ -63,6 +63,7 @@
     "test:series-free": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/series/playwright.w40.config.mjs\"",
     "test:series-notes:ui": "node --test tests/series-notes/ui/room-model.test.mjs && firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/series-notes/ui/playwright.config.mjs && playwright test -c tests/series-notes/ui/playwright.flagoff.config.mjs\"",
     "test:release-recheck": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/series/playwright.release.config.mjs\"",
+    "test:series-home": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/series/playwright.home.config.mjs\"",
     "test:series-admin": "node tests/fixtures/make-epub.mjs && firebase emulators:exec --only auth,database,storage --project calvary-scribblings \"playwright test -c tests/series/playwright.w38.config.mjs\"",
     "test:series-notes-admin": "node --test tests/series-notes/admin/*.test.mjs && firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/series-notes/admin/playwright.config.mjs\"",
     "test:ci": "node --test \"tests/ci/*.test.mjs\"",

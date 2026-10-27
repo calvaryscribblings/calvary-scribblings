@@ -25,8 +25,8 @@ import Unavailable from '../components/Unavailable';
 import { normalizeGenre } from '../lib/openPages';
 // The Series row's chrome follows the tier flag, so the homepage and the endpoint cannot
 // disagree about whether the section is behind a wall. The loader itself is imported lazily
-// inside SeriesRow — it pulls in the Firebase database SDK, and the six category rows above
-// must not wait on a chunk they never use.
+// inside SeriesRow — it pulls in the Firebase database SDK, and the rows around it (Just
+// Added above, Top 10 and the five category rows below) must not wait on a chunk they never use.
 import { SERIES_TIER_GATE_ENABLED } from '../lib/series/access';
 import { shelfLine } from '../lib/series/format';
 import { useReleaseRecheck } from '../lib/series/releaseRecheck';
@@ -580,17 +580,27 @@ function JustAddedCard({ story, ...rest }) {
  *
  * The category rows all slice `allStories`, which is one read of cms_stories_index. Series
  * live in two other nodes entirely, so this row pays for its own two reads. They are NOT
- * folded into the page's main load: this component renders nothing until they land, and if
- * they never land it renders nothing forever. A slow or failed series read must not delay or
- * blank the six rows above it — the homepage's job is the library, and the Series is a guest
- * on it.
+ * folded into the page's main load: a slow or failed series read must not delay or blank
+ * Just Added, Top 10 or the genre rows — the homepage's job is the library, and the Series is
+ * a guest on it.
  *
- * ── IT HIDES ITSELF WHEN EMPTY, LIKE THE ROW IT REPLACED ────────────────────────────────
+ * ── IT HOLDS ITS SPACE WHILE IT LOADS (ruling 233) ─────────────────────────────────────
  *
- * The Book Reader row was `{... .length > 0 && <Row .../>}` — a bare conditional with no
- * skeleton, unlike its five neighbours. That is kept: an empty Series section on the homepage
- * would advertise a shelf with nothing on it, which is precisely what /serial did for months
- * before it was retired.
+ * At the foot of the page it could afford to draw nothing until its reads landed: only Open
+ * Pages and Subscribe sat below it. Directly under Just Added it cannot — landing late would
+ * push Top Readers, Top 10 and every genre row down, on a slow connection well after the
+ * reader has started scrolling. So while the FIRST read is in flight it draws
+ * <SeriesRowSkeleton />, built from the same header and the same card frame, and the card's
+ * two lines of text are pinned to fixed line counts (title 2, shelf line 2 — see
+ * SERIES_CARD_TEXT) so the finished row is the same height whatever it says.
+ * tests/series/home-placement.spec.mjs measures the two against each other.
+ *
+ * ── IT STILL HIDES ITSELF WHEN EMPTY ───────────────────────────────────────────────────
+ *
+ * An empty or failed first read draws nothing: an empty Series section on the homepage would
+ * advertise a shelf with nothing on it, which is precisely what /serial did for months before
+ * it was retired. The skeleton is for the first read only — a W35 re-read keeps the row it
+ * already drew and never brings the skeleton back.
  */
 function SeriesRow() {
   const [rows, setRows] = useState(null);
@@ -622,19 +632,12 @@ function SeriesRow() {
     return () => { cancelled = true; };
   }, [recheck]);
 
-  if (!rows || rows.length === 0) return null;
+  if (rows === null) return <SeriesRowSkeleton />;
+  if (rows.length === 0) return null;
 
   return (
-    <section style={{ padding: '0.75rem 0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1rem', padding: '0 4%' }}>
-        <div data-reveal="up">
-          <span style={kickerStyle}>{SERIES_TIER_GATE_ENABLED ? 'PLATINUM' : 'FREE TO READ'}</span>
-          <h3 style={sectionTitleStyle}>The Series</h3>
-        </div>
-        <Link href="/series" style={seeAllStyle}>
-          See all{seeAllChevron}
-        </Link>
-      </div>
+    <section data-series-row="" style={{ padding: '0.75rem 0' }}>
+      <SeriesRowHeader />
       <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
         {rows.slice(0, 12).map((s, i) => (
           <Link
@@ -647,20 +650,77 @@ function SeriesRow() {
             <div
               role="presentation"
               style={{
-                width: 140, aspectRatio: '2 / 3', borderRadius: 8, overflow: 'hidden',
-                border: '1px solid rgba(255,255,255,0.08)',
+                ...seriesPosterFrame,
                 background: s.coverUrl
                   ? `center / cover no-repeat url(${s.coverUrl})`
                   : 'linear-gradient(160deg, #1a0f2e, #0d0a18)',
               }}
             />
             <div style={{ marginTop: 10, padding: '0 2px' }}>
-              <div style={{ fontFamily: DISPLAY, fontSize: '0.88rem', fontWeight: 600, lineHeight: 1.3, color: '#f5f0e8', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+              <div style={{ ...SERIES_CARD_TEXT.title, color: '#f5f0e8', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                 {s.title}
               </div>
-              <div style={{ ...cardAuthorStyle, fontSize: '0.65rem', marginTop: 4 }}>{shelfLine(s.rows || [])}</div>
+              <div style={{ ...cardAuthorStyle, ...SERIES_CARD_TEXT.shelf, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{shelfLine(s.rows || [])}</div>
             </div>
           </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// The card's two lines of text, at FIXED HEIGHTS, so a finished row is the height of its
+// skeleton whatever the titles say. Title: clamped at 2 lines and always reserving 2. Shelf
+// line: "5 instalments · next 3 November" wraps at 140px, so it too reserves and clamps at 2 —
+// the longest line the format can make ("12 instalments · next 30 September 2027") still fits
+// in two. The heights are in em of each line's own font size, so they follow the type.
+const SERIES_CARD_TEXT = {
+  title: { fontFamily: DISPLAY, fontSize: '0.88rem', fontWeight: 600, lineHeight: 1.3, height: '2.6em', overflow: 'hidden' },
+  shelf: { fontSize: '0.65rem', lineHeight: 1.4, height: '2.8em', marginTop: 4, overflow: 'hidden' },
+};
+const seriesPosterFrame = { width: 140, aspectRatio: '2 / 3', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' };
+
+// The header the row and its skeleton share, so the two cannot drift by a pixel.
+function SeriesRowHeader({ skeleton = false }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1rem', padding: '0 4%' }}>
+      <div data-reveal={skeleton ? undefined : 'up'}>
+        <span style={kickerStyle}>{SERIES_TIER_GATE_ENABLED ? 'PLATINUM' : 'FREE TO READ'}</span>
+        <h3 style={sectionTitleStyle}>The Series</h3>
+      </div>
+      {skeleton ? (
+        // Held, not shown: a See-all to a shelf that may turn out empty is a promise the
+        // skeleton cannot make. It keeps its box so the header is the same height.
+        <span aria-hidden="true" style={{ ...seeAllStyle, visibility: 'hidden' }}>See all{seeAllChevron}</span>
+      ) : (
+        <Link href="/series" style={seeAllStyle}>
+          See all{seeAllChevron}
+        </Link>
+      )}
+    </div>
+  );
+}
+
+// The Series while its first read is in flight — the RowSkeleton / JustAddedSkeleton pattern,
+// on the Series card's own frame: 140px cards, a 140×210 poster at radius 8, and the bars sit
+// inside boxes of the finished card's text heights.
+function SeriesRowSkeleton() {
+  return (
+    <section data-series-row="skeleton" aria-hidden="true" style={{ padding: '0.75rem 0' }}>
+      <SeriesRowHeader skeleton />
+      <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
+        {[0,1,2,3,4,5,6].map(i => (
+          <div key={i} style={{ flex: '0 0 auto', width: 140 }}>
+            <div style={{ ...seriesPosterFrame, background: 'rgba(255,255,255,0.04)' }} />
+            <div style={{ marginTop: 10, padding: '0 2px' }}>
+              <div style={SERIES_CARD_TEXT.title}>
+                <div style={{ height: 10, width: '85%', background: 'rgba(255,255,255,0.06)', borderRadius: 3, marginTop: 3 }} />
+              </div>
+              <div style={SERIES_CARD_TEXT.shelf}>
+                <div style={{ height: 8, width: '70%', background: 'rgba(255,255,255,0.05)', borderRadius: 2, marginTop: 2 }} />
+              </div>
+            </div>
+          </div>
         ))}
       </div>
     </section>
@@ -1891,6 +1951,19 @@ export default function Home() {
       </section>
       )}
 
+      {/* THE SERIES — directly under Just Added (ruling 233, 27 Oct 2026: "On Home, The Series
+          sits directly under Just Added, on web and in the app"). Until then it sat at the foot
+          of the catalogue, after Inspiring Stories, in the slot the Book Reader Collection held.
+          Above the Summer banner, which stays directly above Top Readers as its own comment
+          requires. It holds its space while it loads — see SeriesRow.
+
+          It is NOT a <Row>. That component maps its `stories` through <StoryCard>, which reads
+          a cms_stories shape — s.url, s.id, the quiz pill, the reader's quiz tier. A series is
+          a different record in a different node: slug, poster, and a released count derived at
+          read time. Feeding one to the other would have needed a fake story object per series,
+          and the first field StoryCard gained would have broken it silently. */}
+      <SeriesRow />
+
       {/* Summer Reading Program — sits above Top Readers because it is the
           reason to care about the strip below it during August. Self-hides
           outside the contest window. */}
@@ -1942,18 +2015,6 @@ export default function Home() {
       ) : (
         <Row title="Inspiring Stories" kicker="THE LIGHT" stories={allStories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" />
       )}
-      {/* THE SERIES — in the slot the Book Reader Collection held, which was the last content
-          row, after Inspiring Stories and before Subscribe. That row was
-          `allStories.filter(s => s.readerMode === true)` with a "THE COLLECTION" kicker and a
-          See-all to /book-reader; it self-hid at zero, and the pull took it to zero, so this
-          replaces an empty slot rather than displacing anything.
-
-          It is NOT a <Row>. That component maps its `stories` through <StoryCard>, which reads
-          a cms_stories shape — s.url, s.id, the quiz pill, the reader's quiz tier. A series is
-          a different record in a different node: slug, poster, and a released count derived at
-          read time. Feeding one to the other would have needed a fake story object per series,
-          and the first field StoryCard gained would have broken it silently. */}
-      <SeriesRow />
 
       {/* ⛔ W34 — THE BOOK READER ROW IS GONE FROM THE SOURCE, NOT MERELY EMPTY. It used to
           stay here behind `readerMode === true`, "self-hiding at zero" — which made the
@@ -1994,8 +2055,9 @@ export default function Home() {
           to write for it. Below the signup it is furniture; above the catalogue it is
           a claim the house does not make.
 
-          So: below every genre row, below The Series (the Book Reader collection's row
-          was removed in W34), ABOVE the subscribe block. ⚠ ASSERTED IN BOTH DIRECTIONS in
+          So: below every genre row (The Series, also house-published, sits higher still —
+          under Just Added since ruling 233; the Book Reader collection's row was removed in
+          W34), ABOVE the subscribe block. ⚠ ASSERTED IN BOTH DIRECTIONS in
           tests/openpages/distribution.test.mjs — a later round cannot quietly raise it
           above the catalogue or drop it back beneath the furniture. */}
       <OpenPagesRow />
