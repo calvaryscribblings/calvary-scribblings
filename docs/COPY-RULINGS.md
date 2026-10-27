@@ -615,3 +615,7 @@ rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest
 ## 27 Oct 2026 (Ikenna): where The Series sits
 
 - **233:** On Home, The Series sits directly under Just Added, on web and in the app.
+- **234:** On Home, the Series posters are 160×240: Just Added's card width at the poster's own 2:3, so the two rows line up card for card.
+- **235:** The posters take Just Added's 12px corners but keep their own faint edge, with no purple border or glow, because they are artwork.
+- **236:** On Home, Just Added, The Series, Top Readers, Top 10 and the genre rows all have 16px between their heading and their cards. Just Added and Top Readers move from 12px.
+- **237:** The Series card's text sits like Just Added's, with no blank lines held in reserve. The row may move by up to a line when it loads.

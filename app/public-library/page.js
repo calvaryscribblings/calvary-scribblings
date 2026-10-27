@@ -584,16 +584,25 @@ function JustAddedCard({ story, ...rest }) {
  * Just Added, Top 10 or the genre rows — the homepage's job is the library, and the Series is
  * a guest on it.
  *
- * ── IT HOLDS ITS SPACE WHILE IT LOADS (ruling 233) ─────────────────────────────────────
+ * ── IT SITS UNDER JUST ADDED, CARD FOR CARD (rulings 233–237, 27 Oct 2026) ─────────────
+ *
+ * 233 put it directly under Just Added. 234: its posters are 160×240 — Just Added's card
+ * width at the poster's own 2:3 — so the two rows line up card for card. 235: they take Just
+ * Added's 12px corners but keep their own faint edge, no purple border or glow, because they
+ * are artwork. 236: 16px between heading and cards, as every row here now has. 237: the card's
+ * text sits exactly like Just Added's — title clamped at two lines, the shelf line in the
+ * author line's style 4px beneath it — with NO blank lines held in reserve.
+ *
+ * ── IT HOLDS ITS SPACE WHILE IT LOADS, TO WITHIN A LINE ─────────────────────────────────
  *
  * At the foot of the page it could afford to draw nothing until its reads landed: only Open
- * Pages and Subscribe sat below it. Directly under Just Added it cannot — landing late would
- * push Top Readers, Top 10 and every genre row down, on a slow connection well after the
- * reader has started scrolling. So while the FIRST read is in flight it draws
- * <SeriesRowSkeleton />, built from the same header and the same card frame, and the card's
- * two lines of text are pinned to fixed line counts (title 2, shelf line 2 — see
- * SERIES_CARD_TEXT) so the finished row is the same height whatever it says.
- * tests/series/home-placement.spec.mjs measures the two against each other.
+ * Pages and Subscribe sat below it. Directly under Just Added it cannot draw nothing — landing
+ * late would push Top Readers, Top 10 and every genre row down by a whole row, on a slow
+ * connection well after the reader has started scrolling. So while the FIRST read is in flight
+ * it draws <SeriesRowSkeleton />, on the same header and the same poster frame. Because the
+ * text is not pinned (237), the finished row may differ from the skeleton by up to one line;
+ * the skeleton holds the middle case so it is within a line either way.
+ * tests/series/home-placement.spec.mjs measures all four text cases against it.
  *
  * ── IT STILL HIDES ITSELF WHEN EMPTY ───────────────────────────────────────────────────
  *
@@ -645,7 +654,7 @@ function SeriesRow() {
             href={`/series/${s.slug}`}
             data-reveal="up"
             data-reveal-delay={(i % 6) + 1}
-            style={{ flex: '0 0 auto', width: 140, textDecoration: 'none', display: 'block' }}
+            style={{ flex: '0 0 auto', width: SERIES_CARD_WIDTH, textDecoration: 'none', display: 'block' }}
           >
             <div
               role="presentation"
@@ -657,10 +666,10 @@ function SeriesRow() {
               }}
             />
             <div style={{ marginTop: 10, padding: '0 2px' }}>
-              <div style={{ ...SERIES_CARD_TEXT.title, color: '#f5f0e8', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+              <div style={{ ...SERIES_CARD_TEXT.title, ...twoLineClamp }}>
                 {s.title}
               </div>
-              <div style={{ ...cardAuthorStyle, ...SERIES_CARD_TEXT.shelf, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{shelfLine(s.rows || [])}</div>
+              <div style={{ ...SERIES_CARD_TEXT.shelf, ...twoLineClamp }}>{shelfLine(s.rows || [])}</div>
             </div>
           </Link>
         ))}
@@ -669,16 +678,19 @@ function SeriesRow() {
   );
 }
 
-// The card's two lines of text, at FIXED HEIGHTS, so a finished row is the height of its
-// skeleton whatever the titles say. Title: clamped at 2 lines and always reserving 2. Shelf
-// line: "5 instalments · next 3 November" wraps at 140px, so it too reserves and clamps at 2 —
-// the longest line the format can make ("12 instalments · next 30 September 2027") still fits
-// in two. The heights are in em of each line's own font size, so they follow the type.
+// The card's text, set exactly as Just Added's (ruling 237): the title in JustAddedCard's
+// title style, the shelf line in its author line's style, 4px beneath. No fixed heights — a
+// one-line title has its shelf line directly under it. Both clamp at two lines: the longest
+// shelf line the format makes ("12 instalments · next 30 September 2027") fits in two.
 const SERIES_CARD_TEXT = {
-  title: { fontFamily: DISPLAY, fontSize: '0.88rem', fontWeight: 600, lineHeight: 1.3, height: '2.6em', overflow: 'hidden' },
-  shelf: { fontSize: '0.65rem', lineHeight: 1.4, height: '2.8em', marginTop: 4, overflow: 'hidden' },
+  title: { fontFamily: DISPLAY, fontSize: '0.88rem', fontWeight: 600, lineHeight: 1.3, color: '#f5f0e8' },
+  shelf: { ...cardAuthorStyle, fontSize: '0.65rem', marginTop: 4 },
 };
-const seriesPosterFrame = { width: 140, aspectRatio: '2 / 3', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' };
+const twoLineClamp = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' };
+// Rulings 234 + 235: Just Added's card width at the poster's own 2:3 (160×240), Just Added's
+// 12px corners, and the poster's own faint edge — no purple border, no glow: it is artwork.
+const SERIES_CARD_WIDTH = 160;
+const seriesPosterFrame = { width: SERIES_CARD_WIDTH, aspectRatio: '2 / 3', borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' };
 
 // The header the row and its skeleton share, so the two cannot drift by a pixel.
 function SeriesRowHeader({ skeleton = false }) {
@@ -702,22 +714,26 @@ function SeriesRowHeader({ skeleton = false }) {
 }
 
 // The Series while its first read is in flight — the RowSkeleton / JustAddedSkeleton pattern,
-// on the Series card's own frame: 140px cards, a 140×210 poster at radius 8, and the bars sit
-// inside boxes of the finished card's text heights.
+// on the Series card's own frame (160×240 at 12px, rulings 234–235). Its text area holds a
+// TWO-line title and a ONE-line shelf line: the middle of the four cases ruling 237 allows, so
+// the finished row lands within one line of it either way. The boxes are set in the finished
+// text's own styles (two title lines at its line height; one shelf line drawn as a no-break
+// space), so the reserve follows the type rather than a guessed pixel count.
 function SeriesRowSkeleton() {
   return (
     <section data-series-row="skeleton" aria-hidden="true" style={{ padding: '0.75rem 0' }}>
       <SeriesRowHeader skeleton />
       <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
         {[0,1,2,3,4,5,6].map(i => (
-          <div key={i} style={{ flex: '0 0 auto', width: 140 }}>
+          <div key={i} style={{ flex: '0 0 auto', width: SERIES_CARD_WIDTH }}>
             <div style={{ ...seriesPosterFrame, background: 'rgba(255,255,255,0.04)' }} />
             <div style={{ marginTop: 10, padding: '0 2px' }}>
-              <div style={SERIES_CARD_TEXT.title}>
+              <div style={{ ...SERIES_CARD_TEXT.title, height: '2.6em' }}>
                 <div style={{ height: 10, width: '85%', background: 'rgba(255,255,255,0.06)', borderRadius: 3, marginTop: 3 }} />
               </div>
-              <div style={SERIES_CARD_TEXT.shelf}>
-                <div style={{ height: 8, width: '70%', background: 'rgba(255,255,255,0.05)', borderRadius: 2, marginTop: 2 }} />
+              <div style={{ ...SERIES_CARD_TEXT.shelf, position: 'relative' }}>
+                {'\u00a0'}
+                <div style={{ position: 'absolute', left: 0, top: 2, height: 8, width: '70%', background: 'rgba(255,255,255,0.05)', borderRadius: 2 }} />
               </div>
             </div>
           </div>
@@ -1027,7 +1043,7 @@ function TopReadersStrip() {
   return (
     <section style={{ padding: '0.75rem 0' }}>
       <a href="/leaderboard" style={{ display: 'block', textDecoration: 'none' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.75rem', padding: '0 4%' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1rem', padding: '0 4%' }}>
           <div data-reveal="up">
             <span style={kickerStyle}>THIS WEEK</span>
             <h3 style={sectionTitleStyle}>Top Readers</h3>
@@ -1157,7 +1173,7 @@ function Top10CardSkeleton() {
 function JustAddedSkeleton() {
   return (
     <section style={{ padding: '0.75rem 0' }}>
-      <div style={{ padding: '0 4%', marginBottom: '0.75rem' }}>
+      <div style={{ padding: '0 4%', marginBottom: '1rem' }}>
         <span style={kickerStyle}>FRESH OFF THE PRESS</span>
         <h3 style={sectionTitleStyle}>Just Added</h3>
       </div>
@@ -1941,7 +1957,7 @@ export default function Home() {
         <JustAddedSkeleton />
       ) : (
       <section style={{ padding: '0.75rem 0' }}>
-        <div data-reveal="up" style={{ paddingLeft: '4%', marginBottom: '0.75rem' }}>
+        <div data-reveal="up" style={{ paddingLeft: '4%', marginBottom: '1rem' }}>
           <span style={kickerStyle}>FRESH OFF THE PRESS</span>
           <h3 style={sectionTitleStyle}>Just Added</h3>
         </div>

@@ -1,12 +1,12 @@
-// SERIES-MOVE (ruling 233) · THE SERIES UNDER JUST ADDED HOLDS ITS SPACE WHILE IT LOADS.
+// SERIES-MOVE + SERIES-MOVE.1 · THE SERIES UNDER JUST ADDED (rulings 233–237, 27 Oct 2026).
 //
 //   npm run test:series-home     (Firebase emulators + `next dev`; hermetic, like w38-editor)
 //
-// Directly under Just Added, a row that drew nothing until its reads landed would push Top
-// Readers, Top 10 and every genre row down when it arrived. So SeriesRow draws a skeleton
-// while its FIRST read is in flight, and its card text is pinned to fixed line counts. This
-// measures the skeleton against the finished row at a phone width and a desktop width; they
-// must be equal to the pixel.
+// 233: The Series sits directly under Just Added. 234: its posters are 160×240, so the two rows
+// line up card for card. 235: 12px corners, its own faint edge. 236: 16px between heading and
+// cards on every row from Just Added to the genre rows. 237: the card's text sits like Just
+// Added's, no blank lines in reserve — so the finished row may differ from its loading skeleton
+// by up to one title line (18.3px), and this measures all four text cases against it.
 //
 // HOLDING THE FIRST READ. The test holds the Series' own database reads on the emulator's
 // WebSocket until it has measured the skeleton, then lets them through. (Not the loader's
@@ -20,6 +20,9 @@ import { getDatabase } from 'firebase-admin/database';
 import { adminApp, closeApp } from './harness.mjs';
 
 const DAY = 86400000;
+const TITLE_LINE = 0.88 * 16 * 1.3; // 18.304px — one line of the card title
+const SHORT_TITLE = 'Ash';
+const LONG_TITLE = 'The Very Long Title of a Series That Will Not Fit on Two Lines';
 let app;
 test.beforeAll(async () => { app = adminApp('series-home'); });
 test.afterAll(async () => { if (app) await closeApp(app); });
@@ -29,7 +32,33 @@ const story = (id, category, title, daysAgo) => ({
   date: new Date(Date.now() - daysAgo * DAY).toISOString().slice(0, 10), published: true,
 });
 
-async function seed({ series = true } = {}) {
+/**
+ * A series fixture. `released` instalments in the past, and if `next`, one more a week out:
+ * 1 released and no next makes the one-line shelf ("1 instalment"); 12 released and a next
+ * makes the longest the format writes ("12 instalments · next …"), which wraps.
+ */
+function seriesRecords(id, title, { released, next = false, addedAt }) {
+  const now = Date.now();
+  const series = { schemaVersion: 1, slug: id, title, synopsis: '', coverUrl: null, status: 'published', addedAt, updatedAt: now };
+  const rows = {};
+  const total = released + (next ? 1 : 0);
+  for (let i = 1; i <= total; i++) {
+    rows[`${id}-i${i}`] = {
+      schemaVersion: 1, seriesId: id, ordinal: i,
+      releaseAtMs: i <= released ? now - (total + 2 - i) * DAY : now + 7 * DAY,
+      freeForGold: false, status: 'published', addedAt: now, updatedAt: now,
+    };
+  }
+  return { series, rows };
+}
+
+const ONE_LINE_SHELF = { released: 1 };
+const TWO_LINE_SHELF = { released: 12, next: true };
+
+async function seed(seriesList = [
+  ['fx-short', SHORT_TITLE, ONE_LINE_SHELF],
+  ['fx-long', LONG_TITLE, TWO_LINE_SHELF],
+]) {
   const db = getDatabase(app);
   const now = Date.now();
   await Promise.all(['series', 'series_instalments', 'series_instalments_detail', 'cms_stories_index', 'leaderboard']
@@ -41,17 +70,14 @@ async function seed({ series = true } = {}) {
   const leaders = {};
   for (let i = 0; i < 3; i++) leaders[`fx-reader-${i}`] = { displayName: `Reader ${i}`, readerScore: 10 - i, scoreUpdatedAt: now, joinDate: i };
   const update = { cms_stories_index: index, leaderboard: leaders };
-  if (series) {
-    // Two series whose text differs as much as the format allows: a one-line title over a
-    // one-line shelf, and a title that clamps over a shelf line that wraps.
-    update.series = {
-      'fx-short': { schemaVersion: 1, slug: 'fx-short', title: 'Ash', synopsis: '', coverUrl: null, status: 'published', addedAt: now - 1000, updatedAt: now },
-      'fx-long': { schemaVersion: 1, slug: 'fx-long', title: 'The Very Long Title of a Series That Will Not Fit on Two Lines', synopsis: '', coverUrl: null, status: 'published', addedAt: now, updatedAt: now },
-    };
-    const rows = { 'fx-short-i1': { schemaVersion: 1, seriesId: 'fx-short', ordinal: 1, releaseAtMs: now - DAY, freeForGold: false, status: 'published', addedAt: now, updatedAt: now } };
-    for (let i = 1; i <= 5; i++) rows[`fx-long-i${i}`] = { schemaVersion: 1, seriesId: 'fx-long', ordinal: i, releaseAtMs: now - (10 - i) * DAY, freeForGold: false, status: 'published', addedAt: now, updatedAt: now };
-    rows['fx-long-i6'] = { schemaVersion: 1, seriesId: 'fx-long', ordinal: 6, releaseAtMs: now + 7 * DAY, freeForGold: false, status: 'published', addedAt: now, updatedAt: now };
-    update.series_instalments = rows;
+  if (seriesList.length) {
+    update.series = {};
+    update.series_instalments = {};
+    seriesList.forEach(([id, title, shelf], i) => {
+      const r = seriesRecords(id, title, { ...shelf, addedAt: now - i * 1000 });
+      update.series[id] = r.series;
+      Object.assign(update.series_instalments, r.rows);
+    });
   }
   await db.ref().update(update);
 }
@@ -90,92 +116,148 @@ async function holdSeriesReads(page) {
 }
 
 const rowHeight = (page) => page.locator('section[data-series-row]').evaluate((el) => el.getBoundingClientRect().height);
+const finishedRow = (page) => page.locator('section[data-series-row=""]');
+const seriesCards = (page) => finishedRow(page).locator('a[href^="/series/"]');
+
+/** The settled page: a card still in its reveal (translateY 16px) reads 16px low. */
+async function settle(page) {
+  await page.addStyleTag({ content: '[data-reveal]{animation:none!important;transform:none!important;opacity:1!important}' });
+  await page.evaluate(() => document.fonts.ready);
+}
+
+/** Load Home and wait for the finished Series row and the rest of the page around it. */
+async function openHome(page, width) {
+  await page.setViewportSize({ width, height: 900 });
+  await page.goto('/public-library');
+  await expect(finishedRow(page)).toBeAttached({ timeout: 120000 });
+  await expect(page.locator('.just-added-scroll > a').first()).toBeAttached({ timeout: 60000 });
+  await expect(page.locator('section a[href="/flash"]')).toBeAttached({ timeout: 60000 });
+  await expect(page.locator('h3', { hasText: 'Top Readers' })).toBeAttached();
+  await expect(page.locator('.top10-scroll')).toBeAttached({ timeout: 60000 });
+  await settle(page);
+}
 
 for (const width of [390, 1280]) {
-  test(`at ${width}px the skeleton is exactly the finished row's height`, async ({ page }) => {
-    await seed();
-    await page.setViewportSize({ width, height: 900 });
-    const gate = await holdSeriesReads(page);
-    await page.goto('/public-library');
-
-    const skeleton = page.locator('section[data-series-row="skeleton"]');
-    await expect(skeleton).toBeAttached({ timeout: 120000 });
-    await expect(skeleton.locator('h3', { hasText: 'The Series' })).toHaveCount(1);
-    // The Series' read is actually in flight and held, and the rest of the page has drawn
-    // around it (the genre rows' real See-all links, not their skeletons' headings).
-    await expect.poll(() => gate.count(), { message: 'the Series reads were held', timeout: 60000 }).toBeGreaterThan(0);
-    await expect(page.locator('section a[href="/flash"]')).toBeAttached({ timeout: 60000 });
-    await page.evaluate(() => document.fonts.ready);
-    const before = await rowHeight(page);
-
-    await gate.release();
-    const finished = page.locator('section[data-series-row=""]');
-    await expect(finished).toBeAttached();
-    await expect(finished.getByRole('link', { name: /Ash/ })).toBeVisible();
-    await page.evaluate(() => document.fonts.ready);
-    const after = await rowHeight(page);
-    await expect(page.locator('section[data-series-row="skeleton"]')).toHaveCount(0);
-
-    // Every card the same height, whatever its text.
-    const cards = await finished.locator('a[href^="/series/"]').evaluateAll((as) => as.map((a) => a.getBoundingClientRect().height));
-    console.log(`[series-home] ${width}px · skeleton ${before}px · finished ${after}px · cards ${cards.join(', ')}px`);
-    expect(after).toBe(before);
-    expect(new Set(cards).size).toBe(1);
-
-    // The shelf line reserves two lines. The longest line the format makes still fits in two:
-    // set it into a drawn card and look for overflow (scrollHeight beyond the box = clamped).
-    const fits = await finished.locator('a[href^="/series/"]').first().evaluate((a) => {
-      const shelf = a.querySelector('div > div:last-child');
-      const was = shelf.textContent;
-      const count = (text) => {
-        shelf.textContent = text;
-        return Math.round(shelf.scrollHeight / parseFloat(getComputedStyle(shelf).lineHeight));
-      };
-      const longest = count('12 instalments · next 30 September 2027');
-      const control = count('12 instalments · next 30 September 2027 · and a third line besides');
-      shelf.textContent = was;
-      return { longest, control };
+  test.describe(`at ${width}px`, () => {
+    test('234 · the first two Series cards line up with the first two Just Added cards', async ({ page }) => {
+      await seed();
+      await openHome(page, width);
+      const ja = await page.locator('.just-added-scroll > a').evaluateAll((as) => as.slice(0, 2).map((a) => a.getBoundingClientRect().left));
+      const se = await seriesCards(page).evaluateAll((as) => as.slice(0, 2).map((a) => a.getBoundingClientRect().left));
+      console.log(`[series-home] ${width}px left edges · Just Added ${ja.join(', ')} · Series ${se.join(', ')}`);
+      expect(se).toHaveLength(2);
+      expect(se).toEqual(ja);
     });
-    expect(fits.control, 'the measure sees past the clamp').toBeGreaterThan(2);
-    expect(fits.longest, 'the longest shelf line wraps to at most two lines').toBeLessThanOrEqual(2);
+
+    test('234 + 235 · the poster is 160×240 with 12px corners', async ({ page }) => {
+      await seed();
+      await openHome(page, width);
+      const poster = await seriesCards(page).first().locator('[role="presentation"]').evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        return { w: r.width, h: r.height, radius: cs.borderTopLeftRadius, border: `${cs.borderTopWidth} ${cs.borderTopColor}`, shadow: cs.boxShadow };
+      });
+      console.log(`[series-home] ${width}px poster ${JSON.stringify(poster)}`);
+      expect(poster).toEqual({ w: 160, h: 240, radius: '12px', border: '1px rgba(255, 255, 255, 0.08)', shadow: 'none' });
+    });
+
+    test('236 · 16px between heading and cards on Just Added, The Series, Top Readers, Top 10 and a genre row', async ({ page }) => {
+      await seed();
+      await openHome(page, width);
+      const gaps = await page.evaluate(() => {
+        const gap = (title) => {
+          const h = [...document.querySelectorAll('h3')].find((x) => x.textContent.trim() === title);
+          // The strip of cards: the first scrolling sibling found walking up from the heading.
+          let el = h;
+          while (el && !(el.nextElementSibling && getComputedStyle(el.nextElementSibling).overflowX === 'auto')) el = el.parentElement;
+          return Math.round((el.nextElementSibling.getBoundingClientRect().top - h.getBoundingClientRect().bottom) * 100) / 100;
+        };
+        return Object.fromEntries(['Just Added', 'The Series', 'Top Readers', 'Top 10 Stories', 'Flash Fiction'].map((t) => [t, gap(t)]));
+      });
+      console.log(`[series-home] ${width}px heading→cards ${JSON.stringify(gaps)}`);
+      for (const [title, g] of Object.entries(gaps)) expect(g, title).toBe(16);
+    });
+
+    test('237 · a one-line title has its shelf line 4px beneath it', async ({ page }) => {
+      await seed();
+      await openHome(page, width);
+      const card = seriesCards(page).filter({ hasText: SHORT_TITLE }).first();
+      const m = await card.evaluate((a) => {
+        const [title, shelf] = a.querySelectorAll('div > div');
+        const t = title.getBoundingClientRect();
+        return { titleH: t.height, gap: shelf.getBoundingClientRect().top - t.bottom };
+      });
+      expect(m.titleH).toBeLessThan(TITLE_LINE + 1); // it IS one line
+      expect(m.gap).toBe(4);
+    });
+
+    test('237 · the finished row is within one title line of the skeleton, in all four text cases', async ({ page }) => {
+      // The skeleton, with the reads held.
+      await seed([['fx-a', SHORT_TITLE, ONE_LINE_SHELF]]);
+      await page.setViewportSize({ width, height: 900 });
+      const gate = await holdSeriesReads(page);
+      await page.goto('/public-library');
+      await expect(page.locator('section[data-series-row="skeleton"]')).toBeAttached({ timeout: 120000 });
+      await expect.poll(() => gate.count(), { message: 'the Series reads were held', timeout: 60000 }).toBeGreaterThan(0);
+      await expect(page.locator('section a[href="/flash"]')).toBeAttached({ timeout: 60000 });
+      await page.evaluate(() => document.fonts.ready);
+      const skeleton = await rowHeight(page);
+      await gate.release();
+      await expect(finishedRow(page)).toBeAttached();
+      await expect(page.locator('section[data-series-row="skeleton"]')).toHaveCount(0);
+
+      // The four cases, one series each so the row's height is that card's. On a fresh page:
+      // the hold's init script would run again on every navigation of this one.
+      const fresh = await page.context().newPage();
+      await fresh.setViewportSize({ width, height: 900 });
+      const results = {};
+      for (const [tLines, title] of [[1, SHORT_TITLE], [2, LONG_TITLE]]) {
+        for (const [sLines, shelf] of [[1, ONE_LINE_SHELF], [2, TWO_LINE_SHELF]]) {
+          await seed([['fx-a', title, shelf]]);
+          await fresh.goto('/public-library');
+          await expect(finishedRow(fresh)).toBeAttached({ timeout: 120000 });
+          await fresh.evaluate(() => document.fonts.ready);
+          const m = await seriesCards(fresh).first().evaluate((a) => {
+            const [t, s] = a.querySelectorAll('div > div');
+            return { title: t.getBoundingClientRect().height, shelf: s.getBoundingClientRect().height };
+          });
+          const h = await rowHeight(fresh);
+          results[`title ${tLines} × shelf ${sLines}`] = { row: h, diff: Math.round((h - skeleton) * 1000) / 1000, ...m };
+        }
+      }
+      console.log(`[series-home] ${width}px skeleton ${skeleton}px · ${JSON.stringify(results)}`);
+      // The cases are real: one-line and two-line titles and shelf lines actually differ.
+      const r = Object.values(results);
+      expect(r[2].title).toBeGreaterThan(r[0].title + TITLE_LINE / 2);
+      expect(r[1].shelf).toBeGreaterThan(r[0].shelf * 1.5);
+      for (const [name, { diff }] of Object.entries(results)) expect(Math.abs(diff), name).toBeLessThanOrEqual(TITLE_LINE);
+    });
+
+    test('the gaps above and below The Series, against two genre rows (recorded)', async ({ page }) => {
+      await seed();
+      await openHome(page, width);
+      const gaps = await page.evaluate(() => {
+        const section = (title) => [...document.querySelectorAll('h3')].find((h) => h.textContent.trim() === title).closest('section');
+        // Ink, not boxes: the extent of the section's leaf elements.
+        const leaves = (sec) => [...sec.querySelectorAll('*')].filter((e) => !e.children.length || e.getAttribute('role') === 'presentation')
+          .map((e) => e.getBoundingClientRect()).filter((r) => r.height > 0);
+        const top = (t) => Math.min(...leaves(section(t)).map((r) => r.top));
+        const bottom = (t) => Math.max(...leaves(section(t)).map((r) => r.bottom));
+        const gap = (a, b) => Math.round((top(b) - bottom(a)) * 10) / 10;
+        return {
+          justAddedToSeries: gap('Just Added', 'The Series'),
+          seriesToTopReaders: gap('The Series', 'Top Readers'),
+          flashToShort: gap('Flash Fiction', 'Short Stories'),
+        };
+      });
+      console.log(`[series-home] ${width}px gaps · Just Added→Series ${gaps.justAddedToSeries}px · Series→Top Readers ${gaps.seriesToTopReaders}px · Flash→Short ${gaps.flashToShort}px`);
+    });
   });
 }
 
 test('no published series: no section, and no skeleton left behind', async ({ page }) => {
-  await seed({ series: false });
+  await seed([]);
   await page.goto('/public-library');
   await expect(page.locator('section a[href="/flash"]')).toBeAttached({ timeout: 120000 });
   await expect(page.locator('section[data-series-row]')).toHaveCount(0, { timeout: 30000 });
 });
-
-for (const width of [390, 1280]) {
-  test(`at ${width}px the gaps around The Series, against two genre rows`, async ({ page }) => {
-    // Recorded, not asserted: SERIES-MOVE reports these for a ruling rather than changing them.
-    await seed();
-    await page.setViewportSize({ width, height: 900 });
-    await page.goto('/public-library');
-    await expect(page.locator('section[data-series-row=""]')).toBeAttached({ timeout: 120000 });
-    await expect(page.getByRole('heading', { name: 'Top Readers' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Short Stories' })).toBeVisible();
-    // The settled page: a card still in its reveal (translateY 16px) reads 16px low, and which
-    // cards are mid-reveal at the moment of measuring depends on timing.
-    await page.addStyleTag({ content: '[data-reveal]{animation:none!important;transform:none!important;opacity:1!important}' });
-    await page.evaluate(() => document.fonts.ready);
-    const gaps = await page.evaluate(() => {
-      const section = (title) => [...document.querySelectorAll('h3')].find((h) => h.textContent.trim() === title).closest('section');
-      // Ink, not boxes: the extent of the section's leaf elements, so section padding counts
-      // as space and nothing else does. The Series' reserved text lines are leaves too.
-      const leaves = (sec) => [...sec.querySelectorAll('*')].filter((e) => !e.children.length || e.getAttribute('role') === 'presentation')
-        .map((e) => e.getBoundingClientRect()).filter((r) => r.height > 0);
-      const top = (t) => Math.min(...leaves(section(t)).map((r) => r.top));
-      const bottom = (t) => Math.max(...leaves(section(t)).map((r) => r.bottom));
-      const gap = (a, b) => Math.round((top(b) - bottom(a)) * 10) / 10;
-      return {
-        justAddedToSeries: gap('Just Added', 'The Series'),
-        seriesToTopReaders: gap('The Series', 'Top Readers'),
-        flashToShort: gap('Flash Fiction', 'Short Stories'),
-      };
-    });
-    console.log(`[series-home] ${width}px gaps · Just Added→Series ${gaps.justAddedToSeries}px · Series→Top Readers ${gaps.seriesToTopReaders}px · Flash→Short ${gaps.flashToShort}px`);
-  });
-}
