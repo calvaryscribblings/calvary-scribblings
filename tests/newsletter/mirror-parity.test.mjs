@@ -44,7 +44,6 @@ test('the mirror can be located in the Worker source', () => {
 });
 
 const mirrorSrc = src.slice(a, b);
-// eslint-disable-next-line no-new-func
 const mirror = new Function(
   `${mirrorSrc}\nreturn { renderInlineHtmlMirror, renderInlineTextMirror, renderImageHtmlMirror, renderImageTextMirror, imageBlockErrorMirror };`
 )();

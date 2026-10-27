@@ -1,4 +1,3 @@
-/* eslint-disable */
 // ═══════════════════════════════════════════════════════════════════════════════════════
 // THE KILL SWITCH — a self-destructing service worker.
 //
