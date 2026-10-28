@@ -61,6 +61,11 @@ export const STORAGE_READ_SCOPE = 'https://www.googleapis.com/auth/devstorage.re
 export const PROVIDER_TIMEOUT_MS = 10_000;
 export const FIREBASE_TIMEOUT_MS = 5_000;
 
+// FREE-TITLES (28 Oct 2026). A price of 0 is FREE: both tills refuse it with 409 free_title and
+// point here, and neither ever asks a provider for a zero-amount charge.
+export const CLAIM_ENDPOINT = '/api/bookstore/claim';
+export const FREE_TITLE_ERROR = 'This title is free — add it to your library instead.';
+
 export function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -517,6 +522,11 @@ export async function fetchTitleFields(env, token, titleId, label) {
  */
 export function buildGrantPayload({ amount, currency, refField, refValue, fields, extraRefs }) {
   return {
+    // FREE-TITLES: a paid grant landing on a free copy makes it a sale, exactly as one landing
+    // on a comp does below — null DELETES the free markers. They come FIRST so that the free
+    // grant's own `[refField]: refValue` (refField 'freeRef') and its `rail` in `fields` win.
+    freeRef: null,
+    rail: null,
     purchasedAt: Date.now(),
     amount: typeof amount === 'number' ? amount : null,
     currency: currency || null,

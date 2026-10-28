@@ -222,9 +222,12 @@ test('grant payload: the Stripe rail, and the two refund stamps every grant clea
     fields: FIELDS,
   });
   assert.deepEqual(Object.keys(p).sort(), [
-    'amount', 'author', 'compGrant', 'compGrantedAt', 'coverUrl', 'currency', 'purchasedAt',
-    'revokedAt', 'revokedReason', 'slug', 'source', 'status', 'stripeSessionId', 'title',
+    'amount', 'author', 'compGrant', 'compGrantedAt', 'coverUrl', 'currency', 'freeRef', 'purchasedAt',
+    'rail', 'revokedAt', 'revokedReason', 'slug', 'source', 'status', 'stripeSessionId', 'title',
   ]);
+  // FREE-TITLES: a purchase clears the free-copy markers too, so buying over a free copy is a sale.
+  assert.equal(p.freeRef, null);
+  assert.equal(p.rail, null);
   // W3b: a purchase clears the comp markers (null deletes), so buying over a comp is a sale.
   assert.equal(p.source, null);
   // Present AND null, not absent — the two are the same fact on read but opposite acts on a
@@ -277,11 +280,16 @@ test('price: a GBP price is never converted into a naira one', () => {
 });
 
 test('price: junk NGN values are refused rather than charged', () => {
-  for (const ngn of [0, -1, 1.5, '450000', null, undefined, NaN, Infinity]) {
+  for (const ngn of [-1, 1.5, '450000', null, undefined, NaN, Infinity]) {
     const res = selectNgnAmount({ prices: { ngn } });
     assert.equal(res.ok, false, `prices.ngn = ${String(ngn)} must not be chargeable`);
     assert.equal(res.code, 'not_priced_in_ngn');
   }
+  // FREE-TITLES: 0 is not junk, it is FREE — still not chargeable, but refused as free_title,
+  // pointing at the claim, rather than as "buy it in pounds instead".
+  const free = selectNgnAmount({ prices: { ngn: 0 } });
+  assert.equal(free.ok, false);
+  assert.equal(free.code, 'free_title');
   assert.equal(selectNgnAmount({}).ok, false);
   assert.equal(selectNgnAmount(null).ok, false);
 });

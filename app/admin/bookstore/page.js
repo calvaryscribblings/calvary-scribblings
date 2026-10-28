@@ -70,6 +70,7 @@ import { COUNTRY_CODES, COUNTRY_NAMES } from '../../lib/bookstore/countries';
 // formatGbpMinor while every reader-facing surface used formatPrice; two implementations of
 // one job is how a shop ends up quoting one number to an editor and another to a customer.
 import { formatPrice } from '../../bookstore/components/fields';
+import { parsePriceField, isValidPrice, FREE_LABEL } from '../../lib/pricing';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -90,7 +91,8 @@ function PriceCell({ prices }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end', fontSize: '0.8rem' }}>
       {['gbp', 'ngn', 'usd'].map((c) => {
-        const tag = formatPrice(c, prices?.[c]);
+        // FREE-TITLES: a 0 reads "Free", the word the shop prints; "£0.00" would look like a slip.
+        const tag = prices?.[c] === 0 ? `${FREE_LABEL} ${c.toUpperCase()}` : formatPrice(c, prices?.[c]);
         return (
           <span key={c} style={{ color: tag ? '#e8e8e8' : 'rgba(255,255,255,0.28)', fontVariantNumeric: 'tabular-nums' }}>
             {tag || `— ${c.toUpperCase()}`}
@@ -116,12 +118,10 @@ function minorToMajor(minor) {
   return (minor / 100).toFixed(2);
 }
 
-function majorToMinor(major) {
-  if (major === '' || major === null || major === undefined) return null;
-  const n = Number(major);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.round(n * 100);
-}
+// FREE-TITLES — null (empty: not priced in this currency), minor units (0 = free), or NaN
+// (invalid: refused in handleSave). See parsePriceField in app/lib/pricing.js.
+const majorToMinor = parsePriceField;
+const PRICE_FIELDS = [['priceGbp', 'GBP'], ['priceNgn', 'NGN'], ['priceUsd', 'USD']];
 
 const s = {
   page: { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "Cormorant Garamond, Georgia, serif" },
@@ -495,9 +495,9 @@ export default function AdminBookstorePage() {
     const gbp = majorToMinor(form.priceGbp);
     const ngn = majorToMinor(form.priceNgn);
     const usd = majorToMinor(form.priceUsd);
-    if (gbp !== null) prices.gbp = gbp;
-    if (ngn !== null) prices.ngn = ngn;
-    if (usd !== null) prices.usd = usd;
+    if (isValidPrice(gbp)) prices.gbp = gbp;
+    if (isValidPrice(ngn)) prices.ngn = ngn;
+    if (isValidPrice(usd)) prices.usd = usd;
 
     const tags = form.tagsRaw
       .split(',')
@@ -566,7 +566,10 @@ export default function AdminBookstorePage() {
     if (!form.publishedDate) local.push('Published date is required');
     if (!form.synopsis.trim()) local.push('Synopsis is required');
     if (form.slug && !SLUG_RE.test(form.slug)) local.push('Slug must be kebab-case');
-    if (!form.priceGbp && !form.priceNgn && !form.priceUsd) local.push('Enter at least one price (GBP, NGN, or USD)');
+    if (PRICE_FIELDS.every(([k]) => majorToMinor(form[k]) === null)) local.push('Enter at least one price (GBP, NGN, or USD)');
+    for (const [k, code] of PRICE_FIELDS) {
+      if (Number.isNaN(majorToMinor(form[k]))) local.push(`${code} price must be 0 or more — 0 makes the title free in ${code}, blank leaves it unpriced`);
+    }
     if (form.territoriesMode !== MODE_WORLDWIDE && form.territoriesList.length === 0) {
       local.push(form.territoriesMode === MODE_DENY
         ? 'Name at least one country to exclude, or switch to “Sold worldwide”'
@@ -1581,7 +1584,7 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
           </div>
         </div>
         <div style={{ ...s.hint, marginTop: '0.75rem' }}>
-          Enter prices as the customer sees them (e.g. £4.99, ₦4,500, $6.49). Stored internally as minor units (pence/cents/kobo). Leave blank to skip a currency.
+          Enter prices as the customer sees them (e.g. £4.99, ₦4,500, $6.49). Stored internally as minor units (pence/cents/kobo). Enter 0 to make the title free in that currency — readers there see “Free” and add it to their library without checkout. Leave blank to skip a currency.
         </div>
       </div>
 

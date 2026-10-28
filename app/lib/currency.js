@@ -66,9 +66,16 @@ import { formatPrice } from '../bookstore/components/fields.js';
 // R8.4. Same explicit-.js reasoning as the line above: tests/bookstore/territory.test.mjs
 // loads this module under bare Node to assert the precedence rule.
 import { isTitleSellableIn, TERRITORY_NOTE } from './bookstore/territory.js';
+// FREE-TITLES. The pure half — the currency list, the country map, priceFor and the free words —
+// moved to ./pricing.js so the claim endpoint can ask the shelf's own question without React.
+// Re-exported here so every existing import keeps working. Same explicit-.js reasoning.
+import {
+  CURRENCIES, DEFAULT_CURRENCY, COUNTRY_CURRENCY, isCurrency, currencyForCountry, priceFor,
+  isFreePrice, FREE_LABEL,
+} from './pricing.js';
 
-export const CURRENCIES = ['gbp', 'ngn', 'usd'];
-export const DEFAULT_CURRENCY = 'gbp';
+export { CURRENCIES, DEFAULT_CURRENCY, COUNTRY_CURRENCY, isCurrency, currencyForCountry, priceFor, isFreePrice };
+export { FREE_LABEL, CLAIM_LABEL, CLAIM_ACTION } from './pricing.js';
 
 // The selector's own labels, in the mock's register: symbol then code.
 export const CURRENCY_LABELS = { gbp: '£ GBP', ngn: '₦ NGN', usd: '$ USD' };
@@ -79,19 +86,6 @@ export const CURRENCY_NAMES = { gbp: 'pounds', ngn: 'naira', usd: 'dollars' };
 
 export const CURRENCY_STORAGE_KEY = 'cs_bookstore_currency';
 export const REGION_ENDPOINT = '/api/bookstore/region';
-
-// Only the countries with their own rail or their own tender get their own currency. Everyone
-// else browses in pounds, which is the shop's home currency and not a fallback in the sense of
-// something having gone wrong. Deliberately NOT a long table: every row added here is a claim
-// that titles are actually priced in that currency, and pricing is per-title curator work.
-export const COUNTRY_CURRENCY = { NG: 'ngn', US: 'usd' };
-
-export const isCurrency = (v) => typeof v === 'string' && CURRENCIES.includes(v);
-
-export function currencyForCountry(country) {
-  if (typeof country !== 'string') return DEFAULT_CURRENCY;
-  return COUNTRY_CURRENCY[country.trim().toUpperCase()] || DEFAULT_CURRENCY;
-}
 
 // ── Persistence ────────────────────────────────────────────────────────────────────────────
 // Every access is guarded: Safari in private mode throws on localStorage rather than returning
@@ -116,46 +110,6 @@ function writeStoredCurrency(currency) {
   }
 }
 
-// ── Price selection ────────────────────────────────────────────────────────────────────────
-
-const usable = (v) => Number.isInteger(v) && v > 0;
-
-/**
- * The price a title is actually sold at, for a reader browsing in `currency`.
- *
- * Returns { currency, minorUnits, isFallback } — or null when the title carries no usable
- * price at all, which is the signal to omit the line entirely rather than print a placeholder
- * (the contract formatGbp has always had, and the reason every call site is written
- * `{price && …}`).
- *
- * `currency` on the way OUT is the EFFECTIVE currency: what will be charged. It differs from
- * the argument exactly when isFallback is true, and every caller that prints money must use
- * this one rather than the reader's selection.
- *
- * FALLBACK ORDER: the selected currency, then GBP, then whatever single price the title does
- * carry. That last clause is not hypothetical — a Nigerian-published title priced only in naira
- * is a real case, and the alternative to showing its naira price to a reader browsing in pounds
- * is hiding the book from them. Iterating CURRENCIES rather than Object.keys(prices) keeps the
- * choice deterministic when a title somehow carries two non-GBP prices and neither is selected.
- *
- * Pure. No clock, no storage, no network — see tests/bookstore/currency.test.mjs.
- */
-export function priceFor(title, currency) {
-  const prices = title?.prices;
-  if (!prices || typeof prices !== 'object') return null;
-
-  if (isCurrency(currency) && usable(prices[currency])) {
-    return { currency, minorUnits: prices[currency], isFallback: false };
-  }
-  if (usable(prices[DEFAULT_CURRENCY])) {
-    return { currency: DEFAULT_CURRENCY, minorUnits: prices[DEFAULT_CURRENCY], isFallback: true };
-  }
-  for (const c of CURRENCIES) {
-    if (usable(prices[c])) return { currency: c, minorUnits: prices[c], isFallback: true };
-  }
-  return null;
-}
-
 // Re-exported so a consumer needs one import to price a title and print the result. The single
 // implementation lives in components/fields.js beside formatGbp, which it now backs — see the
 // note there.
@@ -175,7 +129,8 @@ export { formatPrice };
 
 /** "in pounds only" — the shelf mark, or null when the title is priced in the selection. */
 export function fallbackNote(priced) {
-  if (!priced?.isFallback) return null;
+  // FREE-TITLES: free in pounds is free. A currency mark beside "Free" names money nobody pays.
+  if (!priced?.isFallback || isFreePrice(priced)) return null;
   const name = CURRENCY_NAMES[priced.currency];
   return name ? `in ${name} only` : null;
 }
@@ -185,7 +140,7 @@ export function fallbackNote(priced) {
  * that button is about to do — a reader meets the claim, then the qualification.
  */
 export function fallbackSentence(priced, selected) {
-  if (!priced?.isFallback) return null;
+  if (!priced?.isFallback || isFreePrice(priced)) return null;
   const from = CURRENCY_NAMES[selected];
   const to = CURRENCY_NAMES[priced.currency];
   const amount = formatPrice(priced.currency, priced.minorUnits);
@@ -217,7 +172,10 @@ export function fallbackSentence(priced, selected) {
  * @returns {{ sellable, priced, price, note, isTerritoryNote }}
  *   sellable         false when the licence excludes this country
  *   priced           the priceFor() result, or null — null whenever !sellable
- *   price            the formatted tag, or null — null whenever !sellable
+ *   price            the formatted tag, or null — null whenever !sellable. A price of 0
+ *                    prints FREE_LABEL ("Free"), so every surface that prints `price` prints
+ *                    Free in its own element and style without a branch of its own.
+ *   free             true when the effective price is 0 — the BUTTON's question (claim, not buy)
  *   note             the ONE mark to show beneath, or null. Never two.
  *   isTerritoryNote  which mark it is, so a surface can pick the right testid without
  *                    re-deriving the decision or string-matching the note
@@ -229,13 +187,14 @@ export function fallbackSentence(priced, selected) {
  */
 export function priceLine(title, currency, country) {
   if (!isTitleSellableIn(title, country)) {
-    return { sellable: false, priced: null, price: null, note: TERRITORY_NOTE, isTerritoryNote: true };
+    return { sellable: false, priced: null, price: null, free: false, note: TERRITORY_NOTE, isTerritoryNote: true };
   }
   const priced = priceFor(title, currency);
   return {
     sellable: true,
     priced,
-    price: priced ? formatPrice(priced.currency, priced.minorUnits) : null,
+    price: priced ? (isFreePrice(priced) ? FREE_LABEL : formatPrice(priced.currency, priced.minorUnits)) : null,
+    free: isFreePrice(priced),
     note: fallbackNote(priced),
     isTerritoryNote: false,
   };

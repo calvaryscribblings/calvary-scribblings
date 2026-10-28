@@ -30,6 +30,8 @@ import {
   REF_SAFE_TITLE_ID,
   PROVIDER_TIMEOUT_MS,
   FIREBASE_TIMEOUT_MS,
+  CLAIM_ENDPOINT,
+  FREE_TITLE_ERROR,
 } from './_lib.js';
 // R8.4 — identical to checkout.js, and identical on purpose: one country resolver, one
 // matcher, two rails. A licence that held on the Stripe rail and not on the Paystack one
@@ -57,6 +59,11 @@ const DEFAULT_ORIGIN = 'https://calvaryscribblings.co.uk';
  */
 export function selectNgnAmount(title) {
   const amount = title?.prices?.ngn;
+  // FREE-TITLES — 0 kobo is FREE. Paystack is never asked for a zero-amount transaction; the
+  // reader is pointed at the claim path instead.
+  if (amount === 0) {
+    return { ok: false, status: 409, code: 'free_title', error: FREE_TITLE_ERROR, claim: CLAIM_ENDPOINT };
+  }
   if (!Number.isInteger(amount) || amount <= 0) {
     return {
       ok: false,
@@ -167,7 +174,7 @@ export async function onRequestPost(context) {
   const priced = selectNgnAmount(title);
   if (!priced.ok) {
     console.error(`[${LABEL}] title ${titleId} has no usable ngn price:`, title.prices?.ngn);
-    return json({ error: priced.error, code: priced.code }, priced.status);
+    return json({ error: priced.error, code: priced.code, ...(priced.claim ? { claim: priced.claim } : {}) }, priced.status);
   }
   const amount = priced.amount;
 

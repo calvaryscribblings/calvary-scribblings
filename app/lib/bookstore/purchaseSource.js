@@ -11,6 +11,7 @@
 //   countsForReadership()   the public "IN N READERS' LIBRARIES" line, and any popularity
 //                           signal built on library adds
 //   isSale()                revenue, sales figures, publisher and royalty statements
+//   isFreeGrant()           a title claimed at a price of 0 — counted, held, never a sale
 //   holdersOf()             NOT a readership figure: who HOLDS the book, sales and comps alike.
 //                           The admin's title delete asks this, because a comp opens the same
 //                           master EPUB a sale does (see below).
@@ -37,8 +38,19 @@ export const countsForReadership = (rec) =>
   !!rec && typeof rec === 'object' && !Array.isArray(rec) && rec.status === 'active' && !isComp(rec);
 
 /**
+ * Is this record a FREE copy — a title claimed at a price of 0 through /api/bookstore/claim?
+ * (FREE-TITLES, 28 Oct 2026.) Unlike a comp it is a READER's own act, so it IS in the public
+ * count (countsForReadership) and opens the book like any sale (holdsBook). It is NOT a sale:
+ * no money moved and it names no provider reference, so isSale() is false for it and any
+ * revenue or royalty figure skips it — an amount of 0 never reaches a sum or a division.
+ */
+export const FREE_RAIL = 'free';
+export const isFreeGrant = (rec) => !!rec && typeof rec === 'object' && rec.rail === FREE_RAIL;
+
+/**
  * Is this record a SALE — money that moved through a provider? A comp never is, and neither is
- * a record that names no provider reference (there was no transaction to count).
+ * a record that names no provider reference (there was no transaction to count) — which is
+ * also why a free copy is not one.
  */
 export const isSale = (rec) => !!rec && typeof rec === 'object' && !isComp(rec)
   && ((typeof rec.stripeSessionId === 'string' && !!rec.stripeSessionId)

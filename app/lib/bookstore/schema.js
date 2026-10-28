@@ -11,9 +11,10 @@
 //
 // Prices stored as integer minor units. GBP and USD are pence/cents (£4.99 = 499). NGN is kobo
 // (₦4,500 = 450000). Display layer divides all currencies by 100. NGN-as-kobo matches Paystack
-// API convention.
+// API convention. A price of 0 is FREE in that currency (FREE-TITLES); absent is unpriced.
 
 import { GENRE_SEED_SLUGS } from './genres.js';
+import { isValidPrice } from '../pricing.js';
 
 export const SCHEMA_VERSION = 2;
 
@@ -156,9 +157,12 @@ export function validateTitle(doc) {
         errors.push(`prices.${k} is not a supported currency`);
         continue;
       }
+      // FREE-TITLES (28 Oct 2026): 0 is a legal hand-set price and means FREE in that
+      // currency. Negative and non-integer are still refused; an absent key is still
+      // "not priced in that currency" and never reaches this loop. See app/lib/pricing.js.
       const v = doc.prices[k];
-      if (!isInt(v) || v <= 0) {
-        errors.push(`prices.${k} must be a positive integer in minor units (pence/cents/kobo)`);
+      if (!isValidPrice(v)) {
+        errors.push(`prices.${k} must be a whole number of minor units (pence/cents/kobo), 0 or more — 0 means free`);
       }
     }
   }

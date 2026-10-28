@@ -131,18 +131,21 @@ describe('priceFor', () => {
     assert.equal(priceFor({ prices: null }, 'gbp'), null);
   });
 
-  test('zero, negative and non-integer prices are not usable', () => {
-    // A zero price would render "£0.00" beside a buy button that charges nothing, and the
-    // server would 409 anyway — better to omit the line.
-    assert.equal(priceFor({ prices: { gbp: 0 } }, 'gbp'), null);
+  test('negative and non-integer prices are not usable; ZERO IS — it is FREE (FREE-TITLES)', () => {
+    // Until 28 Oct 2026 this asserted 0 was unusable ("£0.00 beside a buy button that charges
+    // nothing"). Ikenna's ruling reversed it: 0 is a hand-set FREE price, printed "Free" by
+    // priceLine and claimed through /api/bookstore/claim — see tests/bookstore/free-titles.test.mjs.
+    assert.deepEqual(priceFor({ prices: { gbp: 0 } }, 'gbp'), { currency: 'gbp', minorUnits: 0, isFallback: false });
     assert.equal(priceFor({ prices: { gbp: -499 } }, 'gbp'), null);
     assert.equal(priceFor({ prices: { gbp: 4.99 } }, 'gbp'), null, 'minor units are integers');
     assert.equal(priceFor({ prices: { gbp: '499' } }, 'gbp'), null);
   });
 
   test('an unusable selected price falls back rather than returning it', () => {
-    const p = priceFor({ prices: { ngn: 0, gbp: 499 } }, 'ngn');
+    const p = priceFor({ prices: { ngn: -1, gbp: 499 } }, 'ngn');
     assert.deepEqual(p, { currency: 'gbp', minorUnits: 499, isFallback: true });
+    // And a FREE selected price is not unusable: it is the price.
+    assert.deepEqual(priceFor({ prices: { ngn: 0, gbp: 499 } }, 'ngn'), { currency: 'ngn', minorUnits: 0, isFallback: false });
   });
 
   test('an unknown selected currency falls back to GBP', () => {

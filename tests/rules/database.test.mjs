@@ -1435,6 +1435,50 @@ describe('R9.2 · bookstore_titles territories', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// FREE-TITLES (28 Oct 2026) · bookstore_titles/$titleId/prices/$currency
+//
+// Ikenna's ruling: a price of 0 means FREE in that currency. Before this round the rules held
+// no price check at all (only that `prices` existed), so 0 always passed here — what changed is
+// that negatives, fractions, strings and unknown currencies are now REFUSED, matching the form
+// and the save-time schema. An absent currency is still simply absent: unpriced.
+// ═══════════════════════════════════════════════════════════════════════════
+describe('FREE-TITLES · bookstore_titles prices', () => {
+  const priced = (extra) => titleWith({ territoriesAllowed: '*', ...extra });
+  test('0 is accepted in every currency — a free title saves', async () => {
+    await assertSucceeds(founder.ref('bookstore_titles/free').set(priced({ prices: { gbp: 0, ngn: 0, usd: 0 } })));
+    await assertSucceeds(founder.ref('bookstore_titles/free/prices/gbp').set(0));
+    await assertSucceeds(founder.ref('bookstore_titles/mixed').set(priced({ prices: { gbp: 199, ngn: 0 } })));
+  });
+
+  test('a priced title still saves, and one currency alone is enough', async () => {
+    await assertSucceeds(founder.ref('bookstore_titles/paid').set(priced({ prices: { gbp: 199, ngn: 180000, usd: 249 } })));
+    await assertSucceeds(founder.ref('bookstore_titles/naira').set(priced({ prices: { ngn: 180000 } })));
+  });
+
+  test('negative, fractional, string and unknown-currency prices are refused', async () => {
+    for (const prices of [{ gbp: -1 }, { ngn: -100 }, { usd: 1.5 }, { gbp: '0' }, { gbp: true }, { eur: 499 }, { gbp: 199, eur: 0 }]) {
+      await assertFails(founder.ref('bookstore_titles/bad').set(priced({ prices })));
+    }
+    await assertSucceeds(founder.ref('bookstore_titles/ok').set(priced({ prices: { gbp: 199 } })));
+    await assertFails(founder.ref('bookstore_titles/ok/prices/gbp').set(-1));
+    await assertFails(founder.ref('bookstore_titles/ok/prices/gbp').set(0.5));
+  });
+
+  test('clearing a currency is unpricing it, not zeroing it', async () => {
+    await assertSucceeds(founder.ref('bookstore_titles/two').set(priced({ prices: { gbp: 199, ngn: 180000 } })));
+    await assertSucceeds(founder.ref('bookstore_titles/two/prices/ngn').remove());
+    const snap = await founder.ref('bookstore_titles/two/prices').get();
+    assert.deepEqual(snap.val(), { gbp: 199 });
+  });
+
+  test('a reader still cannot write a price — free or otherwise', async () => {
+    await seed(env, { 'bookstore_titles/t': priced({ prices: { gbp: 199 } }) });
+    await assertFails(owner.ref('bookstore_titles/t/prices/gbp').set(0));
+    await assertFails(anon.ref('bookstore_titles/t/prices/gbp').set(0));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // R9.9 · the last three PL-1 open grants.
 //
 // All three were filed under one heading — "a grant above the $uid/$type children,

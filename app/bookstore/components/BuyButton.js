@@ -12,9 +12,15 @@
 import { useState } from 'react';
 import { useAuth } from '../../lib/AuthContext';
 import AuthModal from '../../components/AuthModal';
-import { createCheckoutSession } from '../../lib/bookstore/checkout';
-import { useCurrency, useRegionCountry, priceLine } from '../../lib/currency';
+import { createCheckoutSession, claimFreeTitle } from '../../lib/bookstore/checkout';
+import { useCurrency, useRegionCountry, priceLine, CLAIM_LABEL } from '../../lib/currency';
 import { UNAVAILABLE_LABEL } from '../../lib/bookstore/territory';
+import { useDesiderata } from '../../lib/bookstore/desiderataStore';
+
+// FREE-TITLES — the free title's owned state. There was no owned state on this button before
+// (a reader who has bought a book still sees "Buy · £1.99" on its page); a free title needs one,
+// because "Add to My Library" on a book already in it asks the reader to do what is done.
+export const OWNED_LABEL = 'In My Library';
 
 export default function BuyButton({ title, className, align = 'flex-start' }) {
   const { user } = useAuth();
@@ -47,7 +53,12 @@ export default function BuyButton({ title, className, align = 'flex-start' }) {
   // nothing: the button stays live and the server gives them an honest answer, which beats a
   // shelf of warnings the shop is guessing at. See SELL_TO_UNKNOWN_COUNTRY in territory.js.
   const country = useRegionCountry();
-  const { price, priced: effective, sellable } = priceLine(title, currency, country);
+  const { price, priced: effective, sellable, free } = priceLine(title, currency, country);
+
+  // FREE-TITLES. "Owned" is holdsBook over the reader's own bookstore_purchases — the ONE
+  // listener the desiderata store already keeps for the shelf's +, so this costs no read.
+  const { owned } = useDesiderata();
+  const ownsIt = free && !!title?.id && owned.has(title.id);
 
   const onClick = async () => {
     setError(null);
@@ -58,6 +69,24 @@ export default function BuyButton({ title, className, align = 'flex-start' }) {
     if (!user) { setShowAuth(true); return; }
 
     setPending(true);
+
+    // FREE-TITLES — no checkout. The claim endpoint re-decides "free here" on the server from
+    // the edge's country, and grants through the same write as a sale. On success the reader
+    // lands where a paid buyer lands: the title's page with ?purchase=success — the thank-you
+    // line, the live readership count, and (once the listener sees the grant) the owned state.
+    if (free) {
+      try {
+        await claimFreeTitle(user, title?.id);
+        // A full load, not a client navigation, exactly as the paid return arrives from Stripe:
+        // the page reads ?purchase=success once, at its first render.
+        window.location.assign(new URL(`/bookstore/${encodeURIComponent(title?.slug || title?.id)}?purchase=success`, window.location.href).href);
+      } catch (e) {
+        setError(e?.message || 'Couldn’t add this book just now. Please try again.');
+        setPending(false);
+      }
+      return;
+    }
+
     try {
       // The same `effective.currency` the label printed — never `currency`. createCheckoutSession
       // picks the rail from it: 'ngn' → Paystack, 'gbp'/'usd' → Stripe.
@@ -70,6 +99,14 @@ export default function BuyButton({ title, className, align = 'flex-start' }) {
       setPending(false);
     }
   };
+
+  if (ownsIt) {
+    return (
+      <a className={className} href="/my-library" data-owned="true" style={{ textDecoration: 'none' }}>
+        {OWNED_LABEL}
+      </a>
+    );
+  }
 
   return (
     <>
@@ -87,9 +124,12 @@ export default function BuyButton({ title, className, align = 'flex-start' }) {
         disabled={pending || !sellable}
         aria-disabled={!sellable || undefined}
         data-unavailable={!sellable || undefined}
+        data-free={free || undefined}
         aria-busy={pending || undefined}
       >
-        {!sellable ? UNAVAILABLE_LABEL : (pending ? 'Opening…' : (price ? `Buy · ${price}` : 'Buy'))}
+        {!sellable ? UNAVAILABLE_LABEL
+          : free ? (pending ? 'Adding…' : CLAIM_LABEL)
+          : (pending ? 'Opening…' : (price ? `Buy · ${price}` : 'Buy'))}
       </button>
 
       {error && (

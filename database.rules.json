@@ -1122,6 +1122,11 @@
       ],
       "$titleId": {
         ".validate": "newData.hasChildren(['schemaVersion', 'slug', 'title', 'author', 'publisherId', 'synopsis', 'prices', 'genre', 'publishedDate', 'addedAt', 'updatedAt', 'status', 'territoriesAllowed'])",
+        "prices": {
+          "$currency": {
+            ".validate": "($currency === 'gbp' || $currency === 'ngn' || $currency === 'usd') && newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+          }
+        },
         "territoriesAllowed": {
           ".validate": "(newData.isString() && newData.val() === '*') || newData.hasChildren()",
           "$i": {

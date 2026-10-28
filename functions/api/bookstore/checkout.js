@@ -30,7 +30,7 @@
 // R5b: json() and the token verifier moved to ./_lib.js when stream.js became the third
 // caller. Behaviour is unchanged — the move exists so the three endpoints cannot drift.
 import { STRIPE_VERSION } from '../_stripe.js';
-import { json, dbBase, lookupUser, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS } from './_lib.js';
+import { json, dbBase, lookupUser, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS, CLAIM_ENDPOINT, FREE_TITLE_ERROR } from './_lib.js';
 // R8.4 — the SAME country resolver the region endpoint serves to the client, and the SAME
 // matcher the storefront marks with. Importing them rather than re-deriving is the point: a
 // shelf that says "not sold in your region" and a till that disagrees is worse than either
@@ -184,6 +184,11 @@ export async function onRequestPost(context) {
   }
 
   const unitAmount = title.prices?.[cur];
+  // FREE-TITLES — a price of 0 is FREE, and Stripe is never asked for a zero-amount session.
+  // The reader is pointed at the claim path, which grants without checkout.
+  if (unitAmount === 0) {
+    return json({ error: FREE_TITLE_ERROR, code: 'free_title', claim: CLAIM_ENDPOINT }, 409);
+  }
   if (!Number.isInteger(unitAmount) || unitAmount <= 0) {
     console.error(`[bookstore/checkout] title ${titleId} has no usable ${cur} price:`, unitAmount);
     return json({ error: 'This title has no price in that currency.' }, 409);

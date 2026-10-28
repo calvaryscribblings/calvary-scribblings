@@ -70,3 +70,37 @@ export async function createCheckoutSession(user, titleId, currency = 'gbp') {
   }
   return data.url;
 }
+
+// ── FREE-TITLES: THE CLAIM ───────────────────────────────────────────────────────────────
+// A title free in the reader's currency is not checked out — Stripe and Paystack cannot take a
+// zero charge. functions/api/bookstore/claim.js grants it instead, through the same write as a
+// sale. The body carries the titleId and NOTHING ELSE: the server re-reads the title and decides
+// "free for this reader" from the edge's country, never from a currency or a price sent here.
+//
+// Resolves { granted } or { already }; throws with the server's own sentence otherwise.
+export async function claimFreeTitle(user, titleId) {
+  if (!user) throw new Error('Sign in to add this book.');
+  if (!titleId) throw new Error('This title can’t be added yet.');
+
+  let idToken;
+  try {
+    idToken = await user.getIdToken();
+  } catch {
+    throw new Error('Your session has expired. Please sign in again.');
+  }
+
+  let res;
+  try {
+    res = await fetch('/api/bookstore/claim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ titleId }),
+    });
+  } catch {
+    throw new Error('No connection. Please check your network and try again.');
+  }
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.ok) throw new Error(data?.error || 'Couldn’t add this book just now. Please try again.');
+  return { granted: !!data.granted, already: !!data.already };
+}

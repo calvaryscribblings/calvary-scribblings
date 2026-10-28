@@ -119,6 +119,9 @@ on:
       - 'app/lib/membershipPrices.js'
       - 'app/lib/membershipPasses.js'
       - 'app/lib/currency.js'
+      # FREE-TITLES — priceFor, the free words and the claim's region price moved here from
+      # currency.js; the shelf, the button and /api/bookstore/claim all read it.
+      - 'app/lib/pricing.js'
       # W42 — the EPUB repair tools. The carry-over mapping resolves CFIs with the vendored
       # foliate in Chromium, which only this workflow installs before `npm run test:purchases`;
       # the hygiene job runs the same suite without a browser, where that test skips by name.
