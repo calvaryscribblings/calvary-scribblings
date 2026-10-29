@@ -2,6 +2,17 @@
 
 **The Next.js app lives at the repo root.** `package.json`, `next.config.mjs`, `app/`, `public/`, `scripts/`, and `emails/` all sit at the top level. There is no longer a nested `calvary-scribblings-next/` source directory.
 
+## 🚨 RELEASE WINDOW — nothing goes live between 19:30 and 00:00 London
+
+**Standing rule (Ikenna).** It was never written down here, which is how FREE-TITLES (`df9a4b81`)
+went out at 23:11.
+
+- **No push to `main` and no deploy** — the site, Pages Functions, or Firebase rules — between
+  **19:30 and 00:00 London time**. Commit freely at any hour; push after 00:00 or before 19:30.
+- **App OTA updates** publish only before 19:30 or after 00:00 London.
+- It applies to **every session**, whichever chat sent the round. Check `TZ=Europe/London date`
+  before you push.
+
 ## Critical paths
 
 - App code: `app/`
