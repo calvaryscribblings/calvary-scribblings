@@ -135,12 +135,12 @@
     "@mdx-js/loader": "^3.1.1",
     "@mdx-js/react": "^3.1.1",
     "@napi-rs/canvas": "1.0.6",
-    "@next/mdx": "16.3.8",
+    "@next/mdx": "16.4.3",
     "blurhash": "^2.0.5",
     "firebase": "^12.11.0",
-    "next": "16.3.8",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "next": "16.4.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
@@ -148,10 +148,14 @@
     "@playwright/test": "^1.62.0",
     "@tailwindcss/postcss": "^4",
     "eslint": "^9",
-    "eslint-config-next": "16.3.8",
+    "eslint-config-next": "16.4.3",
     "firebase-admin": "^14.2.0",
     "firebase-tools": "^15.24.0",
     "opentype.js": "2.0.0",
     "tailwindcss": "^4"
+  },
+  "//overrides": "NEXT-UPGRADE (29 Oct 2026): eslint-config-next 16.4.3 asks for eslint-plugin-react-hooks ^7.1.0, whose stricter rules add 64 lint errors (the ratchet went 220 -> 284). Held at 7.0.1 until a later round fixes the 64 listed in docs/OWED-REACT-HOOKS-7.1.md and lifts this override.",
+  "overrides": {
+    "eslint-plugin-react-hooks": "7.0.1"
   }
 }
