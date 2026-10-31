@@ -144,7 +144,7 @@ function ReportSheet({ user, slug, reports, onClose, onFiled }) {
       onFiled();
     } catch (e) {
       setState('idle');
-      setErr(e.code === 'rate_limited' ? C.reportRateLimited : e.code === 'too_short' ? C.reportTooShort : e.code === 'too_long' ? C.reportTooLong : C.reportFailed);
+      setErr(e.code === 'rate_limited' ? C.reportRateLimited : e.code === 'daily_limit' ? C.reportDailyLimit : e.code === 'too_short' ? C.reportTooShort : e.code === 'too_long' ? C.reportTooLong : C.reportFailed);
     }
   };
   return (

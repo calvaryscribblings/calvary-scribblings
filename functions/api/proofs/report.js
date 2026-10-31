@@ -21,7 +21,7 @@ import { consume } from '../_ratelimit.js';
 import { raiseAlert, alertKey } from '../_alerts.js';
 import { dbBase, FIREBASE_TIMEOUT_MS } from '../bookstore/_lib.js';
 import { identify, readBody, readJson, respond, configured, NOT_FOUND } from './_proofs.js';
-import { isProof, maySee, goLiveMs, londonWhen, reportFault, reportBuckets, PROOF_REPORTS_PATH, PROOFS_COPY } from '../../../app/lib/proofs.js';
+import { isProof, maySee, goLiveMs, londonWhen, reportFault, reportBuckets, limitCode, PROOF_REPORTS_PATH, PROOFS_COPY } from '../../../app/lib/proofs.js';
 import { RETIRED_PATH } from '../../../app/lib/retiredStories.js';
 
 const MESSAGES = {
@@ -49,9 +49,12 @@ export async function handleReport(context, { now = Date.now(), founders } = {})
   // Counted before the story is read: a refused request still counts (the limiter's rule).
   const limit = await consume(context, reportBuckets(uid));
   if (!limit.ok) {
-    const res = limit.reason === 'unavailable'
-      ? respond({ error: PROOFS_COPY.reportFailed, code: 'unavailable' }, 503)
-      : respond({ error: PROOFS_COPY.reportRateLimited, code: 'rate_limited' }, 429);
+    // Ruling 276: the writer's minute cap and daily cap each have their own line; the site-wide
+    // cap, and a limiter that couldn't count, are told only as a failure to send.
+    const code = limitCode(limit);
+    const res = code === 'rate_limited' ? respond({ error: PROOFS_COPY.reportRateLimited, code }, 429)
+      : code === 'daily_limit' ? respond({ error: PROOFS_COPY.reportDailyLimit, code }, 429)
+      : respond({ error: PROOFS_COPY.reportFailed, code: 'unavailable' }, limit.reason === 'limit' ? 429 : 503);
     if (limit.retryAfter) res.headers.set('Retry-After', String(limit.retryAfter));
     return res;
   }

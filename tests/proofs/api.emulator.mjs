@@ -11,6 +11,8 @@ import { handleProofs } from '../../functions/api/proofs/index.js';
 import { handleReport } from '../../functions/api/proofs/report.js';
 import { raiseAlert, alertKey } from '../../functions/api/_alerts.js';
 import { ENV } from './harness.mjs';
+import { dayWindow, bucketKey } from '../../functions/api/_ratelimit.js';
+import { PROOFS_COPY } from '../../app/lib/proofs.js';
 
 async function proofs(uid, body, { now = NOW } = {}) {
   const { ctx } = context(request('/api/proofs', { body, token: uid ? tokenFor(uid) : undefined }));
@@ -187,4 +189,17 @@ describe('reports', () => {
     assert.equal(Object.keys(await get('story_proof_reports')).length, 3);
     assert.equal(sent.length, 3, 'one email per report');
   });
+
+  test('ruling 276: the writer’s daily cap has its own line; the site-wide cap reads as a failure to send', async () => {
+    const day = `rate_limits/proofrep/day/${dayWindow()}`;
+    await set(`${day}/${bucketKey(WRITER_A)}`, 20);
+    const daily = await report(WRITER_A, { slug: 'pf-a-one', message: 'One more report than a day allows.' });
+    assert.deepEqual([daily.status, daily.code, daily.error], [429, 'daily_limit', PROOFS_COPY.reportDailyLimit]);
+    await set(`${day}/_all`, 300);
+    const site = await report(WRITER_B, { slug: 'pf-b-one', message: 'The whole site has reached its cap.' });
+    assert.deepEqual([site.code, site.error], ['unavailable', PROOFS_COPY.reportFailed]);
+    assert.equal(await get('story_proof_reports'), null);
+    assert.equal(sent.length, 0);
+  });
 });
+

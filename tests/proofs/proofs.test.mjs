@@ -1,7 +1,7 @@
 // PROOFS — the pure rules of app/lib/proofs.js. No network, no emulator.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isProof, maySee, groupByWriter, londonWhen, reportFault, goLiveMs, PROOFS_COPY, REPORT_STATUSES } from '../../app/lib/proofs.js';
+import { isProof, maySee, groupByWriter, londonWhen, reportFault, goLiveMs, PROOFS_COPY, REPORT_STATUSES, REPORT_MAX, limitCode, reportBuckets } from '../../app/lib/proofs.js';
 import { impersonalityFault } from '../../functions/api/_alerts.js';
 
 const NOW = Date.parse('2026-11-01T00:00:00Z');
@@ -55,4 +55,18 @@ test('a report: 10 to 2000 characters after trimming, on a real slug', () => {
 test('the editors’ email passes the alert service’s own check, and carries no message text', () => {
   const lines = PROOFS_COPY.emailLines({ slug: 'some-story', when: 'Sunday 1 November at 06:30', reportId: '-Nabc' });
   assert.equal(impersonalityFault(`${PROOFS_COPY.emailSubject}\n${lines.join('\n')}`), null);
+});
+
+test('ruling 276: the three changed lines, and the limit each refusal is told as', () => {
+  assert.equal(PROOFS_COPY.intro, 'Your stories that are scheduled but not yet live, exactly as they’ll publish.');
+  assert.equal(PROOFS_COPY.reportTooLong, 'Please keep it under 2,000 characters.');
+  assert.equal(REPORT_MAX, 2000);
+  assert.equal(PROOFS_COPY.reportDailyLimit, 'That’s the most reports you can send in a day. Please try again tomorrow.');
+  assert.equal(PROOFS_COPY.reportRateLimited, 'That’s a lot of reports at once. Please wait a minute and try again.');
+  const [minute, day, site] = reportBuckets('w');
+  const verdict = (b) => ({ ok: false, reason: 'limit', bucket: b.id ? 'actor' : 'global', limit: b.limit });
+  assert.equal(limitCode(verdict(minute)), 'rate_limited');
+  assert.equal(limitCode(verdict(day)), 'daily_limit');
+  assert.equal(limitCode(verdict(site)), 'unavailable', 'the site-wide cap reads as a failure to send');
+  assert.equal(limitCode({ ok: false, reason: 'unavailable' }), 'unavailable');
 });

@@ -98,19 +98,33 @@ export function reportFault({ slug, message } = {}) {
   return null;
 }
 
-/** The caps (the limiter's buckets). Far above what a writer checking a proof ever does. */
+/** The caps (the limiter's buckets; ruling 278). Far above what a writer checking a proof ever does. */
+export const REPORT_PER_MINUTE = 3;
+export const REPORT_PER_DAY = 20;
+export const REPORT_SITE_PER_DAY = 300;
 export const reportBuckets = (uid) => [
-  { scope: 'proofrep', period: 'minute', id: uid, limit: 3 },
-  { scope: 'proofrep', period: 'day', id: uid, limit: 20 },
-  { scope: 'proofrep', period: 'day', limit: 300 },
+  { scope: 'proofrep', period: 'minute', id: uid, limit: REPORT_PER_MINUTE },
+  { scope: 'proofrep', period: 'day', id: uid, limit: REPORT_PER_DAY },
+  { scope: 'proofrep', period: 'day', limit: REPORT_SITE_PER_DAY },
 ];
 
+/**
+ * Which refusal a limiter verdict is (ruling 276): the writer's per-minute cap, the writer's daily
+ * cap, or the site-wide daily cap (which a writer is told only as a failure to send).
+ */
+export function limitCode(verdict) {
+  if (verdict?.reason !== 'limit') return 'unavailable';
+  if (verdict.bucket === 'global') return 'unavailable';
+  return verdict.limit === REPORT_PER_DAY ? 'daily_limit' : 'rate_limited';
+}
+
 // ── THE WORDS ──────────────────────────────────────────────────────────────────────────
-// Every line a writer or an editor reads, in one place. DRAFTS for Ikenna's ruling: words are
-// his call. Change them here and nowhere else.
+// Every line a writer or an editor reads, in one place. RULED (276, 31 Oct 2026): the drafts as
+// written, with three changes (the intro's "they'll", "2,000", and the daily-limit line). Words are
+// Ikenna's call: change them here and nowhere else, and record the ruling in docs/COPY-RULINGS.md.
 export const PROOFS_COPY = Object.freeze({
   pageTitle: 'Proofs',
-  intro: 'Your stories that are scheduled but not yet live, exactly as they will publish.',
+  intro: 'Your stories that are scheduled but not yet live, exactly as they’ll publish.',
   founderIntro: 'Every scheduled story, grouped by writer. Each writer sees only their own.',
   signedOut: 'Sign in to see your proofs.',
   signIn: 'Sign in',
@@ -131,8 +145,9 @@ export const PROOFS_COPY = Object.freeze({
   reportSending: 'Sending…',
   reportSent: 'Sent. The editors have it, and you’ll see its status here.',
   reportTooShort: 'Please say a little more, so the editors can find it.',
-  reportTooLong: `Please keep it under ${REPORT_MAX} characters.`,
+  reportTooLong: 'Please keep it under 2,000 characters.',   // REPORT_MAX, as ruled (276)
   reportRateLimited: 'That’s a lot of reports at once. Please wait a minute and try again.',
+  reportDailyLimit: 'That’s the most reports you can send in a day. Please try again tomorrow.',
   reportFailed: 'Your report couldn’t be sent. Please try again.',
   yourReports: 'Your reports on this story',
   status: { received: 'Received', fixed: 'Fixed', left: 'Left as it is' },

@@ -1,4 +1,4 @@
-# Proofs (PROOFS-R2, rulings 249–258)
+# Proofs (PROOFS-R2, rulings 249–258 and 276–280)
 
 A writer signs in at `/proofs` and sees their own scheduled stories, each exactly as it will
 publish, with the London date and time it goes live. From any proof they can report a
@@ -40,7 +40,7 @@ never passes. `tests/proofs/browser.e2e.mjs` builds the site with and without th
 compares every live story page's HTML by hash.
 
 **A report** is validated (10–2000 characters), rate-limited through the shared limiter (3 a
-minute and 20 a day per writer, 300 a day in all; it fails closed), checked against the same
+minute and 20 a day per writer, 300 a day in all; it fails closed; ruling 278 — each cap has its own line, ruling 276), checked against the same
 visibility as the proof, written server-side to `story_proof_reports/{id}`, and mailed to the
 editors through `_alerts.js` once per report. The email carries the slug, the go-live time and the
 report id, never the writer's words, which may quote unreleased text. A report never touches the
@@ -73,6 +73,7 @@ because they all place text through `placementPaths`, and their tests prove it:
 |---|---|
 | `npm run test:proofs` | the pure rules: what a proof is, who sees it, London time, report limits, the email |
 | `npm run test:proofs:emulator` | the Functions against the RTDB emulator (port 9410), and the rules both ways round |
+| (same) `tests/proofs/cms.emulator.mjs` | **the CMS under the new rules**: every `/admin` write to `cms_stories` (save in each state, hide, unhide, delete, Extract Text, quizzes), cut from the source of origin/main AND this branch and run as a stand-in founder; the Worker's go-live PATCH and `retire.mjs` replayed under the rules; the forbidden shape still refused |
 | `npm run test:proofs:browser` | two real builds (live-page parity by hash) and a browser: list, proof, report, closed switch, alignment at 390 and 1280 |
 
 No founder account is used anywhere, even in the emulator. The Functions take an injectable
