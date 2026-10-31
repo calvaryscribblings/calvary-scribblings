@@ -15,7 +15,7 @@ import { test, before, after, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { makeEnv, seed, assertFails, assertSucceeds, OWNER, FOUNDER_A, FOUNDER_B } from './helpers.mjs';
-import { hidePaths, unhidePlan } from '../../app/lib/storyState.js';
+import { hidePaths, unhidePlan, hideUpdate } from '../../app/lib/storyState.js';
 import { indexUpdatePaths } from '../../app/lib/storyIndex.js';
 import { RETIRED_PATH, BOOK_READER_REASON } from '../../app/lib/retiredStories.js';
 import { storiesInScope } from '../../scripts/covers/store.mjs';
@@ -45,6 +45,11 @@ const cmsHeldSave = (slug, rec) => ({
   [`cms_stories/${slug}/coverHold`]: true,
   [`cms_stories_index/${slug}`]: null,
   [`story_bodies/${slug}/content`]: '',
+  // PROOFS-R1/R2 (ruling 255): a save that leaves a story unpublished takes its text off the public
+  // record in the same write (placementPaths, as recordSavePaths does). The rules now refuse one
+  // that doesn't.
+  [`cms_stories/${slug}/content`]: null,
+  [`cms_stories/${slug}/extractedText`]: null,
 });
 
 let env, founderA, founderB, reader, anon;
@@ -159,14 +164,17 @@ describe('W35 · an ORDINARY story is untouched by all of this', () => {
     }));
   });
   test('Hide and Unhide both land', async () => {
-    await assertSucceeds(founderA.ref().update(hidePaths(ORDINARY)));
+    // Hide as the CMS does it (hideUpdate: the take-down and the text's removal in one write).
+    await assertSucceeds(founderA.ref().update(hideUpdate(ORDINARY, ordinaryRecord(), { content: '<p>x</p>', extractedText: 'x' })));
     const rec = ordinaryRecord({ cover: TYPO });
     const plan = unhidePlan(ORDINARY, rec);
     await assertSucceeds(founderA.ref().update({ ...plan.paths, ...indexUpdatePaths(ORDINARY, { ...rec, published: true, hiddenAt: null }) }));
   });
   test('a full-record set and a direct publish land', async () => {
     await assertSucceeds(founderA.ref(`cms_stories/${ORDINARY}`).set(ordinaryRecord({ published: true })));
-    await assertSucceeds(founderA.ref(`cms_stories/${ORDINARY}/published`).set(false));
+    // Taking it down takes its text off in the same write (ruling 255; the rules refuse otherwise).
+    await assertSucceeds(founderA.ref(`cms_stories/${ORDINARY}`).update({ published: false, content: null, extractedText: null }));
+    await assertFails(founderA.ref(`cms_stories/${ORDINARY}/content`).set('<p>back on a story that is down</p>'));
   });
   test('a reader still cannot publish anything, retired or not (unchanged)', async () => {
     await assertFails(reader.ref(`cms_stories/${ORDINARY}/published`).set(true));

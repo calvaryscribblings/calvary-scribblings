@@ -795,7 +795,13 @@ function CommentsSection({ slug, onSignIn }) {
   );
 }
 
-export default function StoryPageClient({ params, initialStory = null }) {
+// PROOFS (rulings 249–258): `proof` is set ONLY by /proofs, which draws a writer's scheduled story
+// with this same component so the proof and the published page cannot drift apart. In a proof
+// nothing is counted (no hit, no read credit), nothing is fetched for the reader (no /api/story,
+// no record re-read: the proof came from /api/proofs), and nothing social is drawn (no comments,
+// reactions, quiz, shelf, invitations). Every proof branch is guarded on `proof`; the live page never
+// passes it, and its built HTML is compared by hash before and after (tests/proofs).
+export default function StoryPageClient({ params, initialStory = null, proof = null }) {
   const { slug } = use(params);
   // First paint from the build-inlined record (prose ships in the static HTML),
   // falling back to the legacy hardcoded story, then to the live fetch below.
@@ -808,6 +814,17 @@ export default function StoryPageClient({ params, initialStory = null }) {
   const [storyReady, setStoryReady] = useState(!!initialStory || !!stories.find(s => s.id === slug));
 
   useEffect(() => {
+    if (proof) {
+      // The byline as it will publish: the author's CURRENT display name, as below.
+      (async () => {
+        try {
+          const nameMap = await resolveAuthorNames([story]);
+          const author = currentAuthorName(story, nameMap);
+          if (author) setStory(prev => (prev ? { ...prev, author } : prev));
+        } catch (e) {}
+      })();
+      return;
+    }
     // Reader-mode stories live at /reader — redirect immediately off the build-time
     // record so there's no flash of the wrong shell while the refresh confirms it.
     if (story && ((story.category === 'poetry' && story.epubUrl) || story.category === 'novel' || story.readerMode)) {
@@ -853,7 +870,7 @@ export default function StoryPageClient({ params, initialStory = null }) {
       } catch (e) { console.error('CMS fetch error:', e); }
     }
     fetchFromCMS();
-  }, [slug]);
+  }, [slug, proof]);
 
 
   // 'hidden' → 'entering' → 'settled'. Fires exactly once per mount: the ref guard means
@@ -922,7 +939,7 @@ export default function StoryPageClient({ params, initialStory = null }) {
   const [gate, setGate] = useState(null);
   const gatePreview = useGatePreview(storyUser);
   useEffect(() => {
-    if (!slug) return undefined;
+    if (!slug || proof) return undefined;
     let cancelled = false;
     (async () => {
       try {
@@ -943,7 +960,7 @@ export default function StoryPageClient({ params, initialStory = null }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [slug, storyUser, gatePreview]);
+  }, [slug, storyUser, gatePreview, proof]);
 
 
   // W9: the bar's show/hide lives in <StoryBar> (app/lib/storyBar.js). This listener used to
@@ -1059,7 +1076,7 @@ export default function StoryPageClient({ params, initialStory = null }) {
   // dwell timer only advances while the tab is visible, so a backgrounded tab
   // never counts. readerId lets the server de-dupe to one read per reader.
   useEffect(() => {
-    if (!slug || !story) return undefined;
+    if (!slug || !story || proof) return undefined;
     let fired = false;
     let dwellMs = 0;
     let lastTick = document.visibilityState === 'visible' ? Date.now() : null;
@@ -1107,10 +1124,10 @@ export default function StoryPageClient({ params, initialStory = null }) {
       document.removeEventListener('visibilitychange', onVis);
     }
     return cleanup;
-  }, [slug, story]);
+  }, [slug, story, proof]);
 
   useEffect(() => {
-    if (!slug) return;
+    if (!slug || proof) return;
 
     let unsubRead;
     (async () => {
@@ -1130,7 +1147,7 @@ export default function StoryPageClient({ params, initialStory = null }) {
       } catch (e) {}
     })();
     return () => { if (unsubRead) unsubRead(); };
-  }, [slug]);
+  }, [slug, proof]);
 useEffect(() => {
     const images = document.querySelectorAll('.prose img');
     images.forEach(img => {
@@ -1383,7 +1400,7 @@ useEffect(() => {
                 )}
               </div>
             </div>
-            {advertisesQuiz(story) && (
+            {!proof && advertisesQuiz(story) && (
               <a
                 onClick={() => document.getElementById('quiz-card')?.scrollIntoView({ behavior: 'smooth' })}
                 style={{
@@ -1421,13 +1438,13 @@ useEffect(() => {
   )}
   {/* The shelf gesture — a sibling of the Book Reader pill, in the row the page already
       uses for affordances. Outside .prose, so the drop-cap tagger cannot see it. */}
-  <SaveForOffline
+  {!proof && <SaveForOffline
     slug={slug}
     story={story}
     user={storyUser}
     readingTime={readingTime}
     onSignIn={() => setShowAuthModal(true)}
-  />
+  />}
 </div>
               <div className={`prose${isPoetry ? '' : ' has-dropcap'}${isVerse ? ' is-verse' : ''}`} id="story-content" dangerouslySetInnerHTML={{ __html: tagParagraphs(tagSubheads(story.content || '<p>Content coming soon.</p>')) }} />
               {/* W4 — THE PAGE'S OWN REFUSAL, before paint. Emitted only on a page whose build
@@ -1446,9 +1463,11 @@ useEffect(() => {
               <span className="lp-orn">✦</span>
               <span className="lp-rule" />
             </div>
+            {!proof && (
             <div className="hit-counter-row">
               <ReadSeal count={hitCount} active={endReached} />
             </div>
+            )}
             <div className="story-footer">
               <span>
                 By {story.author}
@@ -1463,8 +1482,8 @@ useEffect(() => {
             </div>
           </main>
         </div>
-        <ExerciseSection slug={slug} />
-        {showQuiz && (
+        {!proof && <ExerciseSection slug={slug} />}
+        {!proof && showQuiz && (
           <div id="quiz-card">
             <QuizCard slug={slug} user={storyUser} onSignIn={() => setShowAuthModal(true)} />
           </div>
@@ -1477,9 +1496,9 @@ useEffect(() => {
             tree, so it cannot appear there. */}
         {/* W26: the one paywalled story (Dead End) is deleted from the platform, and with it the
             only page that ever sold on the story shelf — so the invitation shows on every story. */}
-        <AppInvite variant="panel" />
-        <NewsletterInvite user={storyUser} />
-        <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
+        {!proof && <AppInvite variant="panel" />}
+        {!proof && <NewsletterInvite user={storyUser} />}
+        {!proof && <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />}
         {showAuthModal && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }} onClick={e => { if (e.target === e.currentTarget) setShowAuthModal(false); }}>
             <AuthModal onClose={() => setShowAuthModal(false)} />

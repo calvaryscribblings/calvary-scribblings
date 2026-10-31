@@ -73,3 +73,9 @@
 /manifest.webmanifest
   Content-Type: application/manifest+json; charset=utf-8
   Cache-Control: public, max-age=3600, must-revalidate
+
+# PROOFS — a writer's scheduled stories. The page is a shell (its data comes from /api/proofs after
+# sign-in, private and no-store), and the address is nobody's business: never indexed. The page's
+# own metadata says so too; this covers a crawler that reads headers and not markup.
+/proofs
+  X-Robots-Tag: noindex

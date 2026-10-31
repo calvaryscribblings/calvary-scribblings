@@ -1403,6 +1403,8 @@ export default function AdminPage() {
           </a>
           {/* W5 — the queue for reported comments, DMs and profiles. */}
           <a href="/admin/reports" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Reports →</a>
+          {/* PROOFS — the switch that opens Proofs to writers, and the discrepancy queue. */}
+          <a href="/admin/proofs" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Proofs →</a>
           <a href="/" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>← Site</a>
         </div>
       </header>

@@ -47,13 +47,23 @@
       ".write": "auth != null && (auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
       ".indexOn": [
         "authorUid",
-        "author"
+        "author",
+        "published"
       ],
       "$slug": {
         ".validate": "!root.child('cms_stories_retired').child($slug).exists() || (newData.child('published').val() === false && newData.child('coverHold').val() !== true && newData.child('hiddenAt').exists())",
         "reads": {
           ".write": "auth != null && newData.isNumber() && newData.val() >= 0",
           ".validate": "newData.isNumber() && newData.val() >= 0"
+        },
+        "content": {
+          ".validate": "newData.val() === '' || newData.parent().child('published').val() !== false"
+        },
+        "extractedText": {
+          ".validate": "newData.val() === '' || newData.parent().child('published').val() !== false"
+        },
+        "published": {
+          ".validate": "newData.val() !== false || ((!newData.parent().child('content').exists() || newData.parent().child('content').val() === '') && (!newData.parent().child('extractedText').exists() || newData.parent().child('extractedText').val() === ''))"
         }
       }
     },
@@ -1800,6 +1810,45 @@
     "push_receipts": {
       ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
       ".write": false
+    },
+    "story_proof_reports": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".indexOn": [
+        "reporterUid",
+        "createdAt"
+      ],
+      "$reportId": {
+        ".read": "auth != null && data.child('reporterUid').val() === auth.uid",
+        "status": {
+          ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1') && newData.exists() && root.child('story_proof_reports').child($reportId).child('reporterUid').exists()",
+          ".validate": "newData.isString() && (newData.val() === 'received' || newData.val() === 'fixed' || newData.val() === 'left')"
+        },
+        "statusAt": {
+          ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1') && newData.exists() && root.child('story_proof_reports').child($reportId).child('reporterUid').exists()",
+          ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+        },
+        "statusBy": {
+          ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1') && newData.exists() && root.child('story_proof_reports').child($reportId).child('reporterUid').exists()",
+          ".validate": "newData.val() === auth.uid"
+        }
+      }
+    },
+    "proofs_access": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".validate": "newData.hasChildren(['open', 'changedAt', 'changedBy'])",
+      "open": {
+        ".validate": "newData.isBoolean()"
+      },
+      "changedAt": {
+        ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+      },
+      "changedBy": {
+        ".validate": "newData.val() === auth.uid"
+      },
+      "$other": {
+        ".validate": false
+      }
     }
   }
 }
