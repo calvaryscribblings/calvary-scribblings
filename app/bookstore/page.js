@@ -1285,7 +1285,22 @@ function Storefront() {
              .rail-quote and .rail-mark are the FRAME: neither carries a transition, so the
              quotation marks hold their place while the words travel between them.
              .rail-words is inline-block because a transform has no effect on an inline box. */
-          .rail-mark{display:inline}
+          /* STORE-OWNED (29 Oct 2026) — THE MARKS ARE THEIR OWN ROWS, ON EVERY LINE.
+             They were display:inline beside an inline-block of words. A quote that WRAPS makes
+             that inline-block as wide as the box, so the mark could not sit beside it and fell
+             onto a row of its own, centred above and below the passage; a quote that FITS on
+             one line kept its marks inline, hugging the words wherever centring put them.
+             Measured on the live storefront across all 26 lines in the rotation, the opening
+             mark's glyph sat anywhere from x=2.5 to x=343 at 1280 (17 lines on their own row,
+             9 inline) and 76.5 to 159.5 at 390 (24 and 2). The frame changed shape from turn
+             to turn, which is the one thing R22B ruled it must not do; Episode 1's short line
+             arriving first in the pool made the first turn a 246.5px jump.
+             display:block puts both marks on their own centred rows for EVERY line, which is
+             what most lines already drew, so the frame now holds still by construction:
+             measured after, the glyph sits at x=343 (1280) and x=159.5 (390) on all 26. The
+             stage's locked height is unchanged (274px and 250px): the tallest quotes already
+             carried both rows. */
+          .rail-mark{display:block}
           .rail-words{display:inline-block;transition:opacity 420ms cubic-bezier(.4,0,.2,1),transform 420ms cubic-bezier(.4,0,.2,1)}
           .rail-words.is-out{opacity:0;transform:translateY(-9px)}
           .rail-words.is-in{opacity:0;transform:translateY(11px);transition:none}

@@ -28,6 +28,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { liveDetailSlug } from './live-slug.mjs';
+import { FREE_LABEL, CLAIM_LABEL } from '../../app/lib/pricing.js';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const GATE_SRC = readFileSync(join(ROOT, 'app/lib/bookstore/gate.js'), 'utf8');
@@ -94,6 +95,12 @@ function assertShownAndMarked(rows, selected) {
   expect(rows.length, 'the shelf must be showing at least one price').toBeGreaterThan(0);
 
   for (const row of rows) {
+    // FREE-TITLES' ruling: a price of 0 prints "Free" and carries NO currency mark, in any
+    // selection — free in pounds is free, and a mark would name money nobody pays.
+    if (row.price === FREE_LABEL) {
+      expect(row.note, `"${row.title}" is Free — it must carry NO currency mark`).toBeNull();
+      continue;
+    }
     const inSelected = row.price.startsWith(symbol);
     if (inSelected) {
       expect(row.note, `"${row.title}" is priced in ${selected} — it must carry NO mark`).toBeNull();
@@ -325,6 +332,13 @@ test.describe('the buy button names the charged sum', () => {
 
     // Whatever the button says, it must name a currency the title is really priced in — and
     // the sentence must appear exactly when that is NOT the browsing currency.
+    // A FREE title's button names no currency ("Get · Free", ruling 240), so there is nothing
+    // for a sentence to qualify — FREE-TITLES suppresses it. The live slug is whatever the shelf
+    // links first, so this branch is reachable the day a free title leads the shop.
+    if (label === CLAIM_LABEL) {
+      expect(hasSentence, 'a free title carries no currency sentence').toBeFalsy();
+      return;
+    }
     const m = /Buy · (.)/.exec(label);
     if (!m) {
       // No price at all on this title: then there is nothing to qualify either.
