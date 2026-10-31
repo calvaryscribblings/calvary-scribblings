@@ -14,13 +14,15 @@ import { useAuth } from '../../lib/AuthContext';
 import AuthModal from '../../components/AuthModal';
 import { createCheckoutSession, claimFreeTitle } from '../../lib/bookstore/checkout';
 import { useCurrency, useRegionCountry, priceLine, CLAIM_LABEL } from '../../lib/currency';
+import { OWNED_LABEL, OWNED_HREF } from '../../lib/pricing';
 import { UNAVAILABLE_LABEL } from '../../lib/bookstore/territory';
 import { useDesiderata } from '../../lib/bookstore/desiderataStore';
 
-// FREE-TITLES — the free title's owned state. There was no owned state on this button before
-// (a reader who has bought a book still sees "Buy · £1.99" on its page); a free title needs one,
-// because "Add to My Library" on a book already in it asks the reader to do what is done.
-export const OWNED_LABEL = 'In My Library';
+// Ruling 241 (29 Oct 2026) — THE OWNED STATE, ON EVERY TITLE. Until FREE-TITLES there was none
+// (a reader who had bought a book still saw "Buy · £1.99" on its page); FREE-TITLES gave one to
+// free titles only. Now every title the reader holds reads "In My Library". The words live in
+// app/lib/pricing.js so Quick Look prints the same ones.
+export { OWNED_LABEL };
 
 export default function BuyButton({ title, className, align = 'flex-start' }) {
   const { user } = useAuth();
@@ -55,10 +57,15 @@ export default function BuyButton({ title, className, align = 'flex-start' }) {
   const country = useRegionCountry();
   const { price, priced: effective, sellable, free } = priceLine(title, currency, country);
 
-  // FREE-TITLES. "Owned" is holdsBook over the reader's own bookstore_purchases — the ONE
-  // listener the desiderata store already keeps for the shelf's +, so this costs no read.
+  // "Owned" is holdsBook over the reader's own bookstore_purchases — status 'active': a sale, a
+  // comp or a free copy, never a revoked one — read from the ONE listener the desiderata store
+  // already keeps for the shelf's +, so this costs no read. Ruling 241: ANY held title, priced or
+  // free. It outranks the territory check too: a book the reader holds opens anywhere
+  // (stream.js is deliberately not territory-gated), so "Unavailable here" would be false.
+  // While the listener is still loading, `owned` is empty and the button is the ordinary one;
+  // both checkouts refuse an owner (409 already_owned), so a tap in that moment costs nothing.
   const { owned } = useDesiderata();
-  const ownsIt = free && !!title?.id && owned.has(title.id);
+  const ownsIt = !!title?.id && owned.has(title.id);
 
   const onClick = async () => {
     setError(null);
@@ -102,7 +109,7 @@ export default function BuyButton({ title, className, align = 'flex-start' }) {
 
   if (ownsIt) {
     return (
-      <a className={className} href="/my-library" data-owned="true" style={{ textDecoration: 'none' }}>
+      <a className={className} href={OWNED_HREF} data-owned="true" style={{ textDecoration: 'none' }}>
         {OWNED_LABEL}
       </a>
     );

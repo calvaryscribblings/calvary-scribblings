@@ -34,8 +34,14 @@ import { authorBlockOf } from '../../lib/bookstore/author';
 // The shop prints books: rectangles with a hairline, a deep shadow and warm paper. A round
 // avatar is the vernacular of a profile page, and this page has no profiles on it. So the
 // photograph is set as a portrait PLATE — 4:5, the ratio a printed author photograph actually
-// takes on a jacket flap — with the same 1px radius the shelf card uses, the same muted gold
-// hairline the metadata strip rules with, and a shadow at the cover's depth.
+// takes on a jacket flap — with the same muted gold hairline the metadata strip rules with, and
+// a shadow at the cover's depth.
+//
+// THE CORNERS ARE 12px — ruling 245 (Ikenna, 29 Oct 2026), the same on web and app. They were
+// 1px, borrowed from the shelf card so the plate read as one more piece of the shop's printed
+// matter. The ruling softens the photograph only: the size, the 4:5 ratio, the crop, the tone,
+// the hairline and the shadow are unchanged, and the hairline and the shadow follow the 12px
+// corner because both are drawn on the image's own border box.
 //
 // The filter is the quiet half: a touch of desaturation and warmth so a publisher-supplied
 // JPEG, shot against whatever wall it was shot against, sits in a near-black page beside
@@ -45,7 +51,7 @@ export const AUTHOR_BLOCK_CSS = `
 .bd-author-label{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.28em;text-transform:uppercase;color:#c9a44c;margin-bottom:1.2rem}
 .bd-author-body{display:flex;gap:1.6rem;align-items:flex-start}
 .bd-author-plate{flex:0 0 auto;width:124px;aspect-ratio:4/5;object-fit:cover;object-position:center 30%;
-  border-radius:1px;border:1px solid rgba(201,164,76,.22);box-shadow:0 10px 26px rgba(0,0,0,.5);
+  border-radius:12px;border:1px solid rgba(201,164,76,.22);box-shadow:0 10px 26px rgba(0,0,0,.5);
   filter:grayscale(.22) sepia(.1) contrast(1.02);background:rgba(201,164,76,.05)}
 .bd-author-text{min-width:0}
 .bd-author-name{font-family:'Cinzel',serif;font-size:1.02rem;font-weight:600;letter-spacing:.03em;color:#f0ead8;margin:0 0 .7rem}

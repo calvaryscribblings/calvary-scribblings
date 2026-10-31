@@ -1447,7 +1447,8 @@ describe('FREE-TITLES · bookstore_titles prices', () => {
   test('0 is accepted in every currency — a free title saves', async () => {
     await assertSucceeds(founder.ref('bookstore_titles/free').set(priced({ prices: { gbp: 0, ngn: 0, usd: 0 } })));
     await assertSucceeds(founder.ref('bookstore_titles/free/prices/gbp').set(0));
-    await assertSucceeds(founder.ref('bookstore_titles/mixed').set(priced({ prices: { gbp: 199, ngn: 0 } })));
+    // (A title free in one currency and priced in another was legal here until ruling 242 —
+    // see "STORE-OWNED · 242" below, which now refuses it.)
   });
 
   test('a priced title still saves, and one currency alone is enough', async () => {
@@ -1475,6 +1476,39 @@ describe('FREE-TITLES · bookstore_titles prices', () => {
     await seed(env, { 'bookstore_titles/t': priced({ prices: { gbp: 199 } }) });
     await assertFails(owner.ref('bookstore_titles/t/prices/gbp').set(0));
     await assertFails(anon.ref('bookstore_titles/t/prices/gbp').set(0));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STORE-OWNED · 242 (29 Oct 2026) — free is all-or-nothing. A price of 0 in one currency
+// requires 0 in every currency the title is priced in; an absent currency is unpriced and is
+// not counted. Enforced at bookstore_titles/$titleId/prices, which also judges a single-price
+// write against its siblings.
+// ═══════════════════════════════════════════════════════════════════════════
+describe('STORE-OWNED · 242 · free is all-or-nothing', () => {
+  const priced = (extra) => titleWith({ territoriesAllowed: '*', ...extra });
+
+  test('free everywhere it is priced saves — one currency, two or three', async () => {
+    await assertSucceeds(founder.ref('bookstore_titles/a').set(priced({ prices: { gbp: 0, ngn: 0, usd: 0 } })));
+    await assertSucceeds(founder.ref('bookstore_titles/b').set(priced({ prices: { gbp: 0 } })));
+    await assertSucceeds(founder.ref('bookstore_titles/c').set(priced({ prices: { ngn: 0, usd: 0 } })));
+  });
+
+  test('mixed free and priced is refused, whole-record', async () => {
+    for (const prices of [{ gbp: 0, ngn: 180000 }, { gbp: 199, usd: 0 }, { gbp: 0, ngn: 0, usd: 249 }]) {
+      await assertFails(founder.ref('bookstore_titles/bad').set(priced({ prices })));
+    }
+  });
+
+  test('a single price written against its siblings is judged with them', async () => {
+    await assertSucceeds(founder.ref('bookstore_titles/f').set(priced({ prices: { gbp: 0, ngn: 0 } })));
+    await assertFails(founder.ref('bookstore_titles/f/prices/ngn').set(180000));
+    await assertSucceeds(founder.ref('bookstore_titles/f/prices/usd').set(0));
+    await assertSucceeds(founder.ref('bookstore_titles/p').set(priced({ prices: { gbp: 199, ngn: 180000 } })));
+    await assertFails(founder.ref('bookstore_titles/p/prices/gbp').set(0));
+    // Unpricing a currency is not pricing it: removing the one paid price leaves a free title.
+    await assertSucceeds(founder.ref('bookstore_titles/m').set(priced({ prices: { gbp: 199 } })));
+    await assertSucceeds(founder.ref('bookstore_titles/m/prices').set({ gbp: 0 }));
   });
 });
 

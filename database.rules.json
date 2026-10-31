@@ -1123,6 +1123,7 @@
       "$titleId": {
         ".validate": "newData.hasChildren(['schemaVersion', 'slug', 'title', 'author', 'publisherId', 'synopsis', 'prices', 'genre', 'publishedDate', 'addedAt', 'updatedAt', 'status', 'territoriesAllowed'])",
         "prices": {
+          ".validate": "!(newData.child('gbp').val() === 0 || newData.child('ngn').val() === 0 || newData.child('usd').val() === 0) || ((!newData.child('gbp').exists() || newData.child('gbp').val() === 0) && (!newData.child('ngn').exists() || newData.child('ngn').val() === 0) && (!newData.child('usd').exists() || newData.child('usd').val() === 0))",
           "$currency": {
             ".validate": "($currency === 'gbp' || $currency === 'ngn' || $currency === 'usd') && newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
           }

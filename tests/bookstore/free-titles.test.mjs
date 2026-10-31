@@ -153,7 +153,9 @@ describe('2 · DISPLAY — a 0 prints "Free", in the price\'s own element', () =
 
   test('the button words: the act, then the price', () => {
     assert.equal(CLAIM_LABEL, `${CLAIM_ACTION} · ${FREE_LABEL}`);
-    assert.equal(CLAIM_ACTION, 'Add to My Library');
+    // Ruling 240 (29 Oct 2026): "Get · Free", mirroring "Buy · £1.99".
+    assert.equal(CLAIM_ACTION, 'Get');
+    assert.equal(CLAIM_LABEL, 'Get · Free');
   });
 
   // ── RENDERED: Quick Look and the back cover ──────────────────────────────────────────────
@@ -182,7 +184,7 @@ describe('2 · DISPLAY — a 0 prints "Free", in the price\'s own element', () =
 
   const PAID = { ...FREE_ALL, prices: { gbp: 199, ngn: 180000, usd: 249 } };
 
-  test('Quick Look renders "Add to My Library · Free" for a free title, "Buy · £1.99" otherwise', () => {
+  test('Quick Look renders "Get · Free" for a free title, "Buy · £1.99" otherwise', () => {
     const free = renderToStaticMarkup(createElement(QuickLookModal, { title: FREE_ALL, originRect: null, onClose() {} }));
     assert.ok(free.includes(CLAIM_LABEL), 'the claim label');
     assert.equal(/Buy ·/.test(free), false, 'no Buy on a free title');

@@ -32,6 +32,8 @@ import {
   FIREBASE_TIMEOUT_MS,
   CLAIM_ENDPOINT,
   FREE_TITLE_ERROR,
+  readerHoldsTitle,
+  alreadyOwnedBody,
 } from './_lib.js';
 // R8.4 — identical to checkout.js, and identical on purpose: one country resolver, one
 // matcher, two rails. A licence that held on the Stripe rail and not on the Paystack one
@@ -106,6 +108,14 @@ export async function onRequestPost(context) {
   const user = await lookupUser(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
   const uid = user?.localId;
   if (!uid) return json({ error: 'Your session has expired. Please sign in again.' }, 401);
+
+  // ── already owned (ruling 241) ───────────────────────────────────────────────
+  // BEFORE anything is created. A reader who holds this title (a sale, a comp or a free copy)
+  // is refused with the library link, never sent to a second payment. Fails OPEN when the copy
+  // cannot be read — see readerHoldsTitle in _lib.js for why, and for what that costs.
+  if (await readerHoldsTitle(env, uid, titleId, LABEL) === true) {
+    return json(alreadyOwnedBody(), 409);
+  }
 
   const email = typeof user.email === 'string' ? user.email.trim() : '';
   if (!email) {

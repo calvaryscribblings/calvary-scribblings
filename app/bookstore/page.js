@@ -50,6 +50,7 @@ import { SHIPPED_BOOK_TRANSITION_CSS, installBookTransitions } from './component
 import { Magnifier, Ribbon, ShelfReadersRow, ShelfReadersContext, DESIDERATA_CSS } from './components/Desiderata';
 import { DESIDERATA_COPY, DESIDERATA_ROUTE, SEARCH_ROUTE } from '../lib/bookstore/desiderata';
 import { getAllReadership } from '../lib/bookstore/loader';
+import { useDesiderata } from '../lib/bookstore/desiderataStore';
 
 // R13 — WHAT USED TO BE HERE, AND WHERE IT WENT.
 //
@@ -907,6 +908,9 @@ function Storefront() {
   const [activeFiction, setActiveFiction] = useState('all');
   const [activeNonfiction, setActiveNonfiction] = useState('all');
   const [modal, setModal] = useState(null); // { title, rect }
+  // Ruling 241 — Quick Look's owned state. The desiderata store's purchases listener (holdsBook)
+  // is already open for the shelf's +; reading it here adds no request.
+  const { owned } = useDesiderata();
   const modalReset = useRef(null);
 
   // ── R8.1 THE CURTAIN ──────────────────────────────────────────────────────
@@ -1411,7 +1415,7 @@ function Storefront() {
         </main>
         </ShelfReadersContext.Provider>
 
-        {modal && <QuickLookModal title={modal.title} originRect={modal.rect} onClose={closeModal} />}
+        {modal && <QuickLookModal title={modal.title} originRect={modal.rect} onClose={closeModal} owned={owned.has(modal.title?.id)} />}
         </>
       )}
 

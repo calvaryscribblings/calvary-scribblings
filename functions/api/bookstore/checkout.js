@@ -30,7 +30,7 @@
 // R5b: json() and the token verifier moved to ./_lib.js when stream.js became the third
 // caller. Behaviour is unchanged — the move exists so the three endpoints cannot drift.
 import { STRIPE_VERSION } from '../_stripe.js';
-import { json, dbBase, lookupUser, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS, CLAIM_ENDPOINT, FREE_TITLE_ERROR } from './_lib.js';
+import { json, dbBase, lookupUser, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS, CLAIM_ENDPOINT, FREE_TITLE_ERROR, readerHoldsTitle, alreadyOwnedBody } from './_lib.js';
 // R8.4 — the SAME country resolver the region endpoint serves to the client, and the SAME
 // matcher the storefront marks with. Importing them rather than re-deriving is the point: a
 // shelf that says "not sold in your region" and a till that disagrees is worse than either
@@ -116,6 +116,14 @@ export async function onRequestPost(context) {
   const uid = user?.localId ?? null;
   if (!uid) return json({ error: 'Your session has expired. Please sign in again.' }, 401);
   const email = typeof user.email === 'string' && user.email.trim() ? user.email.trim() : null;
+
+  // ── already owned (ruling 241) ───────────────────────────────────────────────
+  // BEFORE anything is created. A reader who holds this title (a sale, a comp or a free copy)
+  // is refused with the library link, never sent to a second payment. Fails OPEN when the copy
+  // cannot be read — see readerHoldsTitle in _lib.js for why, and for what that costs.
+  if (await readerHoldsTitle(env, uid, titleId, 'bookstore/checkout') === true) {
+    return json(alreadyOwnedBody(), 409);
+  }
 
   // ── the title, and its price ───────────────────────────────────────────────
   // bookstore_titles is world-readable (database.rules.json), so this needs no credential.

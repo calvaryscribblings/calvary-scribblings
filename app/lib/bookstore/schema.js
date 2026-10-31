@@ -14,7 +14,7 @@
 // API convention. A price of 0 is FREE in that currency (FREE-TITLES); absent is unpriced.
 
 import { GENRE_SEED_SLUGS } from './genres.js';
-import { isValidPrice } from '../pricing.js';
+import { isValidPrice, isMixedFree, FREE_ALL_OR_NOTHING_ERROR } from '../pricing.js';
 
 export const SCHEMA_VERSION = 2;
 
@@ -165,6 +165,8 @@ export function validateTitle(doc) {
         errors.push(`prices.${k} must be a whole number of minor units (pence/cents/kobo), 0 or more — 0 means free`);
       }
     }
+    // Ruling 242 — free is all-or-nothing. See isMixedFree in app/lib/pricing.js.
+    if (isMixedFree(doc.prices)) errors.push(`prices: ${FREE_ALL_OR_NOTHING_ERROR}`);
   }
 
   // Genre.

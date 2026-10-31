@@ -9,7 +9,7 @@
 // three is a certainty. The behaviour is unchanged from the originals — this is a move,
 // not a rewrite, and the money paths above it must keep working byte-for-byte.
 
-import { countsForReadership } from '../../../app/lib/bookstore/purchaseSource.js';
+import { countsForReadership, holdsBook } from '../../../app/lib/bookstore/purchaseSource.js';
 
 export const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 
@@ -65,6 +65,36 @@ export const FIREBASE_TIMEOUT_MS = 5_000;
 // point here, and neither ever asks a provider for a zero-amount charge.
 export const CLAIM_ENDPOINT = '/api/bookstore/claim';
 export const FREE_TITLE_ERROR = 'This title is free — add it to your library instead.';
+
+// Ruling 241 (29 Oct 2026). A reader who already HOLDS the title (holdsBook: status 'active' —
+// a sale, a comp or a free copy) is refused by both tills with 409 already_owned, shaped like
+// free_title: a line, plus where the book is. ⚠ The line is PROPOSED, awaiting Ikenna's word.
+export const LIBRARY_HREF = '/my-library';
+export const ALREADY_OWNED_ERROR = 'This title is already in your library.';
+export const alreadyOwnedBody = () => ({ error: ALREADY_OWNED_ERROR, code: 'already_owned', library: LIBRARY_HREF });
+
+/**
+ * Does this reader already hold this title? true / false — or null when it cannot be known
+ * (no admin credential in this environment, or the read failed).
+ *
+ * The tills FAIL OPEN on null, the posture they already take on a publisher read: a database
+ * blip must not stop a sale. The cost of failing open is the case this guard exists to prevent
+ * — a second payment for a book the reader holds. ⚠ The webhooks do not handle that case well,
+ * and STORE-OWNED deliberately left them alone: a second paid grant with a new reference PATCHes
+ * over the active copy, so on the same rail the FIRST payment's references are overwritten and
+ * a later refund of it can no longer be matched (classifyRevocation → 'review'). Two checkouts
+ * opened before either completes, or a failed read here, are the only ways it can now happen.
+ */
+export async function readerHoldsTitle(env, uid, titleId, label) {
+  if (!env.FIREBASE_CLIENT_EMAIL || !env.FIREBASE_PRIVATE_KEY) return null;
+  try {
+    const token = await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY);
+    return holdsBook(await readPurchase(env, token, uid, titleId));
+  } catch (e) {
+    console.error(`[${label}] owned-check read failed for ${uid}/${titleId} — proceeding:`, e.message || e);
+    return null;
+  }
+}
 
 export function json(data, status = 200) {
   return new Response(JSON.stringify(data), {

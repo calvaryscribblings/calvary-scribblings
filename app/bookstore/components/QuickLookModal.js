@@ -8,11 +8,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { resolveOpeningLine, resolveBackBlurb, formatCatalogueNumber } from './fields';
 import { useCurrency, useRegionCountry, priceLine, CLAIM_LABEL } from '../../lib/currency';
+import { OWNED_LABEL, OWNED_HREF } from '../../lib/pricing';
 import { UNAVAILABLE_LABEL } from '../../lib/bookstore/territory';
 
 const CARD_W = 440;
 
-export default function QuickLookModal({ title, originRect, onClose }) {
+// `owned` — ruling 241. The caller (app/bookstore/page.js) reads it from the desiderata store's
+// purchases listener (holdsBook) and passes a boolean, so this modal stays free of Firebase.
+export default function QuickLookModal({ title, originRect, onClose, owned = false }) {
   const [currency] = useCurrency();
   const [phase, setPhase] = useState('enter'); // 'enter' → 'open' → 'closing'
   const [isMobile, setIsMobile] = useState(false);
@@ -49,6 +52,9 @@ export default function QuickLookModal({ title, originRect, onClose }) {
   const blurb = resolveBackBlurb(title);
   const country = useRegionCountry();
   const { price, note, sellable, free } = priceLine(title, currency, country);
+  // Ruling 241 — a held title says so here too, and the control goes to My Library rather than
+  // through to the book page's buy.
+  const ownsIt = !!owned;
   const cat = formatCatalogueNumber(title.catalogueNumber);
 
   // Desktop morph transform for the enter/closing phases.
@@ -124,7 +130,7 @@ export default function QuickLookModal({ title, originRect, onClose }) {
               R8.4 — which is why this one is NOT disabled when the title is restricted: it
               leads to the book, not to a charge, and the detail page is where the fuller
               sentence explains itself. It only stops claiming there is something to buy. */}
-          <a href={`/bookstore/${title.slug}`} style={{ fontFamily: "'Cinzel',serif", fontSize: '.64rem', letterSpacing: '.16em', textTransform: 'uppercase', padding: '.85rem 1.8rem', border: 'none', borderRadius: '3px', background: 'linear-gradient(135deg,#c9a44c,#a8842f)', color: '#0a0a0a', fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>{sellable ? (free ? CLAIM_LABEL : (price ? `Buy · ${price}` : 'Buy')) : UNAVAILABLE_LABEL}</a>
+          <a href={ownsIt ? OWNED_HREF : `/bookstore/${title.slug}`} data-owned={ownsIt || undefined} style={{ fontFamily: "'Cinzel',serif", fontSize: '.64rem', letterSpacing: '.16em', textTransform: 'uppercase', padding: '.85rem 1.8rem', border: 'none', borderRadius: '3px', background: 'linear-gradient(135deg,#c9a44c,#a8842f)', color: '#0a0a0a', fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>{ownsIt ? OWNED_LABEL : sellable ? (free ? CLAIM_LABEL : (price ? `Buy · ${price}` : 'Buy')) : UNAVAILABLE_LABEL}</a>
           {title.samplePath && (
             <a href={`/reader/${title.slug}?sample=1`} style={{ fontFamily: "'Cinzel',serif", fontSize: '.64rem', letterSpacing: '.16em', textTransform: 'uppercase', padding: '.85rem 1.8rem', border: '1px solid rgba(201,164,76,.4)', borderRadius: '3px', background: 'rgba(201,164,76,.04)', color: '#c9a44c', fontWeight: 600, textDecoration: 'none' }}>Read sample</a>
           )}

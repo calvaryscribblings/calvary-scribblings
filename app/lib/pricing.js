@@ -73,6 +73,23 @@ export function priceFor(title, currency) {
   return null;
 }
 
+/**
+ * Ruling 242 (29 Oct 2026) — FREE IS ALL-OR-NOTHING. A price of 0 in one currency requires 0 in
+ * every currency the title is priced in; an ABSENT currency is still "not priced there" and is
+ * not counted. So { gbp: 0, ngn: 0 } and { gbp: 0 } are free titles, and { gbp: 0, ngn: 180000 }
+ * is refused — it would be free to one reader and £-priced to the next for the same book.
+ * The ONE definition, shared by the admin form and the schema; database.rules.json states it in
+ * its own words at bookstore_titles/$titleId/prices.
+ */
+export const FREE_ALL_OR_NOTHING_ERROR =
+  'A free title must be free in every currency it is priced in — set every price to 0, or leave a currency blank to skip it.';
+export function isMixedFree(prices) {
+  if (!prices || typeof prices !== 'object') return false;
+  // Only real prices count: absent is unpriced, and an invalid value is a different error.
+  const vals = CURRENCIES.map((c) => prices[c]).filter(isValidPrice);
+  return vals.some((v) => v === 0) && vals.some((v) => v !== 0);
+}
+
 /** Is this priceFor() result a free one? */
 export const isFreePrice = (priced) => !!priced && priced.minorUnits === 0;
 
@@ -81,8 +98,14 @@ export const isFreePrice = (priced) => !!priced && priced.minorUnits === 0;
 // button on a free title names the act and then the price, in the "Buy · £1.99" pattern, so the
 // detail page and Quick Look — whose only price IS the button label — still print "Free".
 export const FREE_LABEL = 'Free';
-export const CLAIM_ACTION = 'Add to My Library';
+// Ruling 240 (29 Oct 2026): "Get · Free", mirroring "Buy · £1.99". It replaced FREE-TITLES'
+// "Add to My Library · Free", which wrapped the book page's button row at 320, 360, 375 and 390px.
+export const CLAIM_ACTION = 'Get';
 export const CLAIM_LABEL = `${CLAIM_ACTION} · ${FREE_LABEL}`;
+// Ruling 241 (29 Oct 2026): every title the reader HOLDS (holdsBook — a sale, a comp or a free
+// copy; never a revoked one) shows this in place of Buy or Get, linking to My Library.
+export const OWNED_LABEL = 'In My Library';
+export const OWNED_HREF = '/my-library';
 
 // ── THE SERVER'S QUESTION ──────────────────────────────────────────────────────────────────
 

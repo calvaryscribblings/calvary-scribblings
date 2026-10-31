@@ -70,7 +70,7 @@ import { COUNTRY_CODES, COUNTRY_NAMES } from '../../lib/bookstore/countries';
 // formatGbpMinor while every reader-facing surface used formatPrice; two implementations of
 // one job is how a shop ends up quoting one number to an editor and another to a customer.
 import { formatPrice } from '../../bookstore/components/fields';
-import { parsePriceField, isValidPrice, FREE_LABEL } from '../../lib/pricing';
+import { parsePriceField, isValidPrice, isMixedFree, FREE_ALL_OR_NOTHING_ERROR, FREE_LABEL } from '../../lib/pricing';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -569,6 +569,10 @@ export default function AdminBookstorePage() {
     if (PRICE_FIELDS.every(([k]) => majorToMinor(form[k]) === null)) local.push('Enter at least one price (GBP, NGN, or USD)');
     for (const [k, code] of PRICE_FIELDS) {
       if (Number.isNaN(majorToMinor(form[k]))) local.push(`${code} price must be 0 or more — 0 makes the title free in ${code}, blank leaves it unpriced`);
+    }
+    // Ruling 242 — free is all-or-nothing: a 0 anywhere means 0 everywhere the title is priced.
+    if (isMixedFree({ gbp: majorToMinor(form.priceGbp), ngn: majorToMinor(form.priceNgn), usd: majorToMinor(form.priceUsd) })) {
+      local.push(FREE_ALL_OR_NOTHING_ERROR);
     }
     if (form.territoriesMode !== MODE_WORLDWIDE && form.territoriesList.length === 0) {
       local.push(form.territoriesMode === MODE_DENY
@@ -1584,7 +1588,7 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
           </div>
         </div>
         <div style={{ ...s.hint, marginTop: '0.75rem' }}>
-          Enter prices as the customer sees them (e.g. £4.99, ₦4,500, $6.49). Stored internally as minor units (pence/cents/kobo). Enter 0 to make the title free in that currency — readers there see “Free” and add it to their library without checkout. Leave blank to skip a currency.
+          Enter prices as the customer sees them (e.g. £4.99, ₦4,500, $6.49). Stored internally as minor units (pence/cents/kobo). Enter 0 to make the title free — readers see “Free” and add it to their library without checkout. A free title is free everywhere: every price you enter must be 0. Leave blank to skip a currency.
         </div>
       </div>
 
