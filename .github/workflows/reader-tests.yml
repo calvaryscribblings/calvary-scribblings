@@ -241,6 +241,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: npm run test:carry-over:emulator
 
+      # Ruling 256 — a second payment never overwrites the first. Both book webhooks, unmodified,
+      # take signed provider-shaped events against the RTDB emulator: duplicates on one rail and
+      # across rails, retries, and every refund order. Invented records under a demo- namespace;
+      # the harness refuses any call off the machine, and nothing here can reach a refund API.
+      - name: Book webhooks — duplicate payments against the RTDB emulator (ruling 256)
+        if: ${{ !cancelled() }}
+        run: npm run test:store-webhook:emulator
+
       # ── R19.6 — EVERY SUITE REPORTS ITS OWN RESULT ────────────────────────────────────────
       #
       # THE FAILURE THIS CLOSES. Steps in a job are sequential AND conditional by default: the

@@ -22,6 +22,7 @@ import { readWithDeadline, classifyFailure } from '../lib/reliableRead';
 import Unavailable from '../components/Unavailable';
 import { slugify, newStorySlug } from '../lib/storySlug';
 import { RETIRED_PATH, isRetired, retiredNotice } from '../lib/retiredStories';
+import { DUPLICATES_PATH, DUPLICATE_ALERT, openDuplicates, duplicateLine } from '../lib/bookstore/duplicates';
 import { loadWriterRoster, findWriterByHandle, normaliseHandle } from '../lib/writerRoster';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
@@ -665,6 +666,8 @@ export default function AdminPage() {
   const [loadFail, setLoadFail] = useState(null);
   // W6 (ADM-05): stories the scheduled-publish Worker refused to publish coverless.
   const [skips, setSkips] = useState([]);
+  // Ruling 256: second payments for a copy a reader already owns, open until refunded by hand.
+  const [duplicates, setDuplicates] = useState([]);
   // W35: cms_stories_retired — slugs no control here may publish. See app/lib/retiredStories.js.
   const [retired, setRetired] = useState(null);
   // W6 (ADM-10): the site's side of the last action — { stage, done, verdict }.
@@ -753,6 +756,11 @@ export default function AdminPage() {
         const sk = await readWithDeadline(() => get(ref(db, 'ops/publish_skips')));
         setSkips(sk.exists() ? Object.values(sk.val() || {}) : []);
       } catch (e) { console.warn('[admin] publish-skip alerts could not be read', e); }
+      // Ruling 256: the open duplicate payments. Founder-read only; a failure must not blank the list.
+      try {
+        const dp = await readWithDeadline(() => get(ref(db, DUPLICATES_PATH)));
+        setDuplicates(openDuplicates(dp.exists() ? dp.val() : null));
+      } catch (e) { console.warn('[admin] duplicate payments could not be read', e); }
       // W35 — the retired list. A failed read leaves the controls drawn, and the database
       // rules still refuse any write that would publish a retired record.
       try {
@@ -1421,6 +1429,17 @@ export default function AdminPage() {
                     “{k.title || k.slug}” — due {k.publishAt ? new Date(k.publishAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/London' }) : '(no time)'}
                     <button style={{ ...s.btnGhost, marginLeft: '0.6rem', padding: '0.2rem 0.6rem' }} onClick={() => dismissSkip(k.slug)}>Dismiss</button>
                   </div>
+                ))}
+              </div>
+            )}
+            {duplicates.length > 0 && (
+              // Ruling 256: a second payment for a copy the reader already owns. The webhook filed it
+              // and left the copy alone; refunding it is Ikenna's own hand. The provider's refund
+              // event marks it refunded, and it drops out of this block by itself.
+              <div role="alert" data-duplicate-payments="" style={{ ...s.msg, borderColor: 'rgba(248,113,113,0.7)' }}>
+                <strong>{DUPLICATE_ALERT.heading}</strong> {DUPLICATE_ALERT.body} <strong>{DUPLICATE_ALERT.action}</strong>
+                {duplicates.map(d => (
+                  <div key={`${d.uid}/${d.titleId}/${d.key}`} style={{ marginTop: '0.4rem' }}>{duplicateLine(d)}</div>
                 ))}
               </div>
             )}

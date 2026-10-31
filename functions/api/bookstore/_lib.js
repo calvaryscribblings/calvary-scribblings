@@ -11,6 +11,9 @@
 
 import { countsForReadership, holdsBook } from '../../../app/lib/bookstore/purchaseSource.js';
 
+// Ruling 256: the node a second payment is filed in. One spelling, in app/lib (the /admin half).
+import { DUPLICATES_PATH } from '../../../app/lib/bookstore/duplicates.js';
+
 export const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 
 // The bucket the app actually uses — app/lib/firebaseCore.js. Firebase's newer projects hand
@@ -484,8 +487,11 @@ const PATH_SAFE = /^[^.$#[\]/\x00-\x1f\x7f]+$/;
  * `existing` is passed in rather than re-read here: the caller has already read it for its
  * idempotency guard, and a second read would be both a wasted round trip and a chance for the
  * two decisions to see different data.
+ *
+ * `extra` (ruling 256) is a map of further paths under bookstore_duplicate_payments/ to write in
+ * the same atomic update. Nothing else may ride along.
  */
-export async function patchPurchase(env, token, uid, titleId, payload, existing) {
+export async function patchPurchase(env, token, uid, titleId, payload, existing, extra = null) {
   if (!PATH_SAFE.test(String(uid)) || !PATH_SAFE.test(String(titleId))) {
     throw new Error(`unsafe RTDB path segment (uid=${uid}, titleId=${titleId})`);
   }
@@ -493,6 +499,13 @@ export async function patchPurchase(env, token, uid, titleId, payload, existing)
   const update = {};
   for (const [k, v] of Object.entries(payload || {})) {
     update[`${PURCHASES_PATH}/${uid}/${titleId}/${k}`] = v;
+  }
+
+  // Ruling 256: paths outside the record that must land in the SAME write — a revocation marks
+  // the duplicate entry its copy stood on as refunded (functions/api/bookstore/_duplicates.js).
+  for (const [k, v] of Object.entries(extra || {})) {
+    if (!k.startsWith(`${DUPLICATES_PATH}/`)) throw new Error(`patchPurchase: refusing an extra path outside the duplicates node (${k})`);
+    update[k] = v;
   }
 
   const delta = readershipDelta(existing, payload);

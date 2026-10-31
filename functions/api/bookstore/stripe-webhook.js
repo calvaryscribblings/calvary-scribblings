@@ -55,6 +55,18 @@ import {
   STRIPE_REF_FIELDS,
   PURCHASE_UNKNOWN,
 } from './_lib.js';
+import {
+  isDuplicatePayment,
+  duplicateKey,
+  buildDuplicateEntry,
+  fileDuplicateOnce,
+  readDuplicates,
+  refundPlan,
+  promotionUpdates,
+  refundedUpdates,
+  revokeCompanionUpdates,
+  patchRoot,
+} from './_duplicates.js';
 import { settleWebhook } from '../_money.js';
 
 const LABEL = 'bookstore/stripe-webhook';
@@ -286,8 +298,6 @@ async function handleGrant(env, session) {
     return;
   }
 
-  const fields = await fetchTitleFields(env, token, titleId, LABEL);
-
   // R9.1 LB-7: the PaymentIntent id is stored alongside the session id because it is the ONLY
   // identifier that survives the hop from Checkout Session to Charge to Dispute. A
   // charge.refunded carries `payment_intent`; a charge.dispute.created carries it too. Neither
@@ -298,6 +308,24 @@ async function handleGrant(env, session) {
   const paymentIntent = typeof session.payment_intent === 'string'
     ? session.payment_intent
     : (typeof session.payment_intent?.id === 'string' ? session.payment_intent.id : null);
+
+  const fields = await fetchTitleFields(env, token, titleId, LABEL);
+
+  // ── RULING 256: A SECOND PAYMENT NEVER OVERWRITES THE FIRST ──────────────────────────────
+  // The reader already holds an active, paid copy, and this payment is not it: the copy's record
+  // stays exactly as it is, and this payment is filed beside it for Ikenna to refund by hand.
+  // Not a sale of a new copy, so no grant write and no readership move. Filed once per
+  // reference, however many times Stripe delivers it. See _duplicates.js.
+  if (isDuplicatePayment(existing, [session.id, paymentIntent])) {
+    const { filed } = await fileDuplicateOnce(env, token, uid, titleId, duplicateKey('stripe', session.id), buildDuplicateEntry({
+      rail: 'stripe', uid, titleId,
+      amount: session.amount_total, currency: session.currency,
+      refs: { stripeSessionId: session.id, stripePaymentIntent: paymentIntent },
+      title: fields?.title,
+    }));
+    console.log(`[${LABEL}] DUPLICATE payment for ${uid}/${titleId} — ${filed ? 'filed for a hand refund' : 'already filed'}; the copy is unchanged (ruling 256)`);
+    return { verdict: 'duplicate' };
+  }
 
   const payload = buildGrantPayload({
     amount: session.amount_total,
@@ -389,6 +417,30 @@ async function handleRevoke(env, obj, reason) {
 
   const { verdict, stored } = classifyRevocation(existing, STRIPE_REF_FIELDS, candidates);
 
+  // ── RULING 256: WHICH PAYMENT DOES THIS REFUND NAME? ─────────────────────────────────────
+  // The copy's own, or one filed beside it as a duplicate. A refund revokes the copy only when
+  // no unrefunded payment for it remains. A failed read of the duplicates fails the event (500,
+  // retried): revoking on a guess could take a book that another payment still stands behind.
+  let entries = null;
+  if (verdict !== 'absent') {
+    try {
+      entries = await readDuplicates(env, token, uid, titleId);
+    } catch (e) {
+      throw new Error(`could not read the duplicates for ${uid}/${titleId}: ${e.message || e}`);
+    }
+  }
+  const plan = refundPlan({ copyMatched: verdict === 'revoke', entries, candidates });
+  if (plan.action === 'duplicate') {
+    if (plan.entry.status === 'open') await patchRoot(env, token, refundedUpdates({ uid, titleId, key: plan.key, reason }));
+    console.log(`[${LABEL}] ${reason} names a DUPLICATE payment for ${uid}/${titleId} — marked; the copy is unchanged (ruling 256)`);
+    return { verdict: 'duplicate-refunded' };
+  }
+  if (plan.action === 'promote') {
+    await patchRoot(env, token, promotionUpdates({ uid, titleId, existing, key: plan.key, entry: plan.entry, reason }));
+    console.log(`[${LABEL}] ${reason} names the copy's payment for ${uid}/${titleId}, but a duplicate stands — the copy stays active on it (ruling 256)`);
+    return { verdict: 'kept-on-duplicate' };
+  }
+
   if (verdict === 'absent') {
     // R9.2 PL-3 changed what 'absent' MEANS for one of the three revoke events. Now that an
     // unpaid session no longer grants, the ordinary life of a failed delayed payment is
@@ -418,7 +470,8 @@ async function handleRevoke(env, obj, reason) {
     };
   }
 
-  const { delta } = await patchPurchase(env, token, uid, titleId, buildRevokePayload(reason), existing);
+  const { delta } = await patchPurchase(env, token, uid, titleId, buildRevokePayload(reason), existing,
+    revokeCompanionUpdates({ uid, titleId, existing, entries, reason }));
   console.log(
     `[bookstore/stripe-webhook] revoked uid=${uid} titleId=${titleId} reason=${reason} ` +
     `(matched stored ref) readership${delta >= 0 ? '+' : ''}${delta}`,

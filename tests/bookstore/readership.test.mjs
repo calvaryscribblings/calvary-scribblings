@@ -320,7 +320,9 @@ describe('BOTH RAILS GO THROUGH THE ONE WRITE', () => {
       const calls = body.match(/patchPurchase\([^;]*?\);/gs) || [];
       assert.ok(calls.length >= 2, `${name} has fewer patchPurchase calls than expected`);
       for (const c of calls) {
-        assert.ok(/,\s*existing\s*\)/.test(c.replace(/\s+/g, ' ')),
+        // Ruling 256: a revocation may add revokeCompanionUpdates(…) after `existing`, for the
+        // duplicates node in the same write. `existing` must still be the record it read.
+        assert.ok(/,\s*existing\s*(?:,\s*revokeCompanionUpdates\([^)]*\)\s*)?\)/.test(c.replace(/\s+/g, ' ')),
           `${name}: a patchPurchase call does not pass \`existing\` — its delta would be a guess:\n${c.slice(0, 160)}`);
       }
     }

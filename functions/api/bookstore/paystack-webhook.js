@@ -55,6 +55,18 @@ import {
   PROVIDER_TIMEOUT_MS,
   parsePaystackReference,
 } from './_lib.js';
+import {
+  isDuplicatePayment,
+  duplicateKey,
+  buildDuplicateEntry,
+  fileDuplicateOnce,
+  readDuplicates,
+  refundPlan,
+  promotionUpdates,
+  refundedUpdates,
+  revokeCompanionUpdates,
+  patchRoot,
+} from './_duplicates.js';
 
 // R10.5 — see the delegation note in onRequestPost. Membership owns every decision behind
 // this import; nothing of the bookstore's own logic moved.
@@ -267,6 +279,19 @@ async function handleGrant(env, data) {
 
   const fields = denormalisedFields(titleRecord);
 
+  // ── RULING 256: A SECOND PAYMENT NEVER OVERWRITES THE FIRST ──────────────────────────────
+  // An active, paid copy that does not name this reference: leave it exactly as it is and file
+  // this payment beside it for Ikenna to refund by hand. Not a new copy, so no grant write and
+  // no readership move. Filed once per reference. See _duplicates.js.
+  if (isDuplicatePayment(existing, [reference])) {
+    const { filed } = await fileDuplicateOnce(env, token, uid, titleId, duplicateKey('paystack', reference), buildDuplicateEntry({
+      rail: 'paystack', uid, titleId, amount: txn.amount, currency: 'NGN',
+      refs: { paystackRef: reference }, title: fields?.title,
+    }));
+    console.log(`[${LABEL}] DUPLICATE payment for ${uid}/${titleId} — ${filed ? 'filed for a hand refund' : 'already filed'}; the copy is unchanged (ruling 256)`);
+    return { verdict: 'duplicate' };
+  }
+
   const { delta } = await patchPurchase(env, token, uid, titleId, buildGrantPayload({
     amount: txn.amount,
     currency: 'NGN',
@@ -322,6 +347,35 @@ async function handleRevoke(env, data, reason) {
 
   const { verdict, stored } = classifyRevocation(existing, PAYSTACK_REF_FIELDS, candidates);
 
+  // ── RULING 256: WHICH PAYMENT DOES THIS REFUND NAME? ─────────────────────────────────────
+  // The copy's own, or one filed beside it. The copy is revoked only when no unrefunded payment
+  // for it remains. A failed read of the duplicates is retried rather than guessed at.
+  let entries = null;
+  if (verdict !== 'absent') {
+    try {
+      entries = await readDuplicates(env, token, uid, titleId);
+    } catch (e) {
+      throw new MoneyTransientError(`could not read the duplicates for ${uid}/${titleId}: ${e.message || e}`);
+    }
+  }
+  const plan = refundPlan({ copyMatched: verdict === 'revoke', entries, candidates });
+  if (plan.action === 'duplicate') {
+    // A partial refund of a duplicate leaves it standing, as a partial refund of the copy's
+    // own payment keeps the book (W3 / MON-12).
+    if (refundKeepsBook(reason, data, plan.entry)) {
+      console.log(`[${LABEL}] PARTIAL refund of a DUPLICATE payment for ${uid}/${titleId} — it stays open`);
+      return { verdict: 'kept' };
+    }
+    if (plan.entry.status === 'open') await patchRoot(env, token, refundedUpdates({ uid, titleId, key: plan.key, reason }));
+    console.log(`[${LABEL}] ${reason} names a DUPLICATE payment for ${uid}/${titleId} — marked; the copy is unchanged (ruling 256)`);
+    return { verdict: 'duplicate-refunded' };
+  }
+  if (plan.action === 'promote' && !refundKeepsBook(reason, data, existing)) {
+    await patchRoot(env, token, promotionUpdates({ uid, titleId, existing, key: plan.key, entry: plan.entry, reason }));
+    console.log(`[${LABEL}] ${reason} names the copy's payment for ${uid}/${titleId}, but a duplicate stands — the copy stays active on it (ruling 256)`);
+    return { verdict: 'kept-on-duplicate' };
+  }
+
   if (verdict === 'absent') {
     return {
       verdict: 'review', uid, ref: reference,
@@ -344,7 +398,8 @@ async function handleRevoke(env, data, reason) {
     return { verdict: 'kept' };
   }
 
-  const { delta } = await patchPurchase(env, token, uid, titleId, buildRevokePayload(reason), existing);
+  const { delta } = await patchPurchase(env, token, uid, titleId, buildRevokePayload(reason), existing,
+    revokeCompanionUpdates({ uid, titleId, existing, entries, reason }));
   console.log(`[${LABEL}] revoked uid=${uid} titleId=${titleId} reason=${reason} (matched stored ref) readership${delta >= 0 ? '+' : ''}${delta}`);
   return { verdict: 'revoked' };
 }
