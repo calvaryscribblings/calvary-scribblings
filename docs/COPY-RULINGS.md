@@ -626,7 +626,12 @@ rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest
 - **239:** Voices of the Island on the app's Home is at 16pt.
 - **240:** A free title's button reads "Get · Free", mirroring "Buy · £1.99". It replaces "Add to My Library · Free".
 - **241:** Every title a reader owns shows "In My Library" instead of Buy, and both checkouts refuse a reader who already owns it. Owned means the reader's copy is active: a sale, a complimentary copy or a free copy; a revoked copy isn't owned.
-- The refusal's line is PROPOSED, awaiting Ikenna's word: "This title is already in your library." (`ALREADY_OWNED_ERROR`, functions/api/bookstore/_lib.js).
+- The refusal's line, "This title is already in your library." (`ALREADY_OWNED_ERROR`, functions/api/bookstore/_lib.js), was proposed here and ruled on 31 Oct (257).
 - **242:** Free is all-or-nothing: a price of 0 in one currency requires 0 in every currency the title is priced in. An empty price still means "not priced there".
 - **243:** The app can add a free title to My Library.
 - **245:** The author photo on a book's full details page has 12px corners, on web and app.
+
+## 31 Oct 2026 (Ikenna): the owned-copy refusal, and a second payment (STORE-OWNED)
+
+- **256:** When a second payment lands on a copy the reader already owns, the webhook keeps the first payment's record and files the second beside it as a duplicate, flagged in /admin for Ikenna to refund by hand. A refund revokes the copy only when no payment for it still stands. To build, next round: STORE-OWNED changes neither webhook.
+- **257:** The refusal line "This title is already in your library." is ruled. Both checkouts send it with 409 `already_owned`.

@@ -24,8 +24,7 @@ POST /api/bookstore/paystack-checkout   → 409
 ```
 
 - Show `error` as given. It's the same shape as `free_title`, which carries `claim` instead of `library`.
-- ⚠ The wording is **proposed** and awaits Ikenna's word. Read it from the response; don't copy
-  it into the app.
+- The wording is ruled (257, 31 Oct 2026). Read it from the response; don't copy it into the app.
 - If the server can't read the reader's copy, it lets the checkout through rather than block a sale.
 
 ## 245: the author photo, if A48 hasn't done it

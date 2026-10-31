@@ -68,7 +68,7 @@ export const FREE_TITLE_ERROR = 'This title is free — add it to your library i
 
 // Ruling 241 (29 Oct 2026). A reader who already HOLDS the title (holdsBook: status 'active' —
 // a sale, a comp or a free copy) is refused by both tills with 409 already_owned, shaped like
-// free_title: a line, plus where the book is. ⚠ The line is PROPOSED, awaiting Ikenna's word.
+// free_title: a line, plus where the book is. The line is ruling 257 (Ikenna, 31 Oct 2026).
 export const LIBRARY_HREF = '/my-library';
 export const ALREADY_OWNED_ERROR = 'This title is already in your library.';
 export const alreadyOwnedBody = () => ({ error: ALREADY_OWNED_ERROR, code: 'already_owned', library: LIBRARY_HREF });
@@ -84,6 +84,10 @@ export const alreadyOwnedBody = () => ({ error: ALREADY_OWNED_ERROR, code: 'alre
  * over the active copy, so on the same rail the FIRST payment's references are overwritten and
  * a later refund of it can no longer be matched (classifyRevocation → 'review'). Two checkouts
  * opened before either completes, or a failed read here, are the only ways it can now happen.
+ *
+ * Ruling 256 (31 Oct 2026), TO BUILD NEXT ROUND: the webhook keeps the first payment's record,
+ * files the second beside it as a duplicate flagged in /admin for Ikenna to refund by hand, and a
+ * refund revokes the copy only when no payment for it still stands.
  */
 export async function readerHoldsTitle(env, uid, titleId, label) {
   if (!env.FIREBASE_CLIENT_EMAIL || !env.FIREBASE_PRIVATE_KEY) return null;
