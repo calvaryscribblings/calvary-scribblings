@@ -17,7 +17,6 @@ import {
 import { isComp, isSale, countsForReadership, COMP_SOURCE } from '../../app/lib/bookstore/purchaseSource.js';
 import { readershipDelta, buildGrantPayload, shouldSkipGrant } from '../../functions/api/bookstore/_lib.js';
 import { readershipFromPurchases } from '../../scripts/readership-source.mjs';
-import { classifyRecord } from '../../scripts/clear-test-purchases.mjs';
 import { DATA_CONTRACTS, SECTION_TYPES, TYPE_READERS_CHOICE, TYPE_TOP_OF_THE_SHELF } from '../../app/lib/bookstore/sections.js';
 import { billingBackstop } from '../../scripts/account/scrub.mjs';
 
@@ -122,12 +121,6 @@ describe('comps never count as sales', () => {
     assert.equal(billingBackstop(IKENNA_UID, null), null);
     const scrub = readFileSync('scripts/account/scrub.mjs', 'utf8');
     assert.match(scrub, /billingBackstop\(uid, \(await db\.ref\(`memberships\/\$\{uid\}`\)\.get\(\)\)\.val\(\)\)/);
-  });
-
-  test('the test-purchase clear never takes a comp (it is not a purchase to clear)', () => {
-    const c = classifyRecord(comp);
-    assert.equal(c.removable, false);
-    assert.match(c.refusal, /complimentary copy/);
   });
 
   // REVENUE, SALES FIGURES, PUBLISHER AND ROYALTY STATEMENTS, ADMIN REPORTS. None of these

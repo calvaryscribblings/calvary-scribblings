@@ -94,6 +94,7 @@ import {
   assertStoryScope, coverDir, coverFlipPaths, deriveFrom, rtdbPatch, accessToken, readBody,
   sha12, uploadCoverSet, urlPointsAt,
 } from './store.mjs';
+import { openGuard, pushId } from '../safety/guard.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const DELAY_MS = 120;
@@ -167,23 +168,23 @@ function assess({ slug, story, held }) {
  * with a quiet launch. A notification sent before a failed flip would be a lie. So this runs
  * last, and a failure warns rather than failing the run — the cover is already correct.
  */
-async function notifyFollowers(token, slug, story) {
+async function notifyFollowers(guard, token, slug, story) {
   const uid = story.authorUid;
   if (!uid) return 0;
   const res = await fetch(`${DB_URL}/followers/${uid}.json?shallow=true&access_token=${token}`);
   if (!res.ok) throw new Error(`followers read failed: HTTP ${res.status}`);
   const followers = Object.keys((await res.json()) ?? {});
+  // SAFETY-1: one guarded create per follower, all in one update (a push id each, made locally;
+  // the same shape the old per-follower POST produced). W12: counts only, never a follower's uid.
+  const updates = {};
   for (const fid of followers) {
-    const body = {
+    updates[`library_notifications/${fid}/${pushId()}`] = {
       type: 'new_story', fromUid: uid, fromName: story.author || '',
       storySlug: slug, storyTitle: story.title || '',
       read: false, createdAt: Date.now(),
     };
-    const r = await fetch(`${DB_URL}/library_notifications/${fid}.json?access_token=${token}`, {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
-    });
-    if (!r.ok) throw new Error(`a follower notification POST failed: HTTP ${r.status}`); // W12: never the follower's uid — this log is public
   }
+  await guard.update(updates, { label: 'follower notifications' });
   return followers.length;
 }
 
@@ -247,13 +248,15 @@ async function main() {
     `(${stories.filter((s) => s.held).length} held for a cover)\n`,
   );
 
-  let bucket, token;
+  let bucket, token, guard;
   if (APPLY) {
     const { initializeApp, cert } = await import('firebase-admin/app');
     const { getStorage } = await import('firebase-admin/storage');
     const svc = JSON.parse(readFileSync(process.env.COVERS_SERVICE_ACCOUNT || join(ROOT, 'serviceAccountKey.json'), 'utf8'));
     initializeApp({ credential: cert(svc), storageBucket: BUCKET });
-    bucket = getStorage().bucket();
+    // SAFETY-1: every write below goes through the guard: backup, verify, then write.
+    guard = await openGuard('covers-on-publish', { apply: APPLY });
+    bucket = guard.adminBucket(getStorage().bucket());
     token = await accessToken(svc);
   }
 
@@ -285,7 +288,7 @@ async function main() {
       // PROOFS-R1: a release that publishes carries the story's text from story_bodies in the
       // same patch (coverFlipPaths). A failed read fails this story, which stays held.
       const bodyRec = extras.published === true ? await readBody(token, a.slug) : undefined;
-      await rtdbPatch(token, coverFlipPaths(a.slug, a.story, { ...urls, coverHash: hash }, extras, bodyRec));
+      await rtdbPatch(guard, coverFlipPaths(a.slug, a.story, { ...urls, coverHash: hash }, extras, bodyRec));
       flipped++;
       console.log(
         `✓ ${a.slug.padEnd(46)} ${a.plan.livery.key.padEnd(10)} ${a.plan.title.size}px×${a.plan.title.lines.length}` +
@@ -298,7 +301,7 @@ async function main() {
       if (extras.published === true) {
         wentLive++;
         try {
-          const n = await notifyFollowers(token, a.slug, { ...a.story, ...extras });
+          const n = await notifyFollowers(guard, token, a.slug, { ...a.story, ...extras });
           if (n) console.log(`  ↳ notified ${n} follower(s)`);
         } catch (e) {
           console.log(`  ⚠ ${a.slug} is live and correct, but follower notifications failed: ${e.message}`);

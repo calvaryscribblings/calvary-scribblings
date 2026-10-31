@@ -34,23 +34,21 @@
 // which would now delete every scheduled story's only copy.) --verify also counts the bodies held
 // back on purpose, and fails on any story that is not live but still has public text.
 //
+// ── SAFETY-1: ONLY WHAT IS MISSING OR DIFFERS, AND ONLY THROUGH THE GUARD ─────
+// It reads story_bodies first and writes ONLY the records that are missing there or differ from
+// cms_stories, as one guarded update (scripts/safety/guard.mjs: dry by default, a verified backup
+// of exactly those paths, then one atomic multi-path write). A body that is in story_bodies but
+// carries no text on cms_stories is never in the write set, by construction and by a check.
+//
 // ── IDEMPOTENT, AND VERIFIABLE ───────────────────────────────────────────────
-// Re-running writes the same bytes. `--verify` re-reads both nodes and reports any
+// Re-running writes nothing once the two agree. `--verify` re-reads both nodes and reports any
 // slug where they disagree, which is the standing check for the dual-write in
 // app/admin/page.js: if an admin save ever writes one node and not the other, this
 // is what finds it.
 
-import { readFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { cert } from 'firebase-admin/app';
 import { isReadableStory } from '../app/lib/storyAccess.js';
+import { openGuard, DB_URL } from './safety/guard.mjs';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(__dirname, '..');
-const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
-
-const APPLY = process.argv.includes('--apply');
 const VERIFY = process.argv.includes('--verify');
 
 const BODIES_PATH = 'story_bodies';
@@ -66,12 +64,11 @@ function bodyRecord(story) {
   };
 }
 
-async function adminToken(svc) {
-  return (await cert(svc).getAccessToken()).access_token;
-}
+const differsFrom = (there, rec) => !there || there.content !== rec.content || there.extractedText !== rec.extractedText;
 
 async function main() {
-  const svc = JSON.parse(await readFile(resolve(ROOT, 'serviceAccountKey.json'), 'utf8'));
+  // --verify is read-only whatever else is on the command line: its guard never applies.
+  const guard = await openGuard('backfill-story-bodies', VERIFY ? { apply: false } : {});
 
   const res = await fetch(`${DB_URL}/cms_stories.json`);
   if (!res.ok) { console.error(`cms_stories read failed: HTTP ${res.status}`); process.exit(1); }
@@ -98,22 +95,25 @@ async function main() {
   console.log(`  extractedText     ${kb(extractedBytes)}`);
   console.log(`  story_bodies      ${kb(Buffer.byteLength(JSON.stringify(bodies), 'utf8'))} total`);
 
+  // What story_bodies holds now. Both modes need it: --verify reports against it, and the write
+  // set is exactly the slugs missing from it or differing from cms_stories.
+  let live;
+  try {
+    live = (await guard.get(BODIES_PATH)) || {};
+  } catch (e) {
+    console.error(`story_bodies read failed: ${e.message}`);
+    process.exit(1);
+  }
+  const missing = [];
+  const differs = [];
+  for (const slug of slugs) {
+    const there = live[slug];
+    if (!there) { missing.push(slug); continue; }
+    if (differsFrom(there, bodies[slug])) differs.push(slug);
+  }
+
   // ── verify ─────────────────────────────────────────────────────────────────
   if (VERIFY) {
-    const token = await adminToken(svc);
-    const vres = await fetch(`${DB_URL}/${BODIES_PATH}.json`, { headers: { Authorization: `Bearer ${token}` } });
-    if (!vres.ok) { console.error(`story_bodies read failed: HTTP ${vres.status}`); process.exit(1); }
-    const live = (await vres.json()) || {};
-
-    const missing = [];
-    const differs = [];
-    for (const slug of slugs) {
-      const there = live[slug];
-      if (!there) { missing.push(slug); continue; }
-      if (there.content !== bodies[slug].content || there.extractedText !== bodies[slug].extractedText) {
-        differs.push(slug);
-      }
-    }
     // In story_bodies only: right for a story that is not live, an orphan if the record is gone.
     const heldBack = Object.keys(live).filter((s) => !bodies[s] && all[s] && !isReadableStory(all[s]));
     const extra = Object.keys(live).filter((s) => !bodies[s] && !all[s]);
@@ -143,25 +143,42 @@ async function main() {
     return;
   }
 
-  if (!APPLY) {
-    console.log(`\nDRY RUN — nothing written. Re-run with --apply to write ${slugs.length} record(s).`);
+  // ── the write set: missing or differing, nothing else ──────────────────────
+  // PROOFS-R1: story_bodies is the ONLY copy of every story that isn't live, so it can't be
+  // rebuilt from cms_stories. Each path replaces exactly one record that cms_stories carries text
+  // for; a record that is already equal is not written at all.
+  const writeSlugs = [...missing, ...differs];
+  const updates = {};
+  for (const slug of writeSlugs) {
+    // By construction every slug here has public text. Asserted anyway: a body held only in
+    // story_bodies (an unreleased story) must never be in the write set.
+    if (!bodies[slug]) throw new Error('refusing: a slug with no text on cms_stories is in the write set.');
+    updates[`${BODIES_PATH}/${slug}`] = bodies[slug];
+  }
+  console.log(`\n  in step           ${slugs.length - writeSlugs.length}`);
+  console.log(`  missing           ${missing.length}`);
+  console.log(`  differing         ${differs.length}`);
+  console.log(`  untouched in story_bodies only ${Object.keys(live).filter((s) => !bodies[s]).length}`);
+
+  if (!writeSlugs.length) {
+    console.log('\nNothing to do — story_bodies already holds every public body.');
     return;
   }
 
-  // PATCH, not PUT (PROOFS-R1): story_bodies is the ONLY copy of every story that isn't live,
-  // so it can't be rebuilt from cms_stories. A PATCH replaces exactly the records written here.
-  const token = await adminToken(svc);
-  const writeRes = await fetch(`${DB_URL}/${BODIES_PATH}.json`, {
-    method: 'PATCH',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(bodies),
-  });
-  if (!writeRes.ok) {
-    console.error(`PUT failed: HTTP ${writeRes.status} ${(await writeRes.text()).slice(0, 400)}`);
+  let result;
+  try {
+    result = await guard.update(updates, { label: 'story-bodies' });
+  } catch (e) {
+    console.error(`write to ${BODIES_PATH} failed: ${e.message}`);
     process.exit(1);
   }
-  console.log(`\n✓ wrote ${slugs.length} body record(s) to ${BODIES_PATH}.`);
+  if (!result.applied) {
+    console.log(`\nDRY RUN — nothing written. Re-run with --apply to write ${writeSlugs.length} record(s).`);
+    return;
+  }
+  console.log(`\n✓ wrote ${writeSlugs.length} body record(s) to ${BODIES_PATH}.`);
   console.log('  Re-run with --verify to prove the two nodes agree.');
+  guard.summary();
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

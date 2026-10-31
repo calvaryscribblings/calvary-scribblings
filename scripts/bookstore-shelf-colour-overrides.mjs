@@ -67,11 +67,15 @@
 // ⛔ NOTHING WRITES `coverColour`. That key belongs to the machine, and the whole point of two
 //    keys is that re-cutting the extraction can never erase a human's decision. This script
 //    writes `coverColourOverride` and nothing else.
-import { readFile } from 'node:fs/promises';
+//
+// SAFETY-1: the write goes through scripts/safety/guard.mjs (dry by default; with --apply each
+// override is backed up, verified, then written).
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
+import { openGuard } from './safety/guard.mjs';
+import { readServiceAccountFile } from './security/service-account.mjs';
 import { coverColourFromHex, coverColourOf, spectralBandOf, arrangeShelf, NEUTRAL_CHROMA_MAX } from '../app/lib/bookstore/spectrum.js';
 import { titlesInGroup, sortGenres, GENRE_SEED, groupLabel } from '../app/lib/bookstore/genres.js';
 
@@ -169,7 +173,6 @@ export const SHELF_COLOUR_OVERRIDES = {
 // plate — so its stored extraction is already the painting, and there is nothing to correct.
 export const LEFT_NEUTRAL_ON_PURPOSE = ['the-rescue'];
 
-const APPLY = process.argv.includes('--apply');
 const ONLY = (() => { const i = process.argv.indexOf('--slug'); return i > -1 ? process.argv[i + 1] : null; })();
 
 const swatch = (hex) => {
@@ -179,9 +182,12 @@ const swatch = (hex) => {
 const pad = (s, n) => String(s).length >= n ? String(s).slice(0, n) : String(s) + ' '.repeat(n - String(s).length);
 
 async function main() {
-  const key = JSON.parse(await readFile(resolve(ROOT, 'serviceAccountKey.json'), 'utf8'));
+  // --apply is read by the guard; guard.apply is the only switch.
+  const guard = await openGuard('bookstore-shelf-colour-overrides');
+  const APPLY = guard.apply;
+  const key = readServiceAccountFile(resolve(ROOT, 'serviceAccountKey.json'));
   initializeApp({ credential: cert(key), databaseURL: DB_URL });
-  const db = getDatabase();
+  const db = guard.adminDb(getDatabase());
 
   const all = (await db.ref(TITLES_PATH).once('value')).val() || {};
   const gval = (await db.ref('bookstore_genres').once('value')).val() || {};
@@ -230,6 +236,7 @@ async function main() {
     console.log(`  ${unbroken.length ? `⚠ ${unbroken.length} same-author adjacency kept: ` + unbroken.map((u) => `${u.author} (${u.before} / ${u.after})`).join('; ') : '✓ no same-author adjacency remains'}`);
   }
   if (!APPLY) console.log('\nRe-run with --apply to write them.');
+  guard.summary();
   process.exit(failed ? 1 : 0);
 }
 

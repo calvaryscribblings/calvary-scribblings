@@ -18,6 +18,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
+import { readOnlyDb } from '../safety/guard.mjs'; // SAFETY-1: read-only, enforced (any write throws)
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
@@ -26,7 +27,7 @@ export const MAX_SILENCE_MS = 26 * 60 * 60 * 1000;
 
 const sa = JSON.parse(await readFile(resolve(ROOT, 'serviceAccountKey.json'), 'utf8'));
 initializeApp({ credential: cert(sa), databaseURL: DB_URL });
-const db = getDatabase();
+const db = readOnlyDb(getDatabase());
 
 const hb = (await db.ref('square_horizon').get()).val() || {};
 const now = Date.now();

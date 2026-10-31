@@ -40,10 +40,12 @@
 // W47: every cfi to be written must be wrapped exactly once (cfi.mjs). One that is not is
 // REFUSED: reported on its line and in `refused`, never written, and the run exits non-zero.
 //
-// SAFETY. Every record to be written is backed up first (outside the repo). Each write is a
-// REST PUT with `if-match` on the ETag read with the record, so a reader's save in between wins
-// (412) and is reported, never overwritten. Every written record is re-read and compared. A
-// second run leaves what it carried (now pinned new) and picks up anything a session still on
+// SAFETY. Every record to be written is backed up first (outside the repo), and again by the
+// SAFETY-1 guard (scripts/safety/guard.mjs: a verified backup of exactly those paths in the
+// backup bucket). Each write goes through guard.transact, a conditional (ETag) read-modify-write
+// that writes only while the record still holds the value this run read, so a reader's save in
+// between wins and is reported, never overwritten. Every written record is re-read and compared.
+// A second run leaves what it carried (now pinned new) and picks up anything a session still on
 // the old file saved since (pinned old again).
 //
 // Output: record letters, files, element indices, results, fractions. Never a path with an
@@ -54,6 +56,7 @@ import { fileURLToPath } from 'node:url';
 import { mapPositions } from './map-positions.mjs';
 import { outsideRepo, args } from './paths.mjs';
 import { guardCfi, cfiShape } from './cfi.mjs';
+import { openGuard, readOnlyBucket } from '../safety/guard.mjs';
 
 export const PROD_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 export const STORAGE_BUCKET = 'calvary-scribblings.firebasestorage.app';
@@ -145,8 +148,9 @@ export function sameJson(a, b) {
 // ── IO ───────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * A minimal RTDB REST client: shallow keys, read-with-ETag, conditional put. The same code runs
- * against production (access token) and the emulator (ns + owner bearer).
+ * A minimal, READ-ONLY RTDB REST client: shallow keys, read-with-ETag. The same code runs against
+ * production (access token) and the emulator (ns + owner bearer). Writes go through the guard
+ * (SAFETY-1), never through this.
  */
 export function restDb({ url, ns = null, token = null }) {
   const u = (path, extra = '') => {
@@ -165,12 +169,6 @@ export function restDb({ url, ns = null, token = null }) {
       const r = await fetch(u(path), { headers: { ...headers, 'X-Firebase-ETag': 'true' } });
       if (!r.ok) await fail(r, 'read');
       return { value: await r.json(), etag: r.headers.get('etag') };
-    },
-    async put(path, value, etag) {
-      const r = await fetch(u(path), { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json', 'if-match': etag }, body: JSON.stringify(value) });
-      if (r.status === 412) return { ok: false, conflict: true };
-      if (!r.ok) await fail(r, 'write');
-      return { ok: true };
     },
   };
 }
@@ -196,14 +194,17 @@ export async function gather(db, { titleId, slug }) {
 }
 
 /**
- * The whole carry-over. Dry run unless `apply`. `liveGeneration` is an async function returning
- * the live master's generation; `beforeWrite` is a test seam (a reader's save landing between
- * the read and the write).
+ * The whole carry-over. Dry run unless `apply`. `guard` is an openGuard() handle (SAFETY-1): every
+ * write goes through guard.transact, and `apply` defaults to guard.apply, the one source of truth.
+ * Asking to apply without a guard that applies is refused. `liveGeneration` is an async function
+ * returning the live master's generation; `beforeWrite` is a test seam (a reader's save landing
+ * between the read and the write).
  */
-export async function carryOver({ db, oldBytes, newBytes, titleId, slug, oldGen, newGen, apply = false,
+export async function carryOver({ db, guard = null, oldBytes, newBytes, titleId, slug, oldGen, newGen, apply = guard ? guard.apply : false,
   backupDir = null, liveGeneration = null, beforeWrite = null, stamp = new Date().toISOString().replace(/[:.]/g, '-') }) {
   if (!titleId || !slug || !oldGen) throw new Error('titleId, slug and the old generation are required');
   if (apply) {
+    if (!guard || !guard.apply) throw new Error('--apply needs a guard opened with --apply (scripts/safety/guard.mjs)');
     if (!newGen) throw new Error('--apply needs the new generation');
     if (!backupDir) throw new Error('--apply needs a backup folder');
     if (typeof liveGeneration !== 'function') throw new Error('--apply needs a live-generation check');
@@ -231,10 +232,19 @@ export async function carryOver({ db, oldBytes, newBytes, titleId, slug, oldGen,
     await writeFile(summary.backup, JSON.stringify({ titleId, slug, oldGen, newGen, at: stamp,
       records: toWrite.map((r) => ({ key: r.key, path: r.path, etag: r.etag, before: r.value, after: r.decision.next })) }, null, 2), { mode: 0o600 });
   }
-  for (const r of toWrite) {
-    if (beforeWrite) await beforeWrite(r);
-    const put = await db.put(r.path, r.decision.next, r.etag);
-    if (!put.ok) { r.outcome = 'reader save won'; summary.conflicts++; continue; }
+  if (beforeWrite) for (const r of toWrite) await beforeWrite(r);
+  // ONE guarded batch: the guard backs up every path first (verified), then writes each one
+  // conditionally on its ETag. A record that no longer holds the value this run read (a reader
+  // saved in between) is left alone: fn returns undefined, and the guard does not write it.
+  const planned = new Map(toWrite.map((r) => [r.path, r]));
+  const results = toWrite.length
+    ? await guard.transact(toWrite.map((r) => r.path), (cur, path) => {
+      const r = planned.get(path);
+      return sameJson(cur ?? null, r.value ?? null) ? r.decision.next : undefined;
+    }, { label: 'carry-over' })
+    : [];
+  for (const [i, r] of toWrite.entries()) {
+    if (!results[i].committed) { r.outcome = 'reader save won'; summary.conflicts++; continue; }
     summary.written++;
     const back = await db.read(r.path);
     if (sameJson(back.value, r.decision.next)) { r.outcome = 'written, re-read equal'; summary.verified++; }
@@ -266,9 +276,11 @@ export async function prodDeps() {
   const db = restDb({ url: PROD_DB, token: await mintToken() });
   const { initializeApp, cert, getApps } = await import('firebase-admin/app');
   const { getStorage } = await import('firebase-admin/storage');
-  const key = JSON.parse(await readFile(resolve(dirname(fileURLToPath(import.meta.url)), '../../serviceAccountKey.json'), 'utf8'));
+  const { readServiceAccountFile } = await import('../security/service-account.mjs');
+  const key = readServiceAccountFile(resolve(dirname(fileURLToPath(import.meta.url)), '../../serviceAccountKey.json'));
   const app = getApps().find((a) => a.name === 'carry-over') || initializeApp({ credential: cert(key), storageBucket: STORAGE_BUCKET }, 'carry-over');
-  const bucket = getStorage(app).bucket();
+  // Read-only: the carry-over only reads the live master's generation, and never writes Storage.
+  const bucket = readOnlyBucket(getStorage(app).bucket());
   return { db, bucket, liveGenerationOf: async (titleId) => String((await bucket.file(masterPath(titleId)).getMetadata())[0].generation) };
 }
 
@@ -277,19 +289,22 @@ async function main() {
   if (!a.title) throw new Error('--title is required');
   const oldPath = outsideRepo(a.old, '--old');
   const newBytes = await readFile(outsideRepo(a.new, '--new'));
+  // --apply is read by the guard; guard.apply is the only switch.
+  const guard = await openGuard('carry-over');
   const { db, liveGenerationOf } = await prodDeps();
   const slug = a.slug || (await db.read(`bookstore_titles/${a.title}/slug`)).value || a.title;
-  const oldGen = a['old-generation'] || (a.apply ? null : await liveGenerationOf(a.title));
+  const oldGen = a['old-generation'] || (guard.apply ? null : await liveGenerationOf(a.title));
   if (!oldGen) throw new Error('--apply needs --old-generation');
   const out = await carryOver({
-    db, oldBytes: await readFile(oldPath), newBytes, titleId: a.title, slug, oldGen,
-    newGen: a['new-generation'] || null, apply: !!a.apply,
+    db, guard, oldBytes: await readFile(oldPath), newBytes, titleId: a.title, slug, oldGen,
+    newGen: a['new-generation'] || null,
     backupDir: a['backup-dir'] || dirname(oldPath), liveGeneration: () => liveGenerationOf(a.title),
   });
   for (const r of out.rows) console.log(describe(r));
   const { backup, ...counts } = out.summary;
   console.log(`summary: ${JSON.stringify(counts)}`);
   console.log(out.applied ? `applied. backup: ${backup ? 'written (private folder)' : 'none needed'}` : 'dry run: nothing was written.');
+  guard.summary();
   if (out.summary.mismatched || out.summary.refused) process.exitCode = 1;
 }
 

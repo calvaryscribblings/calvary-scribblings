@@ -1,7 +1,14 @@
 // THE REHEARSAL. Restore the backup into a scratch location and check what comes back.
 //
-//   node scripts/backup/rehearse.mjs <backup-dir>              # full: round-trips the tree
+//   firebase emulators:exec --only database --project demo-calvary-restore \
+//     "node scripts/backup/rehearse.mjs <backup-dir>"          # full: round-trips the tree
 //   node scripts/backup/rehearse.mjs <backup-dir> --offline    # checksums + hazards only
+//
+// SAFETY-1: the round trip runs in the DATABASE EMULATOR, never production. It used to PUT the
+// whole tree (every reader record included) under _restore_rehearsal/<stamp> in the live database
+// and DELETE it again, and a failed delete left a full copy of the database sitting there. The
+// emulator proves the same thing and can leave nothing behind. Without the emulator running, the
+// round trip is skipped and says so.
 //
 // ═══════════════════════════════════════════════════════════════════════════════════════
 // A BACKUP NOBODY HAS RESTORED IS A HOPE
@@ -9,13 +16,9 @@
 //
 // This is the half that is usually skipped, and it is the half that decides whether the
 // other half was worth running. It changes NOTHING live: the tree is written under a scratch
-// node, read back, compared byte for byte, and deleted again.
+// node in the emulator, read back, compared, and deleted again.
 //
-//   scratch path:  _restore_rehearsal/<stamp>
-//
-// Cost of a full run: roughly 13 MB written and 13 MB read, against a 360 MB/day no-cost
-// allowance. Use --offline (free) for a routine integrity check and the full form when you
-// actually want to know that a restore works.
+//   scratch path:  _restore_rehearsal/<stamp>   (emulator namespace)
 //
 // ═══════════════════════════════════════════════════════════════════════════════════════
 // IT ALSO CHECKS WHAT A RESTORE WOULD BREAK
@@ -42,10 +45,10 @@ import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mintToken } from '../rules-pull.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
+const EMU = process.env.FIREBASE_DATABASE_EMULATOR_HOST;
+const NS = process.env.GCLOUD_PROJECT || 'demo-calvary-restore';
 
 const DIR = process.argv[2];
 const OFFLINE = process.argv.includes('--offline');
@@ -138,12 +141,13 @@ warn('password hash parameters are NOT in this backup (console only) — without
 // ── 3. The round trip ──────────────────────────────────────────────────────────────────
 if (OFFLINE) {
   console.log('\nROUND TRIP\n  – skipped (--offline)');
+} else if (!EMU) {
+  console.log('\nROUND TRIP\n  – skipped: it runs only in the database emulator (see the usage at the top).');
 } else {
-  console.log('\nROUND TRIP');
-  const token = await mintToken();
+  console.log('\nROUND TRIP (database emulator)');
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const scratch = `_restore_rehearsal/${stamp}`;
-  const url = (p) => `${DB}/${p}.json?access_token=${token}`;
+  const url = (p) => `http://${EMU}/${p}.json?ns=${NS}`;
 
   try {
     const put = await fetch(url(scratch), {

@@ -32,6 +32,7 @@ import { isReadableStory } from '../../app/lib/storyAccess.js';
 import { BODIES_PATH, BODY_FIELDS, STORIES_PATH } from '../../app/lib/storyText.js';
 import { storyStatus } from '../../app/lib/storyState.js';
 import { RETIRED_PATH } from '../../app/lib/retiredStories.js';
+import { openGuard } from '../safety/guard.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
@@ -105,7 +106,9 @@ async function main() {
   const sa = loadServiceAccount();
   console.log(`service account: ${publicFields(sa).client_email}`);
   initializeApp({ credential: cert(sa), databaseURL: DB_URL });
-  const db = getDatabase();
+  // SAFETY-1: every write goes through the guard (dry without --apply; backup, verify, write).
+  const guard = await openGuard('unreleased-text-out');
+  const db = guard.adminDb(getDatabase());
 
   const [stories, bodies, retired] = await Promise.all([
     db.ref(STORIES_PATH).get().then((s) => s.val() || {}),

@@ -11,11 +11,16 @@
 //   firebase emulators:exec --only database --project demo-calvary-restore \
 //     "node scripts/backup/restore-drill.mjs"
 //
+// SAFETY-1: after the archive check it compares the restored tree against LIVE with read-only
+// GETs (record count of every node, story_bodies vs cms_stories, and ten random records per
+// major node by hash). It prints counts and verdicts, never a record or a key. --no-live skips it.
+//
 // Optional: --object <name> to drill a SPECIFIC archive rather than the newest, which
 // is what you want when recovering something that was already wrong at the last backup.
 
 import { gunzipSync } from 'node:zlib';
 import { mintToken } from '../rules-pull.mjs';
+import { compareWithLive } from './verify-live.mjs';
 
 const BUCKET = 'calvary-scribblings-default-rtdb-backups';
 const EMU = process.env.FIREBASE_DATABASE_EMULATOR_HOST || '127.0.0.1:9000';
@@ -152,7 +157,7 @@ for (const [node, why] of spot) {
 // A deep spot-check: one real record, compared field by field rather than by count.
 const opId = Object.keys(tree.open_pages || {})[0];
 if (opId) {
-  check(`open_pages/${opId} is identical field for field`,
+  check('one open_pages record, identical field for field',
     sameTree(tree.open_pages[opId], restored.open_pages?.[opId]));
 }
 
@@ -160,6 +165,12 @@ check('THE WHOLE TREE, every node, canonically compared', sameTree(tree, restore
 
 for (const c of checks) {
   console.log(`  ${c.ok ? '✓' : '✗'} ${c.label}${c.detail ? `   [${c.detail}]` : ''}`);
+}
+
+// SAFETY-1: the restored tree against PRODUCTION — read-only GETs, counts and verdicts only.
+// --no-live skips it (offline, or a drill of an old archive where live has moved on).
+if (!process.argv.includes('--no-live')) {
+  bad += await compareWithLive({ restored, takenAt: chosen.timeCreated, token: await mintToken() });
 }
 
 console.log('\n' + '='.repeat(60));

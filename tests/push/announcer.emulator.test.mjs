@@ -15,6 +15,11 @@ import assert from 'node:assert/strict';
 import { initializeApp, deleteApp } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 import { runAnnouncer, runSeed } from '../../scripts/push/run.mjs';
+import { openGuard } from '../../scripts/safety/guard.mjs';
+// SAFETY-1: with SAFETY_GUARD_WRAP=1 the same suite runs with the database handed through the guard,
+// exactly as the scheduled job hands it in production (scripts/safety/guard.mjs adminDb). Run it with
+// the storage emulator too, where the guard puts its backups.
+const guarded = async (d) => (process.env.SAFETY_GUARD_WRAP ? (await openGuard('t-push', { apply: true, log() {} })).adminDb(d) : d);
 
 process.env.FIREBASE_DATABASE_EMULATOR_HOST ||= '127.0.0.1:9000';
 const NS = 'demo-calvary-push-default-rtdb';
@@ -89,30 +94,30 @@ describe('the seed rail and the seed', () => {
   test('NO SEED, NO SEND — an unseeded run refuses before it reads anything else', async () => {
     await seedWorld();
     const expo = fakeExpo();
-    await assert.rejects(runAnnouncer(db, expo, NOW, { apply: true, ...quiet }), /NOT SEEDED/);
+    await assert.rejects(runAnnouncer(await guarded(db), expo, NOW, { apply: true, ...quiet }), /NOT SEEDED/);
     assert.equal(expo.sent.length, 0);
   });
 
   test('seed → run: the back catalogue sends NOTHING', async () => {
     await seedWorld();
-    const plan = await runSeed(db, NOW, { apply: true });
+    const plan = await runSeed(await guarded(db), NOW, { apply: true });
     assert.deepEqual(plan.pending.map((p) => p.id).sort(), ['bp-i2', 'tomorrow']);
     assert.equal((await val('push_announced/story/hidden-one')).state, 'seeded');
     const expo = fakeExpo();
-    const r = await runAnnouncer(db, expo, NOW, { apply: true, ...quiet });
+    const r = await runAnnouncer(await guarded(db), expo, NOW, { apply: true, ...quiet });
     assert.equal(r.due.length, 0);
     assert.equal(expo.sent.length, 0);
   });
 
   test('the seed refuses to run twice — a late re-seed would eat announcements silently', async () => {
     await seedWorld();
-    await runSeed(db, NOW, { apply: true });
-    await assert.rejects(runSeed(db, NOW + D, { apply: true }), /ALREADY SEEDED/);
+    await runSeed(await guarded(db), NOW, { apply: true });
+    await assert.rejects(runSeed(await guarded(db), NOW + D, { apply: true }), /ALREADY SEEDED/);
   });
 
   test('a seed DRY RUN writes nothing', async () => {
     await seedWorld();
-    await runSeed(db, NOW, { apply: false });
+    await runSeed(await guarded(db), NOW, { apply: false });
     assert.equal(await val('push_announced'), null);
     assert.equal(await val('ops/push_announcer'), null);
   });
@@ -121,10 +126,10 @@ describe('the seed rail and the seed', () => {
 describe('once per item, across retries and concurrent runs', () => {
   test('a new story goes to every device whose owner has not switched off — once', async () => {
     await seedWorld();
-    await runSeed(db, NOW, { apply: true });
+    await runSeed(await guarded(db), NOW, { apply: true });
     await publish('brand-new', { title: 'Brand New' });
     const expo = fakeExpo();
-    await runAnnouncer(db, expo, NOW + MIN, { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), expo, NOW + MIN, { apply: true, ...quiet });
     assert.deepEqual(expo.sent.map((m) => m.to).sort(), ['ExpoPushToken[dev1]', 'ExpoPushToken[dev2]']);
     assert.deepEqual(expo.sent[0], {
       to: expo.sent[0].to, title: 'Brand New',
@@ -139,18 +144,18 @@ describe('once per item, across retries and concurrent runs', () => {
     // A RETRY — the next tick, and an edit to the story in between — sends nothing.
     await db.ref('cms_stories_index/brand-new/title').set('Brand New (edited)');
     const again = fakeExpo();
-    await runAnnouncer(db, again, NOW + 20 * MIN, { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), again, NOW + 20 * MIN, { apply: true, ...quiet });
     assert.equal(again.sent.length, 0);
   });
 
   test('TWO RUNS AT ONCE, on two connections — the story goes out exactly once', async () => {
     await seedWorld();
-    await runSeed(db, NOW, { apply: true });
+    await runSeed(await guarded(db), NOW, { apply: true });
     await publish('race');
     const e1 = fakeExpo(), e2 = fakeExpo();
     await Promise.all([
-      runAnnouncer(db, e1, NOW + MIN, { apply: true, runId: 'one', ...quiet }),
-      runAnnouncer(db2, e2, NOW + MIN, { apply: true, runId: 'two', ...quiet }),
+      runAnnouncer(await guarded(db), e1, NOW + MIN, { apply: true, runId: 'one', ...quiet }),
+      runAnnouncer(await guarded(db2), e2, NOW + MIN, { apply: true, runId: 'two', ...quiet }),
     ]);
     assert.equal(e1.sent.length + e2.sent.length, 2, 'two devices, one notification each');
     assert.ok(e1.sent.length === 0 || e2.sent.length === 0, 'only one run may send');
@@ -158,12 +163,12 @@ describe('once per item, across retries and concurrent runs', () => {
 
   test('Expo DOWN before anything left — the claim is released and the next run sends', async () => {
     await seedWorld();
-    await runSeed(db, NOW, { apply: true });
+    await runSeed(await guarded(db), NOW, { apply: true });
     await publish('retry-me');
-    await assert.rejects(runAnnouncer(db, fakeExpo({ failAt: 1 }), NOW + MIN, { apply: true, ...quiet }), /503/);
+    await assert.rejects(runAnnouncer(await guarded(db), fakeExpo({ failAt: 1 }), NOW + MIN, { apply: true, ...quiet }), /503/);
     assert.equal(await val('push_announced/story/retry-me'), null);
     const expo = fakeExpo();
-    await runAnnouncer(db, expo, NOW + 20 * MIN, { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), expo, NOW + 20 * MIN, { apply: true, ...quiet });
     assert.equal(expo.sent.length, 2);
   });
 
@@ -171,33 +176,33 @@ describe('once per item, across retries and concurrent runs', () => {
     const many = {};
     for (let i = 0; i < 150; i++) many[`push_tokens/r${i}/k`] = token(100 + i);
     await seedWorld(many);
-    await runSeed(db, NOW, { apply: true });
+    await runSeed(await guarded(db), NOW, { apply: true });
     await publish('half-sent');
     const first = fakeExpo({ failAt: 2 });
-    await assert.rejects(runAnnouncer(db, first, NOW + MIN, { apply: true, ...quiet }), /503/);
+    await assert.rejects(runAnnouncer(await guarded(db), first, NOW + MIN, { apply: true, ...quiet }), /503/);
     assert.equal(first.sent.length, 100);
     const entry = await val('push_announced/story/half-sent');
     assert.equal(entry.state, 'partial');
     const second = fakeExpo();
-    await runAnnouncer(db, second, NOW + 20 * MIN, { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), second, NOW + 20 * MIN, { apply: true, ...quiet });
     assert.equal(second.sent.length, 0);
   });
 
   test('THE MASS-DIFF REFUSAL — more than --max due is a broken seed, not a busy day', async () => {
     await seedWorld();
-    await runSeed(db, NOW, { apply: true });
+    await runSeed(await guarded(db), NOW, { apply: true });
     for (let i = 0; i < 6; i++) await publish(`flood-${i}`);
     const expo = fakeExpo();
-    await assert.rejects(runAnnouncer(db, expo, NOW + MIN, { apply: true, ...quiet }), /REFUSED: 6 items due/);
+    await assert.rejects(runAnnouncer(await guarded(db), expo, NOW + MIN, { apply: true, ...quiet }), /REFUSED: 6 items due/);
     assert.equal(expo.sent.length, 0);
     assert.equal(await val('push_announced/story/flood-0'), null);
   });
 
   test('an instalment released by the clock is announced on the next tick, in the RULED wording', async () => {
     await seedWorld();
-    await runSeed(db, NOW, { apply: true });
+    await runSeed(await guarded(db), NOW, { apply: true });
     const expo = fakeExpo();
-    await runAnnouncer(db, expo, NOW + 2 * D + MIN, { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), expo, NOW + 2 * D + MIN, { apply: true, ...quiet });
     assert.equal(expo.sent.length, 2);
     assert.equal(expo.sent[0].title, 'Beta Princess');
     assert.equal(expo.sent[0].body, 'Part Two by Monica Garcia · She survives the duel.');
@@ -208,11 +213,11 @@ describe('once per item, across retries and concurrent runs', () => {
 
   test('a DRY RUN sends nothing and writes nothing', async () => {
     await seedWorld();
-    await runSeed(db, NOW, { apply: true });
+    await runSeed(await guarded(db), NOW, { apply: true });
     await publish('dry');
     const before = await val('push_announced');
     const expo = fakeExpo();
-    const r = await runAnnouncer(db, expo, NOW + MIN, { apply: false, ...quiet });
+    const r = await runAnnouncer(await guarded(db), expo, NOW + MIN, { apply: false, ...quiet });
     assert.equal(r.results[0].dryRun, true);
     assert.equal(expo.calls, 0);
     assert.deepEqual(await val('push_announced'), before);
@@ -231,10 +236,10 @@ describe('the 08:00 hold and the two-a-day cap, on London\'s clock', () => {
 
   test('BST: a story live at 05:30 London is HELD at 06:45, sent on the 08:00 run — and the heartbeat moves both times', async () => {
     await world('2026-09-25T00:00:00Z');
-    await runSeed(db, T('2026-09-25T00:00:00Z'), { apply: true });
+    await runSeed(await guarded(db), T('2026-09-25T00:00:00Z'), { apply: true });
     await publish('dawn', { publishAt: '2026-09-25T04:30:00Z' });
     const early = fakeExpo();
-    const r1 = await runAnnouncer(db, early, T('2026-09-25T05:45:00Z'), { apply: true, ...quiet });
+    const r1 = await runAnnouncer(await guarded(db), early, T('2026-09-25T05:45:00Z'), { apply: true, ...quiet });
     assert.equal(early.calls, 0, 'nothing leaves before 08:00 London');
     assert.equal(r1.results[0].held, true);
     assert.equal(await val('push_announced/story/dawn'), null, 'a hold is not a record');
@@ -242,60 +247,60 @@ describe('the 08:00 hold and the two-a-day cap, on London\'s clock', () => {
     assert.equal((await val('ops/push_announcer')).heldAtLastRun, 1);
 
     const almost = fakeExpo();
-    await runAnnouncer(db, almost, T('2026-09-25T06:59:00Z'), { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), almost, T('2026-09-25T06:59:00Z'), { apply: true, ...quiet });
     assert.equal(almost.calls, 0, '07:59 London');
 
     const eight = fakeExpo();
-    await runAnnouncer(db, eight, T('2026-09-25T07:00:00Z'), { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), eight, T('2026-09-25T07:00:00Z'), { apply: true, ...quiet });
     assert.equal(eight.sent.length, 2, '08:00 London: both devices');
     assert.equal((await val('push_announced/story/dawn')).state, 'sent');
   });
 
   test('GMT: 07:30Z is 07:30 London and held — the same instant in BST would have sent', async () => {
     await world('2026-12-01T00:00:00Z');
-    await runSeed(db, T('2026-12-01T00:00:00Z'), { apply: true });
+    await runSeed(await guarded(db), T('2026-12-01T00:00:00Z'), { apply: true });
     await publish('winter', { publishAt: '2026-12-01T06:00:00Z' });
     const held = fakeExpo();
-    await runAnnouncer(db, held, T('2026-12-01T07:30:00Z'), { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), held, T('2026-12-01T07:30:00Z'), { apply: true, ...quiet });
     assert.equal(held.calls, 0);
     const eight = fakeExpo();
-    await runAnnouncer(db, eight, T('2026-12-01T08:00:00Z'), { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), eight, T('2026-12-01T08:00:00Z'), { apply: true, ...quiet });
     assert.equal(eight.sent.length, 2);
   });
 
   test('THREE IN A DAY: two are sent, the third is recorded `capped` and never sent — not even tomorrow', async () => {
     await world('2026-09-25T00:00:00Z');
-    await runSeed(db, T('2026-09-25T00:00:00Z'), { apply: true });
+    await runSeed(await guarded(db), T('2026-09-25T00:00:00Z'), { apply: true });
     await publish('first', { publishAt: '2026-09-25T08:00:00Z' });
     const a = fakeExpo();
-    await runAnnouncer(db, a, T('2026-09-25T08:05:00Z'), { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), a, T('2026-09-25T08:05:00Z'), { apply: true, ...quiet });
     assert.equal(a.sent.length, 2);
 
     await publish('second', { publishAt: '2026-09-25T12:00:00Z' });
     await publish('third', { publishAt: '2026-09-25T12:00:01Z' });
     const b = fakeExpo();
-    const r = await runAnnouncer(db, b, T('2026-09-25T12:05:00Z'), { apply: true, ...quiet });
+    const r = await runAnnouncer(await guarded(db), b, T('2026-09-25T12:05:00Z'), { apply: true, ...quiet });
     assert.deepEqual([...new Set(b.sent.map((m) => m.data.url))], ['/stories/second']);
     assert.equal(r.results.find((x) => x.id === 'third').capped, true);
     assert.equal((await val('push_announced/story/third')).state, 'capped');
     assert.equal((await val('ops/push_announcer')).cappedAtLastRun, 1);
 
     const tomorrow = fakeExpo();
-    await runAnnouncer(db, tomorrow, T('2026-09-26T09:00:00Z'), { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), tomorrow, T('2026-09-26T09:00:00Z'), { apply: true, ...quiet });
     assert.equal(tomorrow.calls, 0, 'capped means never');
 
     // …and the next day's own story has both of its slots.
     await publish('next-day', { publishAt: '2026-09-26T09:30:00Z' });
     const c = fakeExpo();
-    await runAnnouncer(db, c, T('2026-09-26T09:35:00Z'), { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), c, T('2026-09-26T09:35:00Z'), { apply: true, ...quiet });
     assert.equal(c.sent.length, 2);
   });
 
   test('a DRY RUN reports held and capped and writes neither', async () => {
     await world('2026-09-25T00:00:00Z');
-    await runSeed(db, T('2026-09-25T00:00:00Z'), { apply: true });
+    await runSeed(await guarded(db), T('2026-09-25T00:00:00Z'), { apply: true });
     for (const s of ['p', 'q', 'r']) await publish(s, { publishAt: '2026-09-25T09:00:00Z' });
-    const r = await runAnnouncer(db, fakeExpo(), T('2026-09-25T09:05:00Z'), { apply: false, ...quiet });
+    const r = await runAnnouncer(await guarded(db), fakeExpo(), T('2026-09-25T09:05:00Z'), { apply: false, ...quiet });
     assert.equal(r.results.filter((x) => x.dryRun).length, 2);
     assert.equal(r.results.filter((x) => x.capped).length, 1);
     assert.equal(await val('push_announced/story/r'), null);
@@ -305,18 +310,18 @@ describe('the 08:00 hold and the two-a-day cap, on London\'s clock', () => {
 describe('receipts and pruning', () => {
   test('DeviceNotRegistered on the TICKET deletes that row at once', async () => {
     await seedWorld();
-    await runSeed(db, NOW, { apply: true });
+    await runSeed(await guarded(db), NOW, { apply: true });
     await publish('ticket-dead');
-    await runAnnouncer(db, fakeExpo({ dead: ['ExpoPushToken[dev2]'] }), NOW + MIN, { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), fakeExpo({ dead: ['ExpoPushToken[dev2]'] }), NOW + MIN, { apply: true, ...quiet });
     assert.equal(await val('push_tokens/reader2'), null);
     assert.ok(await val('push_tokens/reader1/k'));
   });
 
   test('receipts: fetched after 15 minutes; ok clears; DeviceNotRegistered deletes the token', async () => {
     await seedWorld();
-    await runSeed(db, NOW, { apply: true });
+    await runSeed(await guarded(db), NOW, { apply: true });
     await publish('with-receipts');
-    await runAnnouncer(db, fakeExpo(), NOW + MIN, { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), fakeExpo(), NOW + MIN, { apply: true, ...quiet });
     const held = await val('push_receipts');
     const ids = Object.keys(held);
     assert.equal(ids.length, 2);
@@ -324,14 +329,14 @@ describe('receipts and pruning', () => {
 
     // Five minutes on: too early to ask, nothing moves.
     const early = fakeExpo({ receipts: { [byUid.reader1]: { status: 'ok' } } });
-    await runAnnouncer(db, early, NOW + 6 * MIN, { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), early, NOW + 6 * MIN, { apply: true, ...quiet });
     assert.equal(Object.keys(await val('push_receipts')).length, 2);
 
     const later = fakeExpo({ receipts: {
       [byUid.reader1]: { status: 'ok' },
       [byUid.reader2]: { status: 'error', details: { error: 'DeviceNotRegistered' } },
     } });
-    await runAnnouncer(db, later, NOW + 20 * MIN, { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), later, NOW + 20 * MIN, { apply: true, ...quiet });
     assert.equal(await val('push_receipts'), null);
     assert.equal(await val('push_tokens/reader2'), null, 'the dead device is off the list');
     assert.ok(await val('push_tokens/reader1/k'), 'the healthy one stays');
@@ -342,10 +347,10 @@ describe('receipts and pruning', () => {
 
   test('a row not refreshed in 60 days is pruned, and is not sent to', async () => {
     await seedWorld({ 'push_tokens/gone/k': token(9, NOW - 61 * D) });
-    await runSeed(db, NOW, { apply: true });
+    await runSeed(await guarded(db), NOW, { apply: true });
     await publish('prune-day');
     const expo = fakeExpo();
-    await runAnnouncer(db, expo, NOW + MIN, { apply: true, ...quiet });
+    await runAnnouncer(await guarded(db), expo, NOW + MIN, { apply: true, ...quiet });
     assert.equal(await val('push_tokens/gone'), null);
     assert.equal(expo.sent.some((m) => m.to === 'ExpoPushToken[dev9]'), false);
   });

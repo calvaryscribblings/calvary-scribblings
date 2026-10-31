@@ -33,6 +33,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { COMP_SOURCE, isComp } from '../../app/lib/bookstore/purchaseSource.js';
+import { openGuard } from '../safety/guard.mjs';
 
 export const COMP_GRANT = 'founder-comps-2026-09-25';
 export const IKENNA_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';   // @byokpara
@@ -102,7 +103,9 @@ async function main() {
   const { getDatabase } = await import('firebase-admin/database');
   const sa = JSON.parse(readFileSync(process.env.FIREBASE_SERVICE_ACCOUNT_PATH || 'serviceAccountKey.json', 'utf8'));
   initializeApp({ credential: cert(sa), databaseURL: DATABASE_URL });
-  const db = getDatabase();
+  // SAFETY-1: every write goes through the guard (dry without --apply; backup, verify, write).
+  const guard = await openGuard('founder-comps');
+  const db = guard.adminDb(getDatabase());
   const uid = IKENNA_UID;
 
   const mine = (await db.ref(`bookstore_purchases/${uid}`).get()).val();

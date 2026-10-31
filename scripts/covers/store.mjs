@@ -226,14 +226,14 @@ export async function readBody(token, slug) {
   return res.json();
 }
 
-/** See (4) at the top of this file: `access_token=`, never `auth=`. */
-export async function rtdbPatch(token, updates) {
-  const res = await fetch(`${DB_URL}/.json?access_token=${token}`, {
-    method: 'PATCH',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(updates),
-  });
-  if (!res.ok) throw new Error(`RTDB PATCH failed: HTTP ${res.status} ${await res.text()}`);
+/**
+ * The one database write of every covers caller: ONE atomic multi-path update, through the
+ * SAFETY-1 guard (scripts/safety/guard.mjs), which backs up exactly these paths and verifies the
+ * backup before the write lands. It used to be a raw root PATCH with the caller's token.
+ */
+export async function rtdbPatch(guard, updates, label = 'covers patch') {
+  if (!guard || typeof guard.update !== 'function') throw new Error('rtdbPatch takes the guard (openGuard), not a token');
+  await guard.update(updates, { label });
 }
 
 export async function accessToken(svc) {

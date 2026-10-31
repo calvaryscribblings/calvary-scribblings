@@ -34,6 +34,7 @@ import { getDatabase } from 'firebase-admin/database';
 import { RETIRED_PATH, BOOK_READER_REASON, BOOK_READER_PULLED } from '../../app/lib/retiredStories.js';
 import { INDEX_PATH } from '../../app/lib/storyIndex.js';
 import { BODIES_PATH, BODY_FIELDS, bodyOf, placementPaths } from '../../app/lib/storyText.js';
+import { openGuard } from '../safety/guard.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
@@ -74,7 +75,9 @@ const without = (o, keys) => Object.fromEntries(Object.entries(o || {}).filter((
 async function main() {
   const svc = JSON.parse(readFileSync(resolve(ROOT, 'serviceAccountKey.json'), 'utf8'));
   initializeApp({ credential: cert(svc), databaseURL: DB_URL });
-  const db = getDatabase();
+  // SAFETY-1: every write goes through the guard (dry without --apply; backup, verify, write).
+  const guard = await openGuard('stories-retire');
+  const db = guard.adminDb(getDatabase());
   const read = async (p) => (await db.ref(p).get()).val();
 
   if (UNRETIRE) {

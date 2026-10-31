@@ -9,7 +9,6 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { bareHandle, validateSeries, validateInstalmentDetail } from '../../app/lib/series/schema.js';
-import { strayHandles } from '../../scripts/series/strip-handle-at.mjs';
 import { sitemapTitleSlugs } from '../../app/lib/bookstore/sitemapTitles.js';
 
 const src = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
@@ -44,15 +43,7 @@ describe('W39 · a writer handle is stored without its @', () => {
     const a = src('app/admin/page.js');
     assert.match(a, /const authorHandle = \(\(form\.authorHandle \|\| ''\)\.trim\(\) \|\| defaultHandle \|\| ''\)\.replace\(\/\^@\+\/, ''\);/);
   });
-
-  test('the sweep finds a stray @ on any series node and plans the bare handle only', () => {
-    const plan = strayHandles({
-      series: { a: { authorHandle: 'ok' }, b: { authorHandle: '@bee' } },
-      series_instalments: { 'a-i1': { status: 'published' } },
-      series_instalments_detail: { 'a-i1': { authorHandle: 'ok' }, 'b-i2': { authorHandle: ' @@bee' } },
-    });
-    assert.deepEqual(plan, [['series/b/authorHandle', 'bee'], ['series_instalments_detail/b-i2/authorHandle', 'bee']]);
-  });
+  // The one-off sweep (scripts/series/strip-handle-at.mjs) was retired in SAFETY-1; see scripts/RETIRED-SCRIPTS.md.
 });
 
 describe('W39 · ruling 132, the Book Store door\'s count line', () => {

@@ -233,6 +233,12 @@ jobs:
       # emulators. This job's path list names suites one by one, so tests/safety/** is in it too.
       - name: W5 safety — /admin/reports, the under-18 check, the save toast
         run: npm run test:safety
+      # SAFETY-1 — the bulk-write guard against the database AND storage emulators: dry by default,
+      # backup of exactly the touched paths, verified, no write when the backup fails, the root and a
+      # blank id refused, the firebase-admin wrappers, and a restore. Then the account scrub and the
+      # push announcer run their own suites with the database handed through the guard, as in production.
+      - name: SAFETY-1 — the bulk-write guard, end to end
+        run: npm run test:safety-guard:emulator && npm run test:safety-guard:wrapped
 
   # ───────────────────────────────────────────────────────────────────────────
   # 2. DRIFT. Proves the console has not been edited behind the repo (RULES.md).

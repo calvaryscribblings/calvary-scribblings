@@ -24,6 +24,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
+import { openGuard } from '../safety/guard.mjs';
 
 const APPLY = process.argv.includes('--apply');
 const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
@@ -48,7 +49,9 @@ export function agreedWriter(details) {
 
 async function main() {
   initializeApp({ credential: cert(JSON.parse(readFileSync('serviceAccountKey.json', 'utf8'))), databaseURL: DB_URL });
-  const db = getDatabase();
+  // SAFETY-1: every write goes through the guard (dry without --apply; backup, verify, write).
+  const guard = await openGuard('series-backfill-writers');
+  const db = guard.adminDb(getDatabase());
   const [series, rows, details] = await Promise.all(['series', 'series_instalments', 'series_instalments_detail']
     .map((p) => db.ref(p).get().then((s) => s.val() || {})));
 

@@ -92,6 +92,36 @@ score was `#a78bfa` at 6.88:1 — passing. The change shipped for consistency, n
 The direction of travel is **app → web for look, web → app for systems**, and the hand-off
 notes in each round's report are the only interface between the two repos.
 
+## 🚨 A BULK WRITE GOES THROUGH THE GUARD
+
+**A bulk write goes through the guard: a dry run first, then a fresh, verified backup, then the
+write. No exceptions, founders included.** (SAFETY-1, 31 Oct 2026.)
+
+The guard is `scripts/safety/guard.mjs`. Every script that writes to production uses it:
+`openGuard('<name>')`, then `guard.update({ path: value })`, `guard.transact`, `guard.storage`,
+or `guard.adminDb(getDatabase())` / `guard.adminBucket(bucket)` around a firebase-admin handle.
+Nothing is written without `--apply`. With it, the exact paths and objects about to change are
+copied to `gs://calvary-scribblings-default-rtdb-backups/guard/<name>/<stamp>/` and read back.
+The write happens only if the MD5 and SHA-256 match. Writes to the root or to a path with a blank
+id are refused. It prints counts only. To undo a write:
+`node scripts/safety/restore.mjs gs://…/batch-N.json`, which is dry by default and guarded itself.
+
+- **Why:** PROOFS-R1 found `scripts/backfill-story-bodies.mjs` PUTting the whole of `story_bodies`
+  from `cms_stories`. Once ruling 255 made `story_bodies` the only copy of every unreleased
+  story, one run would have deleted them all. Review caught it; the process would not have.
+- **CI enforces it.** `tests/ci/safety-guard.test.mjs` (`scripts/safety/check.mjs`) fails if any
+  file under `scripts/` writes to the database or Storage another way. A script that only reads
+  wraps its handle in `readOnlyDb()` / `readOnlyBucket()`, which throw on any write. The few
+  exemptions (the guard itself, emulator-only drills, a heartbeat, one per-title tool, the bucket
+  lifecycle) are named in `EXEMPT` in `check.mjs`, with a reason each.
+- **A one-off that has done its job is retired, not kept.** Remove it and add a line to
+  `scripts/RETIRED-SCRIPTS.md`. Git keeps the code.
+- **A scratch script is a script.** A `node -e` that writes production data goes through
+  `openGuard` too. The rule has no "just this once".
+- The guard's backups expire after 30 days with the daily database backups. That is deliberate:
+  the account scrub writes through it, and a deleted reader's data must not outlive the
+  backups the deletion copy already allows for.
+
 ## 🚨 PROBES THAT WRITE TO LIVE DATA
 
 A rules round proves itself against production with a real token. That is right, and it is
@@ -303,7 +333,8 @@ for a cover, and the covers reconciler published it.
   marker and nothing else. An editor then unhides the story in `/admin`. There is no button
   for the first half.
 - `readerMode` is not the guard. It is a checkbox, and un-ticking it revives two quizzes. See
-  `scripts/pull-book-reader-collection.mjs`.
+  `scripts/pull-book-reader-collection.mjs` in git history (retired in SAFETY-1, listed in
+  `scripts/RETIRED-SCRIPTS.md`).
 
 Details: `app/lib/retiredStories.js`.
 

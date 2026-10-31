@@ -46,19 +46,22 @@
 // Rules note: the service account bypasses RTDB rules entirely, including
 // .validate. The validators on leaderboards/{boardId} document the shape and
 // guard against a future client write; they do not gate this script.
+//
+// SAFETY-1: the write goes through scripts/safety/guard.mjs. --apply is read by the guard;
+// with it, the two paths written are backed up and verified first, then written atomically.
 
-import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
+import { openGuard } from './safety/guard.mjs';
+import { readServiceAccountFile } from './security/service-account.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 
 const argv    = process.argv.slice(2);
-const APPLY   = argv.includes('--apply');
 const FINAL   = argv.includes('--final');
 const FORCE   = argv.includes('--force');
 const boardId = argv.find(a => !a.startsWith('--'));
@@ -81,9 +84,11 @@ async function main() {
     fail(`Invalid board id "${boardId}" — lowercase letters, digits and hyphens only.`);
   }
 
-  const serviceAccount = JSON.parse(await readFile(resolve(ROOT, 'serviceAccountKey.json'), 'utf8'));
+  const guard = await openGuard('leaderboard-snapshot');
+  const APPLY = guard.apply;
+  const serviceAccount = readServiceAccountFile(resolve(ROOT, 'serviceAccountKey.json'));
   initializeApp({ credential: cert(serviceAccount), databaseURL: DB_URL });
-  const db = getDatabase();
+  const db = guard.adminDb(getDatabase());
 
   const boardRef = db.ref(`leaderboards/${boardId}`);
 
@@ -163,6 +168,7 @@ async function main() {
   }
 
   await boardRef.update({ [KIND]: map, [STAMP]: now });
+  guard.summary();
   console.log(`\n  ✓ WROTE leaderboards/${boardId}/${KIND} — ${uids.length} entries, ${STAMP} ${now}.\n`);
   process.exit(0);
 }

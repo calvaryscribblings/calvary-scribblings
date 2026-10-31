@@ -62,6 +62,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { DB_URL, accessToken, rtdbPatch } from '../covers/store.mjs';
+import { openGuard } from '../safety/guard.mjs';
 import { WITHDRAWAL_KEY, withdrawalDue, applyWithdrawalBlock } from '../../app/lib/bookstore/withdrawal.js';
 import { pickDeployHook } from '../deploy-hook.mjs';
 
@@ -106,7 +107,7 @@ async function fireDeployHook(url) {
     return { ok: false, status: null };
   }
   try {
-    const res = await fetch(url, { method: 'POST', signal: AbortSignal.timeout(HOOK_TIMEOUT_MS) });
+    const res = await fetch(url, { method: 'POST', signal: AbortSignal.timeout(HOOK_TIMEOUT_MS) }); // safety-guard: not-firebase (the deploy hook)
     if (!res.ok) {
       console.error(`::error::deploy hook refused: HTTP ${res.status}. The records were flipped but the shop was NOT rebuilt.`);
       return { ok: false, status: res.status };
@@ -165,7 +166,9 @@ async function main() {
   // not in the published catalogue, silently, so the title is out of every section the instant
   // this PATCH lands. Pruning as well would destroy the curator's choice on an act that
   // advertises itself as undoable. See pruneClaims() in app/lib/bookstore/withdrawal.js.
-  await rtdbPatch(token, updates);
+  // SAFETY-1: through the guard — the touched paths are backed up and verified first.
+  const guard = await openGuard('bookstore-withdrawals', { apply: args.apply });
+  await rtdbPatch(guard, updates, 'scheduled withdrawals');
   console.log(`\n✓ withdrew ${due.length} title(s): ${due.map((t) => t.id).join(', ')}`);
 
   // W3: BOOKSTORE_DEPLOY_HOOK_URL first, CMS_DEPLOY_HOOK_URL when it is absent — both rebuild the

@@ -43,35 +43,20 @@
 //   · Open-pages threads included, because comments/{postId} lives in the same node and the
 //     old scan did not distinguish parents.
 
-import { readFile } from 'node:fs/promises';
-import { mintToken } from './rules-pull.mjs';
+import { openGuard } from './safety/guard.mjs';
 
-const DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 const USER_COMMENTS_PATH = 'user_comments';
 
-const APPLY = process.argv.includes('--apply');
 const PRUNE = process.argv.includes('--prune');
 
-/** RTDB caps a single write; 500 paths per patch keeps each one small and restartable. */
+/** RTDB caps a single write; 500 paths per guarded update keeps each one small and restartable. */
 const CHUNK = 500;
 
-const token = await mintToken();
-const api = (path) => `${DB}/${path}.json?access_token=${token}`;
-
-async function get(path) {
-  const res = await fetch(api(path));
-  if (!res.ok) throw new Error(`GET ${path} → ${res.status} ${(await res.text()).slice(0, 200)}`);
-  return res.json();
-}
-
-async function patch(body) {
-  const res = await fetch(api(''), {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`PATCH → ${res.status} ${(await res.text()).slice(0, 300)}`);
-}
+// SAFETY-1: every write goes through the guard (dry by default; --apply backs up exactly the
+// paths of each chunk, verifies the backup, then writes the chunk as one atomic update).
+const guard = await openGuard('backfill-user-comments');
+const APPLY = guard.apply;
+const get = (path) => guard.get(path);
 
 console.log(APPLY ? 'MODE: apply' : 'MODE: report only — nothing will be written');
 console.log('reading comments …');
@@ -145,15 +130,15 @@ if (!paths.length) {
 
 if (!APPLY) {
   console.log(`${paths.length} paths would be written. Re-run with --apply.`);
-  for (const p of paths.slice(0, 5)) console.log(`   ${p} = ${JSON.stringify(toWrite[p])}`);
-  if (paths.length > 5) console.log(`   … and ${paths.length - 5} more`);
+  // SAFETY-1: counts only. These paths carry reader uids and comment ids, which are not for a log.
   process.exit(0);
 }
 
 console.log(`writing ${paths.length} paths in chunks of ${CHUNK} …`);
 for (let i = 0; i < paths.length; i += CHUNK) {
   const chunk = Object.fromEntries(paths.slice(i, i + CHUNK).map((p) => [p, toWrite[p]]));
-  await patch(chunk);
+  await guard.update(chunk, { label: `chunk-${i / CHUNK + 1}` });
   console.log(`  ${Math.min(i + CHUNK, paths.length)}/${paths.length}`);
 }
+guard.summary();
 console.log('done. Re-run without --apply to verify it now reports nothing to do.');

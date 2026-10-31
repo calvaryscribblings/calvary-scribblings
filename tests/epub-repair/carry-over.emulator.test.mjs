@@ -15,6 +15,9 @@
 //
 // REST against the emulator with a demo- namespace: nothing here can reach production. Needs
 // Chromium (the mapping resolves CFIs with the vendored foliate) and a JDK (the emulator).
+//
+// SAFETY-1: the writes go through scripts/safety/guard.mjs, which needs the database AND storage
+// emulators (its backups land in the backup bucket), hence `--only database,storage`.
 
 import { test, describe, before, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,6 +29,7 @@ import { mapPositions } from '../../scripts/epub-repair/map-positions.mjs';
 import { wrappedOnce, REFUSED_CFI } from '../../scripts/epub-repair/cfi.mjs';
 import { readEntries, writeEntries, applyPlan } from '../../scripts/epub-repair/lib.mjs';
 import { foldedBook, SPLIT_PLAN } from '../fixtures/epub-repair-fixtures.mjs';
+import { openGuard, BACKUP_BUCKET } from '../../scripts/safety/guard.mjs';
 
 const HOST = process.env.FIREBASE_DATABASE_EMULATOR_HOST || '127.0.0.1:9000';
 const NS = 'demo-calvary-carry-default-rtdb';
@@ -85,10 +89,17 @@ async function seed() {
   });
 }
 
-const run = (o = {}) => carryOver({ db, oldBytes, newBytes, titleId: TITLE, slug: SLUG, oldGen: OLD, newGen: NEW, liveGeneration: async () => NEW, ...o });
+// SAFETY-1: every write goes through the guard. Two handles, as the CLI would open them: one
+// without --apply (the dry runs) and one with it. Both point at this suite's emulator namespace.
+const guards = {};
+const run = (o = {}) => carryOver({ db, guard: o.apply ? guards.apply : guards.dry, oldBytes, newBytes, titleId: TITLE, slug: SLUG, oldGen: OLD, newGen: NEW, liveGeneration: async () => NEW, ...o });
 const byPath = (out) => Object.fromEntries(out.rows.map((r) => [r.path.split('/').slice(-1)[0] === TITLE ? r.path.split('/')[1] : r.path.split('/').at(-1), r]));
 
 before(async () => {
+  const env = { ...process.env, GUARD_DB_NAMESPACE: NS };
+  guards.dry = await openGuard('carry-over', { argv: ['node', 'x'], env, log: () => {} });
+  guards.apply = await openGuard('carry-over', { argv: ['node', 'x', '--apply'], env, log: () => {} });
+  assert.equal(guards.apply.emulator, true, 'the guard must be pointed at the emulator');
   const keys = Object.keys(CFI);
   const { records } = await mapPositions({ oldBytes, newBytes, records: keys.map((k) => ({ key: k, kind: 'position', cfi: CFI[k] })) });
   est = Object.fromEntries(records.map((r) => [r.key, { old: r.probe.old.fraction ?? null, new: r.probe.new.fraction ?? null }]));
@@ -223,6 +234,23 @@ describe('carry-over · --apply', () => {
     assert.deepEqual(await raw('GET', `bookstore_reading_progress/reader-h/${TITLE}`), doubled, 'never written');
     const backup = JSON.parse(await readFile(out.summary.backup, 'utf8'));
     assert.ok(!backup.records.some((b) => b.path.includes('reader-h')), 'a refused record is not in the write set');
+  });
+
+  test('SAFETY-1: --apply is refused without an applying guard, and an applied run leaves a guard backup of exactly its write set', async () => {
+    await assert.rejects(run({ apply: true, guard: guards.dry, backupDir: await mkdtemp(join(tmpdir(), 'carry-')) }), /needs a guard opened with --apply/);
+    await assert.rejects(run({ apply: true, guard: null, backupDir: await mkdtemp(join(tmpdir(), 'carry-')) }), /needs a guard opened with --apply/);
+    const before = await raw('GET', '');
+    const g = await openGuard('carry-over', { argv: ['node', 'x', '--apply'], env: { ...process.env, GUARD_DB_NAMESPACE: NS }, log: () => {} });
+    const out = await run({ apply: true, guard: g, backupDir: await mkdtemp(join(tmpdir(), 'carry-')) });
+    assert.equal(out.summary.written, 8);
+    const ST = `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST || process.env.STORAGE_EMULATOR_HOST}`;
+    const prefix = g.objectPrefix;
+    const list = await (await fetch(`${ST}/storage/v1/b/${BACKUP_BUCKET}/o?prefix=${encodeURIComponent(prefix)}`, { headers: { Authorization: 'Bearer owner' } })).json();
+    assert.equal((list.items || []).length, 1, 'one guard backup batch for the run');
+    const doc = await (await fetch(`${ST}/storage/v1/b/${BACKUP_BUCKET}/o/${encodeURIComponent(list.items[0].name)}?alt=media`, { headers: { Authorization: 'Bearer owner' } })).json();
+    const written = out.rows.filter((r) => r.decision.action === 'write').map((r) => r.path).sort();
+    assert.deepEqual(Object.keys(doc.paths).sort(), written, 'the guard backed up exactly the paths it wrote');
+    for (const p of written) assert.deepEqual(doc.paths[p], p.split('/').reduce((o, k) => o[k], before), p);
   });
 
   test('the backup folder may not be inside the repo', async () => {

@@ -32,6 +32,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
+import { readOnlyDb } from './safety/guard.mjs'; // SAFETY-1: read-only, enforced (any write throws)
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -70,7 +71,7 @@ function sorted(map) {
 async function main() {
   const serviceAccount = JSON.parse(await readFile(resolve(ROOT, 'serviceAccountKey.json'), 'utf8'));
   initializeApp({ credential: cert(serviceAccount), databaseURL: DB_URL });
-  const db = getDatabase();
+  const db = readOnlyDb(getDatabase());
 
   const snap = await db.ref('cms_stories').get();
   const stories = snap.val() || {};

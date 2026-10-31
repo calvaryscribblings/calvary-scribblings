@@ -25,22 +25,20 @@
 //      a repair that loses data is not a repair, and that check is what stops this script
 //      being run against a stale checkout whose buildIndexRecord is behind production's.
 //   3. VERIFY AFTERWARDS. It re-reads and diffs against what it meant to write, and says so.
-import { readFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { cert } from 'firebase-admin/app';
+//
+// SAFETY-1: the write goes through scripts/safety/guard.mjs, which reads --apply (dry by
+// default) and backs up the record, verified, before replacing it.
 import { buildIndexRecord, isIndexed, INDEX_PATH } from '../app/lib/storyIndex.js';
-
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
+import { openGuard, DB_URL } from './safety/guard.mjs';
 
 const args = process.argv.slice(2);
-const APPLY = args.includes('--apply');
 const slug = args.find((a) => !a.startsWith('--'));
 if (!slug) {
   console.error('usage: node scripts/repair-index-record.mjs <slug> [--apply]');
   process.exit(1);
 }
+const guard = await openGuard('repair-index-record');
+const APPLY = guard.apply;
 
 const get = async (path) => {
   const r = await fetch(`${DB_URL}/${path}.json`);
@@ -97,15 +95,11 @@ if (!APPLY) {
   process.exit(0);
 }
 
-const svc = JSON.parse(await readFile(resolve(ROOT, 'serviceAccountKey.json'), 'utf8'));
-const token = (await cert(svc).getAccessToken()).access_token;
-const put = await fetch(`${DB_URL}/${INDEX_PATH}/${slug}.json?access_token=${token}`, {
-  method: 'PUT',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(want),
-});
-if (!put.ok) {
-  console.error(`\nWRITE FAILED: HTTP ${put.status} — ${await put.text()}`);
+// The whole record at cms_stories_index/<slug>, never a deep path (see the header).
+try {
+  await guard.update({ [`${INDEX_PATH}/${slug}`]: want }, { label: 'repair' });
+} catch (e) {
+  console.error(`\nWRITE FAILED: ${e.message}`);
   process.exit(1);
 }
 

@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { initializeApp, cert, applicationDefault } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 import { joinedAt } from '../../app/lib/squareSafety.js';
+import { readOnlyDb } from '../safety/guard.mjs'; // SAFETY-1: read-only, enforced (any write throws)
 
 export function countJoinDates(users) {
   const c = { records: 0, joinDate: 0, createdAt: 0, both: 0, neither: 0, cardShowsLine: 0, unusable: 0, joinDateTypes: {}, createdAtTypes: {} };
@@ -36,7 +37,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try { credential = cert(JSON.parse(readFileSync(keyPath, 'utf8'))); } catch { credential = applicationDefault(); }
   const app = initializeApp({ credential, databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app' });
   try {
-    const snap = await getDatabase(app).ref('users').get();
+    const snap = await readOnlyDb(getDatabase(app)).ref('users').get();
     console.log(JSON.stringify(countJoinDates(snap.val())));
   } catch (e) {
     console.error('Count failed:', e?.code || 'error');

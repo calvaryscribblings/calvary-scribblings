@@ -14,6 +14,11 @@ import { getDatabase } from 'firebase-admin/database';
 import { runDeletion, realIo, StepError } from '../../functions/api/account/_deletion.js';
 import { writeMembership, writePass } from '../../functions/api/membership/_membership.js';
 import { runScrub, preview } from '../../scripts/account/scrub.mjs';
+import { openGuard } from '../../scripts/safety/guard.mjs';
+// SAFETY-1: with SAFETY_GUARD_WRAP=1 the same suite runs with the database handed through the guard,
+// exactly as the scheduled job hands it in production (scripts/safety/guard.mjs adminDb). Run it with
+// the storage emulator too, where the guard puts its backups.
+const guarded = async (d) => (process.env.SAFETY_GUARD_WRAP ? (await openGuard('t-scrub', { apply: true, log() {} })).adminDb(d) : d);
 
 process.env.FIREBASE_DATABASE_EMULATOR_HOST ||= '127.0.0.1:9000';
 const HOST = process.env.FIREBASE_DATABASE_EMULATOR_HOST;
@@ -186,7 +191,7 @@ const scrubHands = (outside) => ({
 });
 async function deleteFully(outside = [], opts = {}) {
   await runDeletion(T, EMAIL, ioFor(outside, opts), quiet);
-  await runScrub(db, { apply: true, log() {}, ...scrubHands(outside) });
+  await runScrub(await guarded(db), { apply: true, log() {}, ...scrubHands(outside) });
   return (await db.ref().get()).val();
 }
 
@@ -300,7 +305,7 @@ describe('the whole deletion, endpoint then scrub', () => {
 
   test('RULING 33: without its Storage and rebuild hands the run refuses rather than half-apply', async () => {
     await runDeletion(T, EMAIL, ioFor([]), quiet);
-    await assert.rejects(runScrub(db, { apply: true, log() {} }), /refusing to half-apply/);
+    await assert.rejects(runScrub(await guarded(db), { apply: true, log() {} }), /refusing to half-apply/);
     assert.equal((await db.ref('cms_voices/v1/message').get()).val(), 'a published voice', 'nothing applied');
   });
 
@@ -314,7 +319,7 @@ describe('the whole deletion, endpoint then scrub', () => {
     const once = await deleteFully();
     // Put the record back to "not scrubbed" and run again.
     await db.ref(`deletions/${T}/steps/scrub`).remove();
-    await runScrub(db, { apply: true, log() {}, ...scrubHands([]) });
+    await runScrub(await guarded(db), { apply: true, log() {}, ...scrubHands([]) });
     const twice = (await db.ref().get()).val();
     delete once.deletions; delete twice.deletions;
     assert.deepEqual(twice, once);
@@ -322,7 +327,7 @@ describe('the whole deletion, endpoint then scrub', () => {
 
   test('the scrub waits for the endpoint: nothing is scrubbed before the Auth step is recorded', async () => {
     await db.ref(`deletions/${T}`).set({ uid: T, requestedAt: 1, updatedAt: 1, steps: { membership: 1 } });
-    await runScrub(db, { apply: true, log() {}, ...scrubHands([]) });
+    await runScrub(await guarded(db), { apply: true, log() {}, ...scrubHands([]) });
     assert.equal((await db.ref('comments/story/c1').get()).val().text, 'mine');
   });
 });
@@ -337,7 +342,7 @@ describe('resume: a failure at each step, then a retry', () => {
       assert.equal(mid[step], undefined);
       assert.ok(!('auth' in mid), 'never claims the account is gone');
       await runDeletion(T, EMAIL, ioFor(outside), quiet);
-      await runScrub(db, { apply: true, log() {}, ...scrubHands(outside) });
+      await runScrub(await guarded(db), { apply: true, log() {}, ...scrubHands(outside) });
       const after = (await db.ref().get()).val();
       assert.deepEqual(walkFor(after, T).filter((p) => !KEPT.some((re) => re.test(p))), []);
       assert.equal(outside.filter((c) => c === 'stripe sub_T').length, 1, 'money moved once');
@@ -366,7 +371,7 @@ describe('webhooks after a deletion', () => {
   test('the stub backstop: a users node that reappears after a finished deletion is removed next tick', async () => {
     await deleteFully();
     await db.ref(`users/${T}/membership`).set('gold');   // a webhook that failed open
-    await runScrub(db, { apply: true, log() {} });
+    await runScrub(await guarded(db), { apply: true, log() {} });
     assert.equal((await db.ref(`users/${T}`).get()).val(), null);
   });
 

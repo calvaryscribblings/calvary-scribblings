@@ -95,6 +95,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
+import { openGuard } from '../safety/guard.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..', '..');
@@ -165,7 +166,9 @@ function fail(msg) { console.error(`\n  ✗ ${msg}\n`); process.exit(1); }
 async function main() {
   const sa = JSON.parse(await readFile(resolve(ROOT, 'serviceAccountKey.json'), 'utf8'));
   initializeApp({ credential: cert(sa), databaseURL: DB_URL });
-  const db = getDatabase();
+  // SAFETY-1: every write goes through the guard (dry without --apply; backup, verify, write).
+  const guard = await openGuard('square-horizon');
+  const db = guard.adminDb(getDatabase());
 
   const now = Date.now();
   const hour = londonHour(now);

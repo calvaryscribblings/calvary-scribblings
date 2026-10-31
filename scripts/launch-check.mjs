@@ -30,6 +30,7 @@ import { endingOf } from './check-built-gate.mjs';
 import { LAUNCH_DATE_SHORT } from '../app/lib/launch.js';
 import { dictionaryLookup, DICT_BASE, DICT_SOURCE } from '../app/lib/dictionary.js';
 import { readServiceAccountFile, readSaKeySecret } from './security/service-account.mjs';
+import { readOnlyDb } from './safety/guard.mjs'; // SAFETY-1: read-only, enforced (any write throws)
 
 export const SITE = process.env.LAUNCH_SITE || 'https://calvaryscribblings.co.uk';
 export const GREEN = 'green';
@@ -287,7 +288,7 @@ export async function gather(now = Date.now(), { since: sinceArg } = {}) {
   const { initializeApp, cert, getApps } = await import('firebase-admin/app');
   const { getDatabase } = await import('firebase-admin/database');
   if (!getApps().length) initializeApp({ credential: cert(sa), databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app' });
-  const db = getDatabase();
+  const db = readOnlyDb(getDatabase());
   const val = async (p) => (await db.ref(p).get()).val();
 
   // Pick the stories from the live index: the newest archive prose story, the newest of this

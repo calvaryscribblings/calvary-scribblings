@@ -29,84 +29,37 @@
 // and says so: after the migration that node is a curator's working document, and a second
 // run of a migration must never quietly flatten a shelf plan somebody has since arranged.
 //
-// ── AUTH ─────────────────────────────────────────────────────────────────────────────────
+// ── AUTH, AND THE GUARD ──────────────────────────────────────────────────────────────────
 //
-// Same pattern as scripts/migrate-publishers-split.js: a service-account JSON at
-// FIREBASE_SERVICE_ACCOUNT_PATH, an OAuth2 token from an RS256-signed JWT, REST writes. No
-// firebase-admin dependency.
+// A service-account JSON at FIREBASE_SERVICE_ACCOUNT_PATH, handed to scripts/safety/guard.mjs,
+// which mints the token and does every read and write by REST. No firebase-admin dependency.
 //
 // Run:
 //   FIREBASE_SERVICE_ACCOUNT_PATH=/path/to/service-account.json \
-//     node scripts/migrate-bookstore-taxonomy.mjs [--dry-run]
+//     node scripts/migrate-bookstore-taxonomy.mjs            # dry run: prints the payload
+//   FIREBASE_SERVICE_ACCOUNT_PATH=… node scripts/migrate-bookstore-taxonomy.mjs --apply
 //
-// --dry-run prints the exact payload and writes nothing. Run it first.
+// SAFETY-1: DRY BY DEFAULT (it used to write by default, with an opt-in --dry-run). It now writes
+// only with --apply, through the guard: the exact genre and section paths are backed up and
+// verified, then written as one atomic update. --dry-run is still accepted, and means the
+// default; given together with --apply it wins, and nothing is written.
 
-import { readFileSync } from 'node:fs';
-import { createSign } from 'node:crypto';
 import { buildGenreMigration, buildWindowMigration, validateSection } from '../app/lib/bookstore/sections.js';
 import { validateGenre } from '../app/lib/bookstore/genres.js';
-
-const SCOPES = [
-  'https://www.googleapis.com/auth/firebase.database',
-  'https://www.googleapis.com/auth/userinfo.email',
-].join(' ');
-
-const DATABASE_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
-
-function b64url(input) {
-  return Buffer.from(input).toString('base64')
-    .replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
-}
-
-async function mintAccessToken(saPath) {
-  const sa = JSON.parse(readFileSync(saPath, 'utf8'));
-  const now = Math.floor(Date.now() / 1000);
-  const header = { alg: 'RS256', typ: 'JWT' };
-  const claim = {
-    iss: sa.client_email,
-    scope: SCOPES,
-    aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600,
-  };
-  const signingInput = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(claim))}`;
-  const signer = createSign('RSA-SHA256');
-  signer.update(signingInput);
-  const jwt = `${signingInput}.${b64url(signer.sign(sa.private_key))}`;
-
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${encodeURIComponent(jwt)}`,
-  });
-  if (!res.ok) throw new Error(`Token exchange failed: ${res.status} ${await res.text()}`);
-  const { access_token } = await res.json();
-  return access_token;
-}
-
-async function rtdb(method, path, token, body) {
-  const url = `${DATABASE_URL}${path}.json?access_token=${encodeURIComponent(token)}`;
-  const res = await fetch(url, {
-    method,
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`RTDB ${method} ${path} failed: ${res.status} ${await res.text()}`);
-  if (res.status === 204) return null;
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
-}
+import { openGuard } from './safety/guard.mjs';
 
 async function main() {
-  const dry = process.argv.includes('--dry-run');
   const saPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
   if (!saPath) {
     console.error('FIREBASE_SERVICE_ACCOUNT_PATH env var is required');
     process.exit(2);
   }
 
-  console.log('[migrate] minting access token…');
-  const token = await mintAccessToken(saPath);
+  const guard = await openGuard('migrate-bookstore-taxonomy', {
+    apply: process.argv.includes('--apply') && !process.argv.includes('--dry-run'),
+    env: { ...process.env, GUARD_SERVICE_ACCOUNT: saPath },
+  });
+  const dry = !guard.apply;
   const at = Date.now();
 
   // ── 1. GENRES ──────────────────────────────────────────────────────────────────────────
@@ -122,7 +75,7 @@ async function main() {
 
   // ── 2. THE WINDOW ──────────────────────────────────────────────────────────────────────
   console.log('[migrate] reading bookstore_sections/…');
-  const existingSections = await rtdb('GET', '/bookstore_sections', token);
+  const existingSections = await guard.get('bookstore_sections');
   let sectionPatch = null;
 
   if (existingSections && typeof existingSections === 'object' && Object.keys(existingSections).length > 0) {
@@ -130,7 +83,7 @@ async function main() {
     console.log('[migrate] (a migration must never flatten a shelf plan a curator has arranged)');
   } else {
     console.log('[migrate] reading published titles…');
-    const titlesRaw = await rtdb('GET', '/bookstore_titles', token);
+    const titlesRaw = await guard.get('bookstore_titles');
     const titles = Object.entries(titlesRaw || {}).map(([id, v]) => ({ id, ...v }));
     const published = titles.filter((t) => t.status === 'published');
     console.log(`[migrate] ${published.length} published of ${titles.length} on file`);
@@ -151,18 +104,22 @@ async function main() {
     }
   }
 
+  // One record per path, exactly as the old per-node PATCHes replaced each child: genres upserted,
+  // sections only when the node was empty.
+  const updates = {};
+  for (const [slug, g] of Object.entries(genrePatch)) updates[`bookstore_genres/${slug}`] = g;
+  for (const [id, doc] of Object.entries(sectionPatch || {})) updates[`bookstore_sections/${id}`] = doc;
+
   if (dry) {
-    console.log('\n[migrate] --dry-run: NOTHING WRITTEN. Payload follows.\n');
+    console.log('\n[migrate] DRY RUN (the default): NOTHING WRITTEN. Payload follows; re-run with --apply to write it.\n');
     console.log(JSON.stringify({ bookstore_genres: genrePatch, bookstore_sections: sectionPatch }, null, 2));
+    await guard.update(updates, { label: 'taxonomy' });
     return;
   }
 
-  console.log('[migrate] writing bookstore_genres/…');
-  await rtdb('PATCH', '/bookstore_genres', token, genrePatch);
-  if (sectionPatch) {
-    console.log('[migrate] writing bookstore_sections/…');
-    await rtdb('PATCH', '/bookstore_sections', token, sectionPatch);
-  }
+  console.log(`[migrate] writing bookstore_genres/${sectionPatch ? ' and bookstore_sections/' : ''}…`);
+  await guard.update(updates, { label: 'taxonomy' });
+  guard.summary();
   console.log('[migrate] done.');
   console.log('[migrate] NEXT: load /bookstore and confirm the tabs and the Window are unchanged.');
   // The follow-up this used to print — "delete the bootstrap branches in loader.js" — was done

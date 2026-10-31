@@ -126,6 +126,8 @@ on:
       # foliate in Chromium, which only this workflow installs before `npm run test:purchases`;
       # the hygiene job runs the same suite without a browser, where that test skips by name.
       - 'scripts/epub-repair/**'
+      # SAFETY-1 — the carry-over writes through the guard, and its emulator suite proves the backup.
+      - 'scripts/safety/**'
       - 'tests/bookstore/epub-repair.test.mjs'
       - 'tests/fixtures/epub-repair-fixtures.mjs'
       # W43 — the carry-over's emulator suite and the ribbon pin.

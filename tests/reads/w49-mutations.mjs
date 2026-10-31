@@ -17,7 +17,6 @@ const node = (...files) => [process.execPath, ['--test', '--test-concurrency=1',
 const UNIT = node('tests/reads/read-hit.test.mjs', 'tests/reads/read-credit.test.mjs', 'tests/series-notes/contract.test.mjs', 'tests/account/deletion.test.mjs', 'tests/series-notes/ui/room-model.test.mjs');
 const HIT = node('tests/reads/hit.emulator.test.mjs');
 const READ = node('tests/reads/series-read.emulator.test.mjs');
-const SEED = node('tests/reads/seed.emulator.test.mjs');
 const RULES = node('tests/rules/w49-reads.test.mjs');
 const WORKER = node('tests/ci/hit-counter.test.mjs');
 const READER = ['npx', ['playwright', 'test', '-c', 'tests/series-notes/reader/playwright.reader.config.mjs', '-g', 'the read: fired once'], { W46_NOTES: '0' }];
@@ -26,7 +25,6 @@ const HITJS = 'functions/api/hit.js';
 const LEDGER = 'functions/api/_ledger.js';
 const LIMIT = 'functions/api/_ratelimit.js';
 const SREAD = 'functions/api/series/read.js';
-const SEEDJS = 'scripts/series/seed-reads.mjs';
 const CREDIT = 'app/lib/readCredit.js';
 const READHIT = 'app/lib/readHit.js';
 const DELETION = 'functions/api/account/_deletion.js';
@@ -68,8 +66,6 @@ const MUTANTS = [
   ['§5 no en-GB grouping', NOTES, "  reads: (n) => `${Number(n).toLocaleString('en-GB')} ${n === 1 ? 'read' : 'reads'}`,", "  reads: (n) => `${n} ${n === 1 ? 'read' : 'reads'}`,", UNIT],
   ['§5 the count line drops the reads', NOTES, "  roomCounts: (r, n, m) => `${Number(r).toLocaleString('en-GB')} ${r === 1 ? 'read' : 'reads'} · ", '  roomCounts: (r, n, m) => `', UNIT],
   // §6 the seeder
-  ['§6 the count is the plan, not the ledger', SEEDJS, '    const { count } = await settleCount(db, inst, opts);', "    const cur = await db.getWithEtag(readsPath(inst)); await db.putIfMatch(readsPath(inst), uids.length, cur.etag); const count = uids.length;", SEED],
-  ['§6 existing entries are re-created and re-counted', SEEDJS, '    for (const uid of uids) if (await claimOnce(db.url(ledgerPath(inst, uid)), db.headers)) created++;', '    for (const uid of uids) { await claimOnce(db.url(ledgerPath(inst, uid)), db.headers); created++; }', SEED],
   // §7 the snapshot
   ['§7 the snapshot drops isAuthor', NOTES, '  if (p.isAuthor === true) out.isAuthor = true;', '', UNIT],
   ['§7 the fallback ignores the snapshot’s isAuthor', MODEL, '    isAuthor: note?.writer === true || a.isAuthor === true,', '    isAuthor: note?.writer === true,', UNIT],

@@ -83,7 +83,7 @@ async function publishedSlugs() {
  *  doubles as proof of what Facebook now holds, which is why the image is printed back. */
 async function scrape(url) {
   const body = new URLSearchParams({ id: url, scrape: 'true', access_token: TOKEN });
-  const res = await fetch(GRAPH, { method: 'POST', body });
+  const res = await fetch(GRAPH, { method: 'POST', body }); // safety-guard: not-firebase (Facebook's scrape endpoint)
   const json = await res.json().catch(() => ({}));
   return { status: res.status, json };
 }

@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 import { subcategoriesFor } from '../app/lib/taxonomy.js';
+import { readOnlyDb } from './safety/guard.mjs'; // SAFETY-1: read-only, enforced (any write throws)
 
 // Short-story vocabulary, imported rather than transcribed. See app/lib/taxonomy.js.
 const SUBCATEGORIES = subcategoriesFor('short');
@@ -79,7 +80,7 @@ async function main() {
 
   const serviceAccount = JSON.parse(await readFile(resolve(ROOT, 'serviceAccountKey.json'), 'utf8'));
   initializeApp({ credential: cert(serviceAccount), databaseURL: DB_URL });
-  const db = getDatabase();
+  const db = readOnlyDb(getDatabase());
 
   const snap = await db.ref('cms_stories').get();
   const stories = snap.val() || {};

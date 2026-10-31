@@ -33,11 +33,17 @@
 //
 // ⚠ sharp IS SCRIPT-ONLY and deliberately out of package.json, exactly as the derivative and
 // stand-in backfills say of it. This never runs in a build.
-import { readFile, writeFile } from 'node:fs/promises';
+//
+// SAFETY-1: the colours are written through scripts/safety/guard.mjs, as ONE atomic update after
+// the extraction pass (dry by default; with --apply the exact coverColour paths are backed up and
+// verified first). A failed extraction writes nothing for that title, as before.
+import { writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
+import { openGuard } from './safety/guard.mjs';
+import { readServiceAccountFile } from './security/service-account.mjs';
 import sharp from 'sharp';
 import { coverSizeKey, COVER_DERIVATIVE_WIDTHS } from '../app/lib/bookstore/covers.js';
 // The fiction / non-fiction split, read from the SAME module the shop reads it from and
@@ -63,7 +69,6 @@ const ROOT = resolve(__dirname, '..');
 const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 const TITLES_PATH = 'bookstore_titles';
 
-const APPLY = process.argv.includes('--apply');
 const FORCE = process.argv.includes('--force');
 const argAfter = (flag) => { const i = process.argv.indexOf(flag); return i > -1 ? process.argv[i + 1] : null; };
 const ONLY = argAfter('--slug');
@@ -125,9 +130,13 @@ function printShelf(label, rows) {
 }
 
 async function main() {
-  const key = JSON.parse(await readFile(resolve(ROOT, 'serviceAccountKey.json'), 'utf8'));
+  // --apply is read by the guard; guard.apply is the only switch.
+  const guard = await openGuard('backfill-bookstore-cover-colour');
+  const APPLY = guard.apply;
+  const key = readServiceAccountFile(resolve(ROOT, 'serviceAccountKey.json'));
   initializeApp({ credential: cert(key), databaseURL: DB_URL });
-  const db = getDatabase();
+  const db = guard.adminDb(getDatabase());
+  const updates = {};
 
   const snap = await db.ref(TITLES_PATH).once('value');
   const all = snap.val() || {};
@@ -173,7 +182,7 @@ async function main() {
         `${(cut.share * 100).toFixed(1).padStart(5)}% of board from ${src.from}${t.__weak ? '   ⚑ weak plurality — look at this one' : ''}`,
       );
       report.push({ slug: t.slug, status: 'extracted', colour, share: cut.share, from: src.from });
-      if (APPLY) await db.ref(`${TITLES_PATH}/${t.id}/coverColour`).set(colour);
+      updates[`${TITLES_PATH}/${t.id}/coverColour`] = colour;
     } catch (err) {
       failed++;
       console.log(`  ✗ ${pad(t.slug, 30)} ${err.message}`);
@@ -182,6 +191,9 @@ async function main() {
   }
 
   console.log(`\n${done} extracted, ${skipped} skipped, ${failed} failed`);
+  // One guarded, atomic update of exactly the coverColour paths cut above (never an override).
+  // The guard is dry unless --apply; an empty set writes nothing and makes no backup.
+  await db.ref().update(updates);
 
   // ── THE PROPOSED SHELF ────────────────────────────────────────────────────────────────
   //
@@ -244,6 +256,7 @@ async function main() {
   }
 
   if (!APPLY && done) console.log('\nRe-run with --apply to write them.');
+  guard.summary();
   process.exit(failed ? 1 : 0);
 }
 

@@ -210,11 +210,14 @@ describe('⭑ RAIL 1 — it imports the real builder and copies nothing', () => 
     }
   });
 
-  test('the repair is a COMPLETE record PUT at the slug, never a deep path', () => {
+  test('the repair is a COMPLETE record written at the slug, never a deep path', () => {
     // A deep-path write creates the parent when the slug is absent, leaving a one-field record
     // that still counts as a member. See rule 2 in app/lib/storyIndex.js.
-    assert.match(SRC, /\$\{INDEX_PATH\}\/\$\{r\.slug\}\.json/, 'the write is not addressed at the slug');
-    assert.match(SRC, /body:\s*JSON\.stringify\(r\.want\)/, 'the write body is not the complete projected record');
+    // SAFETY-1: the write goes through the guard as one update keyed by slug, each value the
+    // complete projected record (it used to be a raw REST PUT per slug).
+    assert.match(SRC, /\[`\$\{INDEX_PATH\}\/\$\{r\.slug\}`,\s*r\.want\]/, 'the write is not the complete record addressed at the slug');
+    assert.match(SRC, /guard\.update\(updates/, 'the repair write does not go through the guard');
+    assert.ok(!/method:\s*'(PUT|PATCH|POST|DELETE)'/.test(SRC), 'a raw REST write is present; writes go through the guard');
     assert.ok(!/\$\{INDEX_PATH\}\/\$\{[^}]+\}\/\$\{/.test(SRC), 'a deep-path index write is present');
   });
 });

@@ -2,16 +2,20 @@
 // READERSHIP — the backfill and the reconciler, one script, two verbs.
 //
 //   FIREBASE_SERVICE_ACCOUNT_PATH=/path/to/key.json node scripts/readership.mjs report
-//   FIREBASE_SERVICE_ACCOUNT_PATH=/path/to/key.json node scripts/readership.mjs backfill [--dry-run]
+//   FIREBASE_SERVICE_ACCOUNT_PATH=/path/to/key.json node scripts/readership.mjs backfill [--apply]
 //
 //   report    Recompute from bookstore_purchases and print every title with the stored
 //             number beside the true one. WRITES NOTHING, EVER, including when it finds
 //             drift. Exits 1 if anything disagrees, so it can be run on a schedule and
 //             noticed. This is the reconciliation the brief asked for.
 //
-//   backfill  The one-time write at ship time. Computes the same numbers and PUTs the whole
-//             bookstore_readership node. Run `report` first, and `backfill --dry-run` after
-//             that; both print the exact payload.
+//   backfill  The one-time write at ship time. Computes the same numbers and replaces the
+//             whole bookstore_readership node. Run `report` first, then `backfill` (a dry run).
+//
+// SAFETY-1: backfill is DRY BY DEFAULT and writes only with --apply (it used to write by default,
+// with an opt-in --dry-run; --dry-run is still accepted, means the default, and wins over --apply).
+// The write goes through scripts/safety/guard.mjs, which backs up the whole node and verifies the
+// backup before replacing it. It prints COUNTS ONLY.
 //
 // ⚠ THEY SHARE ONE DEFINITION OF THE TRUTH — readershipFromPurchases() in
 // scripts/readership-source.mjs, which is also what tests/bookstore/readership.test.mjs
@@ -22,61 +26,16 @@
 // something wrote the node that should not have — see the note on reconcile(). Repair is a
 // human, with the number this printed.
 //
-// Auth: service-account JSON at FIREBASE_SERVICE_ACCOUNT_PATH → an OAuth2 token from an
-// RS256-signed JWT → REST. The pattern scripts/migrate-publishers-split.js established; no
-// firebase-admin dependency. bookstore_purchases is founder-read-only, so this credential is
-// not optional — there is no anonymous way to compute this and there must not be.
+// Auth: service-account JSON at FIREBASE_SERVICE_ACCOUNT_PATH, handed to the guard, which mints
+// the token and does every read and the one write by REST; no firebase-admin dependency.
+// bookstore_purchases is founder-read-only, so this credential is not optional — there is no
+// anonymous way to compute this and there must not be.
 
-import { readFileSync } from 'node:fs';
-import { createSign } from 'node:crypto';
 import { readershipFromPurchases, reconcile } from './readership-source.mjs';
+import { openGuard } from './safety/guard.mjs';
 
-const SCOPES = [
-  'https://www.googleapis.com/auth/firebase.database',
-  'https://www.googleapis.com/auth/userinfo.email',
-].join(' ');
-
-const DATABASE_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 const PURCHASES_PATH = 'bookstore_purchases';
 const READERSHIP_PATH = 'bookstore_readership';
-
-function b64url(input) {
-  return Buffer.from(input).toString('base64')
-    .replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
-}
-
-async function mintAccessToken(saPath) {
-  const sa = JSON.parse(readFileSync(saPath, 'utf8'));
-  const now = Math.floor(Date.now() / 1000);
-  const signingInput = `${b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))}.${b64url(JSON.stringify({
-    iss: sa.client_email, scope: SCOPES, aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600,
-  }))}`;
-  const signer = createSign('RSA-SHA256');
-  signer.update(signingInput);
-  const jwt = `${signingInput}.${b64url(signer.sign(sa.private_key))}`;
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${encodeURIComponent(jwt)}`,
-  });
-  if (!res.ok) throw new Error(`Token exchange failed: ${res.status} ${await res.text()}`);
-  return (await res.json()).access_token;
-}
-
-async function rtdb(method, path, token, body) {
-  const res = await fetch(`${DATABASE_URL}${path}.json`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`RTDB ${method} ${path} failed: ${res.status} ${await res.text()}`);
-  if (res.status === 204) return null;
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
-}
 
 function printTable(rows) {
   if (rows.length === 0) {
@@ -94,9 +53,8 @@ function printTable(rows) {
 
 async function main() {
   const verb = process.argv[2];
-  const dry = process.argv.includes('--dry-run');
   if (verb !== 'report' && verb !== 'backfill') {
-    console.error('usage: node scripts/readership.mjs report | backfill [--dry-run]');
+    console.error('usage: node scripts/readership.mjs report | backfill [--apply]');
     process.exit(2);
   }
   const saPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
@@ -105,10 +63,14 @@ async function main() {
     process.exit(2);
   }
 
-  const token = await mintAccessToken(saPath);
+  // `report` never writes: its guard is dry whatever the command line says.
+  const guard = await openGuard('readership', {
+    apply: verb === 'backfill' && process.argv.includes('--apply') && !process.argv.includes('--dry-run'),
+    env: { ...process.env, GUARD_SERVICE_ACCOUNT: saPath },
+  });
 
   console.log(`[readership] reading ${PURCHASES_PATH}/ …`);
-  const purchases = await rtdb('GET', `/${PURCHASES_PATH}`, token);
+  const purchases = await guard.get(PURCHASES_PATH);
   const readers = purchases ? Object.keys(purchases).length : 0;
   const records = purchases
     ? Object.values(purchases).reduce((n, t) => n + Object.keys(t || {}).length, 0)
@@ -117,7 +79,7 @@ async function main() {
 
   const computed = readershipFromPurchases(purchases);
   console.log(`[readership] reading ${READERSHIP_PATH}/ …`);
-  const stored = await rtdb('GET', `/${READERSHIP_PATH}`, token);
+  const stored = await guard.get(READERSHIP_PATH);
 
   const { rows, drift } = reconcile(computed, stored || {});
   console.log('');
@@ -143,20 +105,21 @@ async function main() {
   const payload = {};
   for (const [titleId, count] of [...computed.entries()].sort()) payload[titleId] = { count };
 
-  console.log(`[readership] backfill payload — ${Object.keys(payload).length} title(s) with at least one active record:`);
-  console.log(JSON.stringify(payload, null, 2));
+  // Counts only (SAFETY-1): the table above is the per-title view; the payload is not printed.
+  const total = Object.values(payload).reduce((n, v) => n + v.count, 0);
+  console.log(`[readership] backfill payload — ${Object.keys(payload).length} title(s) with at least one active record, ${total} reader-title(s) in all.`);
   // Titles with nobody are ABSENT from the payload, not written as 0. Absent is absent.
   console.log('[readership] titles with no active purchase are deliberately NOT written — absent is absent.');
 
-  if (dry) {
-    console.log('[readership] --dry-run: nothing written.');
+  // The whole node, not a merge: the backfill establishes it from source, so a stale key left by
+  // an earlier partial run must not survive. The guard backs up the whole node and verifies the
+  // backup first. It is a one-time operation and `report` is what to run afterwards.
+  const res = await guard.update({ [READERSHIP_PATH]: payload }, { label: 'backfill' });
+  if (!res.applied) {
+    console.log('[readership] dry run (the default): nothing written. Re-run with --apply to write.');
     return;
   }
-
-  // PUT, not PATCH: the backfill establishes the whole node from source, so a stale key left
-  // by an earlier partial run must not survive. It is a one-time operation and `report` is
-  // what to run afterwards.
-  await rtdb('PUT', `/${READERSHIP_PATH}`, token, payload);
+  guard.summary();
   console.log('[readership] written. Run `report` to confirm.');
 }
 

@@ -23,6 +23,7 @@ import { getDatabase } from 'firebase-admin/database';
 // drifted: its `inspiring` list was missing 'Essay', which both the CMS picker and the
 // tab row offer and three published stories carry.
 import { SUBCATEGORIES as SUBCATEGORY_MAP } from '../app/lib/taxonomy.js';
+import { readOnlyDb } from './safety/guard.mjs'; // SAFETY-1: read-only, enforced (any write throws)
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -102,7 +103,7 @@ async function main() {
   const keyPath = resolve(ROOT, 'serviceAccountKey.json');
   const serviceAccount = JSON.parse(await readFile(keyPath, 'utf8'));
   initializeApp({ credential: cert(serviceAccount), databaseURL: DB_URL });
-  const db = getDatabase();
+  const db = readOnlyDb(getDatabase());
 
   const snap = await db.ref('cms_stories').get();
   const stories = snap.val() || {};

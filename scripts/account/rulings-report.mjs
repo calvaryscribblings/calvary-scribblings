@@ -21,11 +21,12 @@ import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { planScrub, SCAN_NODES } from './scrub-plan.mjs';
 import { mintToken } from '../rules-pull.mjs';
+import { readOnlyDb } from '../safety/guard.mjs'; // SAFETY-1: read-only, enforced (any write throws)
 
 const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 const BUCKET = 'calvary-scribblings-default-rtdb-backups';
 initializeApp({ credential: cert(JSON.parse(readFileSync('serviceAccountKey.json', 'utf8'))), databaseURL: DB_URL });
-const db = getDatabase();
+const db = readOnlyDb(getDatabase());
 
 const records = (await db.ref('deletions').get()).val() || {};
 const today = {};

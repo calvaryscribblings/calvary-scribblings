@@ -51,10 +51,12 @@
 // on its own when the prompt is edited. This script's job is to keep checking it: it
 // accumulates the real `usage` block from the FIRST 50 CALLS and prints measured against
 // estimated, with a DRIFT line naming the one object to edit when they disagree.
-import { readFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { initializeApp, cert } from 'firebase-admin/app';
+//
+// SAFETY-1: verdicts are written through scripts/safety/guard.mjs, which reads --apply. They are
+// buffered and flushed as guarded batches (backed up and verified, then one atomic update each)
+// every FLUSH_EVERY verdicts and at the end, so a crash late in a paid run loses at most one
+// batch of verdicts, and those comments are simply re-queued by the next run.
+import { openGuard } from './safety/guard.mjs';
 
 import { isScreenable, VOICE_MIN_CHARS, SCREENING_NODE } from '../app/lib/trailerVoices.js';
 import {
@@ -73,11 +75,6 @@ import {
   foldCategory,
 } from '../app/lib/voiceScreening.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(__dirname, '..');
-const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
-
-const APPLY = process.argv.includes('--apply');
 const LIMIT = (() => {
   const i = process.argv.indexOf('--limit');
   return i > -1 ? Number(process.argv[i + 1]) || null : null;
@@ -90,28 +87,44 @@ const MEASURE_FIRST = 50;
 const DRIFT_TOLERANCE = 0.15;
 
 const CONCURRENCY = 4;
+// Verdicts per guarded write.
+const FLUSH_EVERY = 50;
 
 function money(n) {
   return `$${n.toFixed(4)}`;
 }
 
 async function main() {
-  const serviceAccount = JSON.parse(await readFile(resolve(ROOT, 'serviceAccountKey.json'), 'utf8'));
-  const app = initializeApp({ credential: cert(serviceAccount), databaseURL: DB_URL });
-  const token = (await app.options.credential.getAccessToken()).access_token;
+  // --apply is read by the guard; guard.apply is the only switch.
+  const guard = await openGuard('screen-comments');
+  const APPLY = guard.apply;
+  const read = (path) => guard.get(path);
 
-  const read = async (path) => {
-    const res = await fetch(`${DB_URL}/${path}.json`, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) throw new Error(`read ${path}: ${res.status} ${await res.text()}`);
-    return res.json();
-  };
-  const write = async (path, body) => {
-    const res = await fetch(`${DB_URL}/${path}.json`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+  // Verdicts wait here until a guarded flush. The buffer is swapped out synchronously before
+  // each write, so the four workers never write the same verdict twice; flushes are chained so
+  // they land one at a time.
+  let pending = {};
+  let pendingCount = 0;
+  let flushing = Promise.resolve();
+  let flushFailed = null;
+  const flush = () => {
+    if (!pendingCount) return flushing;
+    const batch = pending;
+    const n = pendingCount;
+    pending = {};
+    pendingCount = 0;
+    flushing = flushing.then(() => guard.update(batch, { label: 'verdicts' })).catch((e) => {
+      // The paid verdicts in this batch are lost; their comments carry no verdict, so the next
+      // run re-queues them. Stop spending: no further model calls once a write has failed.
+      flushFailed = flushFailed || e;
+      console.error(`  ! a batch of ${n} verdict(s) failed to write: ${e.message}`);
     });
-    if (!res.ok) throw new Error(`write ${path}: ${res.status} ${await res.text()}`);
+    return flushing;
+  };
+  const write = (path, body) => {
+    if (flushFailed) throw new Error('an earlier verdict write failed; refusing to spend more');
+    pending[path] = body;
+    if (++pendingCount >= FLUSH_EVERY) flush();
   };
 
   console.log(`\nR32 · comment screening backfill · ${APPLY ? 'APPLY' : 'DRY RUN'} · model ${SCREENING_MODEL}`);
@@ -198,6 +211,7 @@ async function main() {
 
   async function screenOne(item) {
     try {
+      if (flushFailed) throw new Error('an earlier verdict write failed; no further model calls');
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -215,7 +229,7 @@ async function main() {
       outTok += data.usage?.output_tokens || 0;
 
       const verdict = parseScreeningResponse(data);
-      await write(`${SCREENING_NODE}/${item.slug}/${item.id}`, screeningRow({ ...verdict, uid: item.uid, text: item.text }));
+      write(`${SCREENING_NODE}/${item.slug}/${item.id}`, screeningRow({ ...verdict, uid: item.uid, text: item.text }));
       if (verdict.promotable) promotable++;
       else for (const c of verdict.categories) categories.set(c, (categories.get(c) || 0) + 1);
       estimated += estimateCallCost(item.text);
@@ -262,6 +276,9 @@ async function main() {
       for (const item of iter) await screenOne(item);
     })
   );
+  await flush();
+  guard.summary();
+  if (flushFailed) process.exitCode = 1;
 
   const spent = inTok * USD_PER_INPUT_TOKEN + outTok * USD_PER_OUTPUT_TOKEN;
   console.log(`\nDONE. ${done} screened · ${promotable} promotable (${(100 * promotable / Math.max(1, done - failed)).toFixed(1)}%) · ${failed} failed closed`);

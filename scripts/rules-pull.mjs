@@ -19,6 +19,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { createSign } from 'node:crypto';
+import { loadServiceAccount } from './security/service-account.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -33,8 +34,10 @@ const b64url = (buf) => Buffer.from(buf).toString('base64').replace(/\+/g, '-').
 // Mint a Google OAuth access token from the service-account key using a Node-crypto
 // RS256 JWT — no firebase-admin / google-auth-library dependency, so this workflow
 // survives any node_modules churn. Same credentials the Phase A backfill used.
-export async function mintToken() {
-  const svc = JSON.parse(await readFile(resolve(ROOT, 'serviceAccountKey.json'), 'utf8'));
+export async function mintToken(serviceAccount) {
+  // SAFETY-1: through the credential loader (CLAUDE.md, SECURITY-R1 rule 3), never a bare
+  // JSON.parse. It also finds the key in a worktree, which has no serviceAccountKey.json.
+  const svc = serviceAccount || loadServiceAccount();
   const now = Math.floor(Date.now() / 1000);
   const claim = {
     iss: svc.client_email,

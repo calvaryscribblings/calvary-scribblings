@@ -146,16 +146,17 @@ export function driftByField(plan) {
 // ─────────────────────────────────────────────────────────────────────────────────────────
 const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
-  const { readFile } = await import('node:fs/promises');
-  const { resolve, dirname } = await import('node:path');
-  const { fileURLToPath } = await import('node:url');
-
-  const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-  const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
+  // SAFETY-1: the write goes through scripts/safety/guard.mjs. It reads --apply (dry by default),
+  // and with it backs up exactly the records about to be replaced, verifies the backup, then
+  // writes them as ONE atomic update. On the */15 schedule the key file arrives as a path in
+  // RECONCILE_SERVICE_ACCOUNT, which the guard reads for its token. A tick with nothing to repair
+  // never reaches the write, so it makes no backup.
+  const { openGuard, DB_URL } = await import('./safety/guard.mjs');
+  const guard = await openGuard('reconcile-index');
 
   const argv = process.argv.slice(2);
   const flag = (name) => { const i = argv.indexOf(name); return i === -1 ? null : argv[i + 1]; };
-  const APPLY = argv.includes('--apply');
+  const APPLY = guard.apply;
   const ONLY = flag('--slug');
   const MAX = Number(flag('--max') || DEFAULT_MAX_RECORDS);
 
@@ -212,27 +213,21 @@ if (isMain) {
     process.exit(0);
   }
 
-  const { cert } = await import('firebase-admin/app');
-  const keyPath = process.env.RECONCILE_SERVICE_ACCOUNT || resolve(ROOT, 'serviceAccountKey.json');
-  const svc = JSON.parse(await readFile(keyPath, 'utf8'));
-  const token = (await cert(svc).getAccessToken()).access_token;
+  // One COMPLETE projected record per slug — never a deep path. A deep-path write
+  // (cms_stories_index/<slug>/<field>) creates the parent when the slug is absent, leaving a
+  // record holding one field that still counts as a member. See rule 2 in the header of
+  // app/lib/storyIndex.js; that is how a story once vanished from its author's Voices page.
+  // All of them in ONE guarded update: backed up and verified first, then written atomically.
+  const updates = Object.fromEntries(plan.repairs.map((r) => [`${INDEX_PATH}/${r.slug}`, r.want]));
+  try {
+    await guard.update(updates, { label: 'repairs' });
+  } catch (e) {
+    console.log(`::error::the repair write failed, nothing was written — ${String(e.message).slice(0, 200)}`);
+    process.exit(1);
+  }
 
   let failed = 0;
   for (const r of plan.repairs) {
-    // One COMPLETE projected record per slug — never a deep path. A deep-path write
-    // (cms_stories_index/<slug>/<field>) creates the parent when the slug is absent, leaving a
-    // record holding one field that still counts as a member. See rule 2 in the header of
-    // app/lib/storyIndex.js; that is how a story once vanished from its author's Voices page.
-    const put = await fetch(`${DB_URL}/${INDEX_PATH}/${r.slug}.json?access_token=${token}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(r.want),
-    });
-    if (!put.ok) {
-      console.log(`::error::${r.slug}: write failed HTTP ${put.status} — ${(await put.text()).slice(0, 200)}`);
-      failed++;
-      continue;
-    }
     // Verify field by field, NEVER JSON.stringify(a) === JSON.stringify(b): the REST API
     // returns keys in its own order, so a byte comparison reports a mismatch on a record that
     // is perfectly correct — and a check that cries wolf is one the next person learns to skip.
@@ -247,6 +242,7 @@ if (isMain) {
     }
   }
 
+  guard.summary();
   if (failed) { console.log(`\n${failed} record(s) failed.`); process.exit(1); }
   console.log(`\n${plan.repairs.length} record(s) repaired and verified.`);
 }

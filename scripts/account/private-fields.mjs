@@ -29,6 +29,7 @@ import { getDatabase } from 'firebase-admin/database';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { openGuard } from '../safety/guard.mjs';
 
 /** users/{uid}-relative path → users_private/{uid} field. Top-level entries come first and win. */
 export const PRIVATE_FIELDS = [
@@ -111,7 +112,9 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   try { credential = cert(JSON.parse(readFileSync(keyPath, 'utf8'))); } catch { credential = applicationDefault(); }
   initializeApp({ credential, databaseURL: process.env.SCRUB_DATABASE_URL || 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app' });
   const apply = process.argv.includes('--apply');
-  const counts = await runPrivateSweep(getDatabase(), { apply, backupDir: apply ? resolve(ROOT, 'backups') : null });
+  // SAFETY-1: through the guard as well as its own local backup.
+  const guard = await openGuard('account-private-fields');
+  const counts = await runPrivateSweep(guard.adminDb(getDatabase()), { apply, backupDir: apply ? resolve(ROOT, 'backups') : null });
   console.log(`[private] ${apply ? 'APPLIED' : 'DRY RUN, no writes'}: ${JSON.stringify(counts)}`);
   process.exit(0);
 }

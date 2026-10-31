@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { unzip } from './build.mjs';
 import { lookupWord, normaliseWord, isSingleWord, DICT_BASE } from '../../app/lib/dictionary.js';
 import { readServiceAccountFile, readSaKeySecret } from '../security/service-account.mjs';
+import { readOnlyDb, readOnlyBucket } from '../safety/guard.mjs'; // SAFETY-1: read-only, enforced (any write throws)
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i >= 0 ? process.argv[i + 1] : d; };
@@ -39,7 +40,7 @@ initializeApp({
   storageBucket: 'calvary-scribblings.firebasestorage.app',
 });
 
-const titles = (await getDatabase().ref('bookstore_titles').get()).val() || {};
+const titles = (await readOnlyDb(getDatabase()).ref('bookstore_titles').get()).val() || {};
 const samples = Object.values(titles).filter((t) => t && t.status === 'published' && typeof t.samplePath === 'string');
 
 const ENTITY = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', rsquo: '’', lsquo: '‘', mdash: '—', ndash: '–', hellip: '…' };
@@ -58,7 +59,7 @@ const WORD = /\p{L}+(?:['’-]\p{L}+)*/gu;
 const seen = new Map();          // normalised word → { lower: bool }
 let tokens = 0;
 for (const t of samples) {
-  const [buf] = await getStorage().bucket().file(t.samplePath).download();
+  const [buf] = await readOnlyBucket(getStorage().bucket()).file(t.samplePath).download();
   for (const [name, bytes] of unzip(buf)) {
     if (!/\.(x?html?)$/i.test(name)) continue;
     for (const m of textOf(bytes.toString('utf8')).matchAll(WORD)) {

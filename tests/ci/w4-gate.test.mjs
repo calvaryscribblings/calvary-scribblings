@@ -13,7 +13,6 @@ import { GATE_ON_MS } from '../../app/lib/storyAccess.js';
 import { buildInlinePlan, lockedForFirstPaint, lockScript, scriptSafeJson, BUILD_LOOKAHEAD_MS } from '../../app/lib/storyLock.js';
 import { gatePreviewActive } from '../../app/lib/gatePreview.js';
 import { FOUNDER_UIDS, isFounder } from '../../app/lib/founders.js';
-import { planRemoval, isWithdrawnBook, objectOfUrl } from '../../scripts/gate01-remove-legacy-copies.mjs';
 import { endingOf } from '../../scripts/check-built-gate.mjs';
 
 const H = 3600000;
@@ -137,33 +136,8 @@ describe('THE FOUNDER PREVIEW — founders only, and it can only lock', () => {
   });
 });
 
-describe('GATE-01 — the legacy public copies', () => {
-  const NOW = at('2026-09-25T09:00:00Z');
-  const stories = {
-    'beta-princess': { published: false, readerMode: true, category: 'novel', epubUrl: 'https://x/o/epubs%2Fbp1.epub?alt=media', extractedText: 'T' },
-    'live-book': { published: true, readerMode: true, epubUrl: 'https://x/o/epubs%2Flive.epub?alt=media', extractedText: 'T' },
-    'scheduled': { published: false, category: 'short', publishAt: '2026-09-29T06:30:00Z', extractedText: '' },
-    'hidden-news': { published: false, category: 'news', extractedText: 'N' },
-    'scheduled-book': { published: false, readerMode: true, publishAt: '2026-10-02T06:30:00Z', extractedText: 'B' },
-  };
-  const objects = [{ name: 'epubs/bp1.epub' }, { name: 'epubs/live.epub' }, { name: 'epubs/orphan.epub' }];
-
-  test('deletes every legacy object no PUBLISHED story uses; keeps a live book\'s', () => {
-    const p = planRemoval(stories, objects, NOW);
-    assert.deepEqual(p.deleteObjects.map((o) => o.name), ['epubs/bp1.epub', 'epubs/orphan.epub']);
-    assert.deepEqual(p.keptObjects.map((o) => o.name), ['epubs/live.epub']);
-  });
-  test('strips text from WITHDRAWN BOOKS only — not a scheduled story, not hidden news, not a live book', () => {
-    const p = planRemoval(stories, objects, NOW);
-    assert.deepEqual(p.strippedRecords, ['beta-princess']);
-    assert.deepEqual(Object.keys(p.fieldNulls).sort(), ['cms_stories/beta-princess/epubUrl', 'cms_stories/beta-princess/extractedText']);
-    assert.equal(isWithdrawnBook(stories.scheduled, NOW), false);
-    assert.equal(isWithdrawnBook(stories['scheduled-book'], NOW), false, 'a book scheduled to publish is not withdrawn');
-  });
-  test('reads an object path out of a download URL', () => {
-    assert.equal(objectOfUrl('https://firebasestorage.googleapis.com/v0/b/b/o/epubs%2Fa%20b.epub?alt=media&token=t'), 'epubs/a b.epub');
-  });
-});
+// GATE-01's planner (scripts/gate01-remove-legacy-copies.mjs) was retired in SAFETY-1, done and
+// verified 0/0; see scripts/RETIRED-SCRIPTS.md. Its tests went with it.
 
 describe('the built-HTML scanner samples the BODY, not what is public on purpose', () => {
   test('an ending that is also the trailer quote is not sampled; a later-only run is', () => {

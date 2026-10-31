@@ -73,6 +73,7 @@ import {
   BUCKET, DB_URL, NEW_PREFIX, SOURCE_NODE, WIDTHS,
   accessToken, assertStoryScope, deriveFrom, rtdbPatch, sha, sha12, uploadCoverSet,
 } from './store.mjs';
+import { openGuard } from '../safety/guard.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const DELAY_MS = 120;
@@ -248,15 +249,17 @@ async function main() {
     ` — ${stories.length} published stories\n`,
   );
 
-  let bucket, token;
+  let bucket, token, guard;
   if (APPLY || ROLLBACK) {
     const svc = JSON.parse(readFileSync(join(ROOT, 'serviceAccountKey.json'), 'utf8'));
     initializeApp({ credential: cert(svc), storageBucket: BUCKET });
-    bucket = getStorage().bucket();
+    // SAFETY-1: every write below goes through the guard: backup, verify, then write.
+    guard = await openGuard('covers-migrate', { apply: true });
+    bucket = guard.adminBucket(getStorage().bucket());
     token = await accessToken(svc);
   }
 
-  if (ROLLBACK) return rollback(manifest, token);
+  if (ROLLBACK) return rollback(manifest, guard);
 
   mkdirSync(join(WORK_DIR, 'png'), { recursive: true });
   manifest.startedAt ??= new Date().toISOString();
@@ -357,7 +360,7 @@ async function main() {
       const setDescriptor = descriptors ? (descriptors[slug] ?? '') : null;
       const merged = { ...story, cover: coverUrl, coverSizes: newSizes, coverHash: hash };
       if (setDescriptor !== null) merged.descriptor = setDescriptor;
-      await rtdbPatch(token, {
+      await rtdbPatch(guard, {
         [`cms_stories/${slug}/cover`]: coverUrl,
         [`cms_stories/${slug}/coverSizes`]: newSizes,
         [`cms_stories/${slug}/coverHash`]: hash,
@@ -393,7 +396,7 @@ async function main() {
   console.log(`  manifest           ${MANIFEST}`);
 }
 
-async function rollback(manifest, token) {
+async function rollback(manifest, guard) {
   const flipped = Object.entries(manifest.stories).filter(([, e]) => e.state === 'flipped' && e.old);
   console.log(`rolling back ${flipped.length} storie(s) to their pre-migration covers\n`);
   // The index is re-read so the rollback re-projects a CURRENT record rather than one this
@@ -401,7 +404,7 @@ async function rollback(manifest, token) {
   const live = await (await fetch(`${DB_URL}/cms_stories.json`)).json();
   for (const [slug, e] of flipped) {
     const merged = { ...(live[slug] || {}), cover: e.old.cover, coverSizes: e.old.coverSizes, coverHash: e.old.coverHash };
-    await rtdbPatch(token, {
+    await rtdbPatch(guard, {
       [`cms_stories/${slug}/cover`]: e.old.cover,
       [`cms_stories/${slug}/coverSizes`]: e.old.coverSizes,
       [`cms_stories/${slug}/coverHash`]: e.old.coverHash,

@@ -33,6 +33,7 @@ import { planScrub, SCAN_NODES } from './scrub-plan.mjs';
 import { planOwned, handlesOf, OWNED_NODES, STORAGE_PREFIXES, membershipAction } from '../../functions/api/account/_deletion.js';
 import { runPrivateSweep } from './private-fields.mjs';
 import { randomRef, LOG_REF_RE } from '../ops/redact.mjs';
+import { openGuard } from '../safety/guard.mjs';
 
 const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 const CHUNK = 400;
@@ -212,7 +213,10 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   let credential;
   try { credential = cert(JSON.parse(readFileSync(keyPath, 'utf8'))); } catch { credential = applicationDefault(); }
   initializeApp({ credential, databaseURL: process.env.SCRUB_DATABASE_URL || DB_URL });
-  const db = getDatabase();
+  // SAFETY-1: every write goes through the guard (dry without --apply; backup, verify, write).
+  // Its backups live 30 days, the same as the daily database backups the deletion copy allows for.
+  const guard = await openGuard('account-scrub');
+  const db = guard.adminDb(getDatabase());
   const i = args.indexOf('--preview');
   if (i >= 0) {
     const uid = args[i + 1];
@@ -223,7 +227,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   } else {
     const { getStorage } = await import('firebase-admin/storage');
     const { fireDeployHook } = await import('../deploy-hook.mjs');
-    const bucket = getStorage().bucket(process.env.SCRUB_STORAGE_BUCKET || 'calvary-scribblings.firebasestorage.app');
+    const bucket = guard.adminBucket(getStorage().bucket(process.env.SCRUB_STORAGE_BUCKET || 'calvary-scribblings.firebasestorage.app'));
     const s = await runScrub(db, {
       apply: args.includes('--apply'),
       removeStoragePrefix: async (prefix) => { const [files] = await bucket.getFiles({ prefix }); await Promise.all(files.map((f) => f.delete())); return files.length; },

@@ -10,10 +10,20 @@ that has to be recorded now — see [What only Ikenna can do](#what-only-ikenna-
 ## 🚨 START HERE — there IS an automated backup, and it is the fastest way back
 
 **The project is on the Blaze plan and Firebase's own scheduled Realtime Database backup is
-enabled.** It has run daily at ~00:13 UTC since 23 Aug 2026, writing to the bucket
+enabled.** It has run daily since 23 Aug 2026, writing to the bucket
 `calvary-scribblings-default-rtdb-backups` (30-day delete lifecycle). Nothing in this repo
 takes that backup and nothing should: it is a console setting, and two backup systems means
 two things to believe.
+
+**It usually runs at 00:13 UTC, but not always.** It did every day until 28 Oct 2026. Then it
+ran at 04:30, 03:26 and 01:00 UTC on 29, 30 and 31 Oct (SAFETY-1 listed the bucket). So pick an
+archive by its `timeCreated`, never by assuming the hour, and when you need "just before the
+damage", check that the archive you pick really is before it.
+
+The same bucket also holds `guard/…`: the SAFETY-1 guard's backup of every scripted bulk write,
+taken just before the write (see [Undoing a scripted write](#undoing-a-scripted-write)). It
+expires after 30 days with everything else in the bucket. The liveness check and the drill read
+only the `…_data.json.gz` archives.
 
 > **This section exists because the opposite was written down and believed.** `export.mjs`
 > asserted for twelve days that automated backups had never been enabled — the comment was
@@ -31,22 +41,24 @@ tree for it.
 # 1. What have we got, and how fresh?
 npm run backup:liveness
 
-# 2. Pull the archive from just before the damage and take the record out of it.
-#    List archives, pick by timestamp, then:
-node -e '
-  const {mintToken}=await import("./scripts/rules-pull.mjs");
-  const {gunzipSync}=await import("node:zlib");
-  const B="calvary-scribblings-default-rtdb-backups";
-  const OBJ="<the _data.json.gz you want>";
-  const t=await mintToken();
-  const r=await fetch(`https://storage.googleapis.com/storage/v1/b/${B}/o/${encodeURIComponent(OBJ)}?alt=media`,{headers:{Authorization:`Bearer ${t}`}});
-  const db=JSON.parse(gunzipSync(Buffer.from(await r.arrayBuffer())));
-  console.log(JSON.stringify(db.open_pages["<postId>"],null,2));
-' --input-type=module
+# 2. List the archives and pick the one from just before the damage, by its time.
+node scripts/backup/restore-archive.mjs --list
+
+# 3. Dry run: is the record in that archive, and does it differ from live? (hashes, no data)
+node scripts/backup/restore-archive.mjs --object <archive> --path open_pages/<postId>
+
+# 4. Put it back. The guard backs up what is live there now, verifies it, then writes,
+#    and the script reads the path back and compares it to the archive by hash.
+node scripts/backup/restore-archive.mjs --object <archive> --path open_pages/<postId> --apply
 ```
 
-Then write just that path back with the admin SDK. **Verify the length or a checksum against
-the archive before and after** — this is exactly the step that was skipped.
+**Verify before and after.** Steps 3 and 4 print the archive's hash and the live hash of that path,
+and the read-back after the write. That check was skipped on 4 Sep, and it is now part of the
+command. If the path is not in the archive, the script refuses: restoring it would delete it.
+
+(This section used to show a `node -e` that printed the record to the terminal and said to "write
+just that path back with the admin SDK". Both are gone. Printing a reader's record puts it in a
+log. A hand-written admin-SDK write is a write that bypasses the guard.)
 
 ### Restoring the WHOLE database
 
@@ -57,9 +69,20 @@ npm run backup:restore-drill      # restores the newest archive into the emulato
                                   # compares every node against the archive
 ```
 
-Last proven: **4 Sep 2026** — 19.09 MB, 76 top-level nodes, whole tree canonically identical.
+Last proven: **31 Oct 2026** (SAFETY-1). Archive `2026-10-31T01:00:49Z`, 6.01 MB gzip, 20.45 MB
+inflated, 101 top-level nodes, whole tree canonically identical after the restore. Earlier: 4 Sep
+2026, 19.09 MB, 76 nodes.
 
-For real, point the same PUT at production. See [The database](#1-the-database) below.
+Since SAFETY-1 the drill also checks the restored tree **against live**, with read-only GETs. It
+compares every node's record count, `story_bodies` against `cms_stories`, and ten random records
+per major node by SHA-256. It prints counts and verdicts only, never a record or a key. `--no-live`
+skips that half. On 31 Oct, 19 hours after the archive, 93 of 102 nodes had identical counts. The
+rest had grown (e.g. `cms_stories` 252 → 270, one new node `series_note_replies`), and none had
+shrunk. Of 113 sampled records, 111 were identical, 1 had changed with a later timestamp, and 1
+(in `cms_stories`) had changed without one. That fits PROOFS-R1's text removal, which took
+`content` off 41 `cms_stories` records that day and leaves no timestamp.
+
+For real, the same archive goes back through the guard. See [The database](#1-the-database) below.
 
 ### Is it still running?
 
@@ -78,17 +101,42 @@ by hand.
 
 ```bash
 node scripts/backup/export.mjs                  # → backups/<utc-timestamp>/
-node scripts/backup/rehearse.mjs backups/<utc-timestamp>
+firebase emulators:exec --only database --project demo-calvary-restore \
+  "node scripts/backup/rehearse.mjs backups/<utc-timestamp>"
 ```
 
-The second command is not optional. A backup nobody has restored is a hope; the rehearsal
-restores the tree into a scratch node, reads it back, compares it, deletes it, and checks
-the three things that break on restored data even when every byte is perfect. It changes
-nothing live. Add `--offline` for a free integrity-only pass.
+The second command is not optional. A backup nobody has restored is a hope. The rehearsal
+restores the tree into a scratch node **in the database emulator**, reads it back, compares it,
+deletes it, and checks the three things that break on restored data even when every byte is
+perfect. Add `--offline` for an integrity-only pass with no emulator.
+
+(Until SAFETY-1 the round trip wrote the whole tree, every reader record included, under
+`_restore_rehearsal/<stamp>` in the **live** database. A failed delete there would have left a
+full copy of the database in production. Run without the emulator, it now skips the round trip
+and says so.)
 
 **Keep the backups off this machine.** A backup that lives only in the Codespace dies with
 the Codespace. `backups/` is gitignored — it holds every reader's email address and password
 hash, and it must never enter git.
+
+---
+
+## Undoing a scripted write
+
+Since SAFETY-1, every script that writes to production goes through the guard
+(`scripts/safety/guard.mjs`, CLAUDE.md "A bulk write goes through the guard"). Just before each
+write it saves exactly the paths and Storage objects it is about to change to
+`gs://calvary-scribblings-default-rtdb-backups/guard/<script>/<stamp>/batch-N.json`, and it
+prints that location. To put them back:
+
+```bash
+node scripts/safety/restore.mjs gs://calvary-scribblings-default-rtdb-backups/guard/<script>/<stamp>/batch-N.json           # dry run
+node scripts/safety/restore.mjs gs://calvary-scribblings-default-rtdb-backups/guard/<script>/<stamp>/batch-N.json --apply
+```
+
+A path that did not exist before the write is deleted again. A Storage object comes back
+byte-exact with its download token, but as a new generation (§4). These backups last 30 days,
+like the daily archives.
 
 ---
 
@@ -122,16 +170,30 @@ hash, and it must never enter git.
 
 ### 1. The database
 
+From the automated backup (the usual case):
+
 ```bash
-gunzip -c backups/<stamp>/rtdb.json.gz > /tmp/rtdb.json
-# Review it first. This overwrites EVERYTHING at the root.
-curl -X PUT -H "Content-Type: application/json" \
-  --data-binary @/tmp/rtdb.json \
-  "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app/.json?access_token=$(node -e "import('./scripts/rules-pull.mjs').then(m=>m.mintToken()).then(t=>process.stdout.write(t))")"
+node scripts/backup/restore-archive.mjs --list
+node scripts/backup/restore-archive.mjs --object <archive> --all            # dry run: what differs
+node scripts/backup/restore-archive.mjs --object <archive> --all --apply    # backup, verify, write
 ```
 
-Roughly a minute. **This is destructive** — it replaces the root. To restore one subtree,
-`PUT` to that path instead; that is almost always what you actually want.
+`--all` writes every top-level node the archive holds, one path per node, as one atomic update.
+It never writes the root, so a node created since the archive was taken survives. Before writing,
+the guard backs up everything live at those paths (about 20 MB), so the restore can itself be
+undone with `scripts/safety/restore.mjs`. Rehearse the same command in the emulator first (the
+usage is at the top of the script). SAFETY-1 ran it there on 31 Oct: 101 of 101 nodes read back
+identical to the archive.
+
+From an `export.mjs` copy, the same applies: the write goes through the guard. Put the copy's
+`rtdb.json.gz` where the script can read it, or open a guard yourself (`openGuard` →
+`guard.update({ <node>: value, … })`).
+
+**The old instruction here was a raw `curl -X PUT` of the whole file at the database root, with
+an access token minted on the command line. Never do that.** It replaces the root without a
+backup of what it overwrites, and it puts a live token in the shell's history. CLAUDE.md: a bulk
+write goes through the guard. To restore one subtree, use `--path`. That is almost always what
+you actually want.
 
 ### 2. The rules
 
@@ -227,16 +289,11 @@ separator, rounds, memory cost — and store it wherever the backups are stored.
 This is the single highest-value five minutes in this document. It cannot be read through
 any API, and without it the account export is a list of names.
 
-### Turn on automated database backups
+### Turn on automated database backups — DONE (23 Aug 2026)
 
-Firebase console → **Databases & Storage** → **Realtime Database** → **Backups** tab → follow
-the in-console workflow. Blaze is required and the project is already on Blaze. Firebase
-documents the feature itself as no extra cost — you pay only Cloud Storage rates for the
-files, which at 4 MB gzipped with the offered 30-day lifecycle policy is well under a dollar
-a month. Enable Gzip (default) and the 30-day lifecycle.
-
-This creates a second bucket. The project currently has exactly one, which is how the audit
-established that no backup has ever been configured.
+On since 23 Aug 2026: Gzip, 30-day lifecycle, bucket `calvary-scribblings-default-rtdb-backups`.
+See the top of this file. (This section used to say the project had one bucket and no backup.
+That stopped being true the day it was written.)
 
 ### Harden the bucket — DONE (W5, 25 Sep 2026)
 

@@ -30,6 +30,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
+import { readOnlyDb } from './safety/guard.mjs'; // SAFETY-1: read-only, enforced (any write throws)
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -49,7 +50,7 @@ async function main() {
     credential: cert(serviceAccount),
     databaseURL: DB_URL,
   });
-  const db = getDatabase();
+  const db = readOnlyDb(getDatabase());
 
   const [usersSnap, searchSnap] = await Promise.all([
     db.ref('users').get(),

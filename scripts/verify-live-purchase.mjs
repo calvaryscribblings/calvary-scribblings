@@ -29,6 +29,7 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { readershipFromPurchases } from './readership-source.mjs';
+import { readOnlyDb, readOnlyBucket } from './safety/guard.mjs'; // SAFETY-1: read-only, enforced (any write throws)
 
 const DATABASE_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 const STORAGE_BUCKET = 'calvary-scribblings.firebasestorage.app'; // = functions/api/bookstore/_lib.js
@@ -68,7 +69,7 @@ async function main() {
     credential: cert(JSON.parse(readFileSync(saPath, 'utf8'))),
     databaseURL: DATABASE_URL, storageBucket: STORAGE_BUCKET,
   });
-  const db = getDatabase(app);
+  const db = readOnlyDb(getDatabase(app));
 
   const record = (await db.ref(`bookstore_purchases/${uid}/${titleId}`).get()).val();
   const all = (await db.ref('bookstore_purchases').get()).val() || {};
@@ -124,7 +125,7 @@ async function main() {
   const v = streamVerdict(record);
   let ticket = v.ticket ? 'YES' : `NO — stream.js answers 403 ${v.code}${v.reason ? ` (${v.reason})` : ''}`;
   if (v.ticket) {
-    const [exists] = await getStorage(app).bucket().file(`bookstore_epubs/${titleId}/master.epub`).exists();
+    const [exists] = await readOnlyBucket(getStorage(app).bucket()).file(`bookstore_epubs/${titleId}/master.epub`).exists();
     if (!exists) { ticket = 'NO — entitled, but bookstore_epubs/<titleId>/master.epub is MISSING (stream.js would 5xx)'; consistent = false; }
   }
   console.log(`\nstream ticket       ${ticket}`);
