@@ -7,7 +7,7 @@
 #    everything below the first dynamic rule against the 100-rule dynamic limit and then
 #    abandons the file. The generator partitions to guarantee this; do not resort by hand.
 
-# ── Static rules (405 of 2000 permitted) ───────────────
+# ── Static rules (435 of 2000 permitted) ───────────────
 /voices/arthor-eze                                           /voices/arthur-eze                                           301
 /creative                                                    /inspiring                                                   301
 /creative.html                                               /inspiring                                                   301
@@ -53,6 +53,8 @@
 /amor-s-cage.html                                            /stories/amor-s-cage                                         301
 /amvca-an-opinion-feature                                    /stories/amvca-an-opinion-feature                            301
 /amvca-an-opinion-feature.html                               /stories/amvca-an-opinion-feature                            301
+/anomaly                                                     /stories/anomaly                                             301
+/anomaly.html                                                /stories/anomaly                                             301
 /apple-s-foldable-arrives-the-iphone-18-doesn-t              /stories/apple-s-foldable-arrives-the-iphone-18-doesn-t      301
 /apple-s-foldable-arrives-the-iphone-18-doesn-t.html         /stories/apple-s-foldable-arrives-the-iphone-18-doesn-t      301
 /apple-s-quiet-health-overhaul                               /stories/apple-s-quiet-health-overhaul                       301
@@ -71,6 +73,12 @@
 /beyond-saving.html                                          /stories/beyond-saving                                       301
 /beyond-the-metered-grid                                     /stories/beyond-the-metered-grid                             301
 /beyond-the-metered-grid.html                                /stories/beyond-the-metered-grid                             301
+/blaqbonez-s-nomadinho-4th-prime                             /stories/blaqbonez-s-nomadinho-4th-prime                     301
+/blaqbonez-s-nomadinho-4th-prime.html                        /stories/blaqbonez-s-nomadinho-4th-prime                     301
+/boomerang                                                   /stories/boomerang                                           301
+/boomerang.html                                              /stories/boomerang                                           301
+/borderline                                                  /stories/borderline                                          301
+/borderline.html                                             /stories/borderline                                          301
 /brenda                                                      /stories/brenda                                              301
 /brenda.html                                                 /stories/brenda                                              301
 /brown-skinned-girl                                          /stories/brown-skinned-girl                                  301
@@ -109,6 +117,8 @@
 /die-empty.html                                              /stories/die-empty                                           301
 /dinner-at-my-family-table                                   /stories/dinner-at-my-family-table                           301
 /dinner-at-my-family-table.html                              /stories/dinner-at-my-family-table                           301
+/dinner-is-served                                            /stories/dinner-is-served                                    301
+/dinner-is-served.html                                       /stories/dinner-is-served                                    301
 /disillusionment                                             /stories/disillusionment                                     301
 /disillusionment.html                                        /stories/disillusionment                                     301
 /dont-worry                                                  /stories/dont-worry                                          301
@@ -121,8 +131,12 @@
 /early.html                                                  /stories/early                                               301
 /encore                                                      /stories/encore                                              301
 /encore.html                                                 /stories/encore                                              301
+/enough-of-you                                               /stories/enough-of-you                                       301
+/enough-of-you.html                                          /stories/enough-of-you                                       301
 /final-boarding-call                                         /stories/final-boarding-call                                 301
 /final-boarding-call.html                                    /stories/final-boarding-call                                 301
+/football-delivered-a-weekend-of-madness                     /stories/football-delivered-a-weekend-of-madness             301
+/football-delivered-a-weekend-of-madness.html                /stories/football-delivered-a-weekend-of-madness             301
 /free-will                                                   /stories/free-will                                           301
 /free-will.html                                              /stories/free-will                                           301
 /freezer-34                                                  /stories/freezer-34                                          301
@@ -185,6 +199,8 @@
 /miss-lady.html                                              /stories/miss-lady                                           301
 /mother-and-other-poems                                      /stories/mother-and-other-poems                              301
 /mother-and-other-poems.html                                 /stories/mother-and-other-poems                              301
+/mr-potential                                                /stories/mr-potential                                        301
+/mr-potential.html                                           /stories/mr-potential                                        301
 /murdoch-s-torment                                           /stories/murdoch-s-torment                                   301
 /murdoch-s-torment.html                                      /stories/murdoch-s-torment                                   301
 /my-best-friend-is-an-algorithm                              /stories/my-best-friend-is-an-algorithm                      301
@@ -267,6 +283,8 @@
 /seat-14b.html                                               /stories/seat-14b                                            301
 /seven-metres-and-four-years-of-silence                      /stories/seven-metres-and-four-years-of-silence              301
 /seven-metres-and-four-years-of-silence.html                 /stories/seven-metres-and-four-years-of-silence              301
+/sharing-your-hotspot-is-a-trap                              /stories/sharing-your-hotspot-is-a-trap                      301
+/sharing-your-hotspot-is-a-trap.html                         /stories/sharing-your-hotspot-is-a-trap                      301
 /sim-swapping                                                /stories/sim-swapping                                        301
 /sim-swapping.html                                           /stories/sim-swapping                                        301
 /sixth-cycle                                                 /stories/sixth-cycle                                         301
@@ -277,8 +295,12 @@
 /small-permissions.html                                      /stories/small-permissions                                   301
 /soft-launch                                                 /stories/soft-launch                                         301
 /soft-launch.html                                            /stories/soft-launch                                         301
+/spotlight-collins-c-oparaocha-underneath-we-are-all-the-same-people /stories/spotlight-collins-c-oparaocha-underneath-we-are-all-the-same-people 301
+/spotlight-collins-c-oparaocha-underneath-we-are-all-the-same-people.html /stories/spotlight-collins-c-oparaocha-underneath-we-are-all-the-same-people 301
 /spotlight-ikenna-okeh-i-usually-write-about-realities-not-really-talked-about /stories/spotlight-ikenna-okeh-i-usually-write-about-realities-not-really-talked-about 301
 /spotlight-ikenna-okeh-i-usually-write-about-realities-not-really-talked-about.html /stories/spotlight-ikenna-okeh-i-usually-write-about-realities-not-really-talked-about 301
+/spotlight-nneka-faith-abanum-four-books-this-november       /stories/spotlight-nneka-faith-abanum-four-books-this-november 301
+/spotlight-nneka-faith-abanum-four-books-this-november.html  /stories/spotlight-nneka-faith-abanum-four-books-this-november 301
 /starmer-steps-down                                          /stories/starmer-steps-down                                  301
 /starmer-steps-down.html                                     /stories/starmer-steps-down                                  301
 /starrgirl-album-review                                      /stories/starrgirl-album-review                              301
@@ -293,6 +315,8 @@
 /success-wears-many-faces.html                               /stories/success-wears-many-faces                            301
 /suffering-grass                                             /stories/suffering-grass                                     301
 /suffering-grass.html                                        /stories/suffering-grass                                     301
+/super-el-ni-o-the-weather-changes-to-watch-around-the-world /stories/super-el-ni-o-the-weather-changes-to-watch-around-the-world 301
+/super-el-ni-o-the-weather-changes-to-watch-around-the-world.html /stories/super-el-ni-o-the-weather-changes-to-watch-around-the-world 301
 /sweet-16                                                    /stories/sweet-16                                            301
 /sweet-16.html                                               /stories/sweet-16                                            301
 /terms-and-conditions                                        /stories/terms-and-conditions                                301
@@ -309,6 +333,8 @@
 /the-apps-know-more-than-your-closest-friend.html            /stories/the-apps-know-more-than-your-closest-friend         301
 /the-bots-are-reading-your-cv-before-any-human-does-here-s-how-to-beat-them /stories/the-bots-are-reading-your-cv-before-any-human-does-here-s-how-to-beat-them 301
 /the-bots-are-reading-your-cv-before-any-human-does-here-s-how-to-beat-them.html /stories/the-bots-are-reading-your-cv-before-any-human-does-here-s-how-to-beat-them 301
+/the-butcher-of-galilee                                      /stories/the-butcher-of-galilee                              301
+/the-butcher-of-galilee.html                                 /stories/the-butcher-of-galilee                              301
 /the-call                                                    /stories/the-call                                            301
 /the-call.html                                               /stories/the-call                                            301
 /the-deadline                                                /stories/the-deadline                                        301
@@ -341,6 +367,8 @@
 /the-other-woman.html                                        /stories/the-other-woman                                     301
 /the-outrage-is-never-equal                                  /stories/the-outrage-is-never-equal                          301
 /the-outrage-is-never-equal.html                             /stories/the-outrage-is-never-equal                          301
+/the-pig-butchering-scam                                     /stories/the-pig-butchering-scam                             301
+/the-pig-butchering-scam.html                                /stories/the-pig-butchering-scam                             301
 /the-pill                                                    /stories/the-pill                                            301
 /the-pill.html                                               /stories/the-pill                                            301
 /the-real-reason-your-internet-slows-down-at-9-p-m           /stories/the-real-reason-your-internet-slows-down-at-9-p-m   301
@@ -379,6 +407,8 @@
 /what-the-light-remembers.html                               /stories/what-the-light-remembers                            301
 /whatsapp-hides-your-number                                  /stories/whatsapp-hides-your-number                          301
 /whatsapp-hides-your-number.html                             /stories/whatsapp-hides-your-number                          301
+/when-ai-detection-puts-a-literary-prize-under-suspicion     /stories/when-ai-detection-puts-a-literary-prize-under-suspicion 301
+/when-ai-detection-puts-a-literary-prize-under-suspicion.html /stories/when-ai-detection-puts-a-literary-prize-under-suspicion 301
 /when-the-basket-bleeds                                      /stories/when-the-basket-bleeds                              301
 /when-the-basket-bleeds.html                                 /stories/when-the-basket-bleeds                              301
 /when-the-technology-becomes-the-scene-the-case-of-ai        /stories/when-the-technology-becomes-the-scene-the-case-of-ai 301
