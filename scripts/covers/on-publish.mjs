@@ -309,8 +309,8 @@ async function main() {
   }
 
   // ── THE REBUILD (W1). A held story that goes live HERE had no static page in the last
-  // build: hasStaticPage() (app/lib/storyAccess.js) emits a route for a published story or a
-  // scheduled one, and a held draft with no publishAt is neither. The admin fired its rebuild
+  // build: hasStaticPage() (app/lib/storyAccess.js) emits a route for a LIVE story only
+  // (UNRELEASED-1) — never a scheduled or held one. The admin fired its rebuild
   // at SAVE time, while the story was still a draft, so without this /stories/{slug} 404s until
   // some unrelated deploy happens to run. One POST per run, however many went live; the hook is
   // the stories hook (the Pages project's CMS_DEPLOY_HOOK_URL), from an Actions secret of the

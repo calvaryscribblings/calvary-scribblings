@@ -77,14 +77,6 @@ test('THE DESCRIPTOR FITS ITS MEASURE (COVERS-R19)', async (t) => {
     }
   });
 
-  await t.test('every live descriptor that breaks sets two words over the third', () => {
-    for (const r of withDesc) {
-      const fit = fitDescriptor(ctx, formatDescriptor(r.descriptor));
-      if (fit.lines.length === 1) continue;
-      assert.deepEqual(fit.lines.map((l) => l.text.split(DESCRIPTOR.separator).length), [2, 1], `${r.slug}: ${fit.lines.map((l) => l.text).join(' / ')}`);
-    }
-  });
-
   await t.test('the leading is cap height plus word gap, measured by the engine', () => {
     const { leading, cap, gap } = descriptorLeading(ctx);
     ctx.font = `${DESCRIPTOR.size}px "EB Garamond"`;
@@ -98,20 +90,46 @@ test('THE DESCRIPTOR FITS ITS MEASURE (COVERS-R19)', async (t) => {
     assert.equal(plan.descriptor.lines[1].y - plan.descriptor.lines[0].y, leading, 'the baselines are one leading apart');
   });
 
-  await t.test('a synthetic worst case fits: the library\'s three longest descriptor words', () => {
-    const words = [...new Set(withDesc.flatMap((r) => formatDescriptor(r.descriptor).split(DESCRIPTOR.separator)))];
-    const longest = words.sort((a, b) => width(b) - width(a) || b.length - a.length).slice(0, 3);
-    const text = longest.join(DESCRIPTOR.separator);
-    assert.ok(width(text) > TITLE.maxWidth, `the worst case "${text}" fits on one line, so it proves nothing about the break`);
+  // UNRELEASED-1 (31 Oct 2026): THIS SUBTEST USED TO PIN ITS ANSWER TO LIVE DATA, AND THAT
+  // STOPPED THE COVERS. It asserted that the library's three longest words broke as
+  // CONSOLIDATION. IMPERSONATION. / ESTRANGEMENT. — true at R19.1, false the moment an editor
+  // typed INTERROGATION. into a descriptor on 30 Oct. verify failed, so reconcile never ran, and
+  // every held story waited for a cover for over a day. No test may pin to live data that editors
+  // change: the R19.1 numbers now sit on a FIXTURE below, and the live worst case asserts only the
+  // property — that it fits — whatever its words are today, and with a longer one added.
+  const worstOf = (words) => [...new Set(words)].sort((a, b) => width(b) - width(a) || b.length - a.length).slice(0, 3);
+  const assertWorstCaseFits = (text, label) => {
     const fit = fitDescriptor(ctx, text);
-    assertFits(text, fit, `worst case "${text}"`);
-    assert.deepEqual(fit.lines.map((l) => l.text), ['CONSOLIDATION.  IMPERSONATION.', 'ESTRANGEMENT.'], 'the worst case as the library stood at R19.1');
-    assert.ok(Math.abs(fit.lines[0].width - 1213.3) < 0.05, `first line ${fit.lines[0].width}`);
+    assertFits(text, fit, label);
     // and on a cover with the library's longest title, the stack still fits its region
     const longestTitle = records.reduce((a, b) => (b.title.length > a.title.length ? b : a));
     const plan = planCover(ctx, { ...longestTitle, descriptor: text });
-    assert.equal(plan.overflow, false, 'the worst case overflows the stack region under the longest live title');
-    assertFits(text, plan.descriptor, 'worst case on the longest title');
+    assert.equal(plan.overflow, false, `${label} overflows the stack region under the longest live title`);
+    assertFits(text, plan.descriptor, `${label} on the longest title`);
+    return fit;
+  };
+
+  await t.test('the R19.1 worst case, as a fixture: two words over the third, 1213.3px', () => {
+    const text = ['CONSOLIDATION.', 'IMPERSONATION.', 'ESTRANGEMENT.'].join(DESCRIPTOR.separator);
+    assert.ok(width(text) > TITLE.maxWidth, 'the fixture must not fit on one line, or it proves nothing about the break');
+    const fit = assertWorstCaseFits(text, 'the R19.1 fixture');
+    assert.deepEqual(fit.lines.map((l) => l.text), ['CONSOLIDATION.  IMPERSONATION.', 'ESTRANGEMENT.']);
+    assert.ok(Math.abs(fit.lines[0].width - 1213.3) < 0.05, `first line ${fit.lines[0].width}`);
+  });
+
+  await t.test('a synthetic worst case fits: the library\'s three longest descriptor words, whatever they are', () => {
+    const words = withDesc.flatMap((r) => formatDescriptor(r.descriptor).split(DESCRIPTOR.separator));
+    const longest = worstOf(words);
+    assertWorstCaseFits(longest.join(DESCRIPTOR.separator), `the live worst case "${longest.join(' ')}"`);
+  });
+
+  await t.test('and still fits with a longer word than any in the library added', () => {
+    const words = withDesc.flatMap((r) => formatDescriptor(r.descriptor).split(DESCRIPTOR.separator));
+    const longer = 'DISENFRANCHISEMENT.';
+    assert.ok(width(longer) > width(worstOf(words)[0]), `${longer} is not longer than the library's longest word`);
+    const longest = worstOf([...words, longer]);
+    assert.equal(longest[0], longer);
+    assertWorstCaseFits(longest.join(DESCRIPTOR.separator), `the worst case with ${longer} added`);
   });
 
   await t.test('a word wider than the measure raises — nothing is drawn over the keyline again', () => {

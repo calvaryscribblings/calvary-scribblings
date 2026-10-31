@@ -99,7 +99,10 @@ test('the service worker registers site-wide and a fenced navigation fails into 
 
 test('there is a root 404, and it is the house page', () => {
   assert.ok(existsSync(join(ROOT, 'app/not-found.js')));
-  assert.match(src('app/not-found.js'), /<NotFoundPage \/>/);
+  // UNRELEASED-1: through NotFoundOrLiveStory, which draws the house page for everything but a
+  // story the endpoint says is live.
+  assert.match(src('app/not-found.js'), /<NotFoundOrLiveStory \/>/);
+  assert.match(src('app/components/NotFoundOrLiveStory.js'), /<NotFoundPage \/>/);
   assert.match(src('app/components/NotFoundPage.js'), /<TabBar \/>/);
 });
 

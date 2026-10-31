@@ -47,9 +47,8 @@ function readCmsStories() {
 export async function generateStaticParams() {
   const hardcoded = stories.map((s) => ({ slug: s.id }));
   const cmsData = await readCmsStories();
-  // hasStaticPage, not every key: an unpublished story must not keep a page at a URL a reader
-  // can still type. See app/lib/storyAccess.js for the measurement behind it and for why
-  // scheduled stories are deliberately still built.
+  // hasStaticPage, not every key: a story that is not live — hidden, scheduled or held — gets
+  // no page, no title and no metadata. See app/lib/storyAccess.js for why (UNRELEASED-1).
   //
   // Empty is a valid answer and returns `hardcoded` — which is [] since the migration, and
   // would fail the export. That is CORRECT and it is not this file's decision to soften: an

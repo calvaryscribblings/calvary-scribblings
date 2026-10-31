@@ -164,6 +164,47 @@ The rotation checklist and the consumer map are in `security/KEY-ROTATION.md`.
 
 Before committing any new file, run `git status` and confirm the path is at the repo root (`app/…`, `emails/…`, `scripts/…`, `public/…`). If you see a path starting with `calvary-scribblings-next/` or `calvary-app/`, stop — that is a vestigial location, and nothing under it may be staged or committed.
 
+## 🚨 A STORY THAT ISN'T LIVE HAS NO PAGE
+
+**UNRELEASED-1 (31 Oct 2026). A story that isn't live has no page, no text and no metadata
+anywhere public, and is readable the moment it goes live.**
+
+- "Live" is one test, `isReadableStory` in `app/lib/storyAccess.js`, the one `/api/story` answers
+  404 on. `hasStaticPage` *is* that test. A scheduled, held, hidden or draft story gets no
+  `/stories/<slug>`, no `/reader/<slug>`, no link and no `<title>` in the export.
+- Why it matters: until this round, a story with a future `publishAt` got a page, and the free-week
+  policy read that future date as "free this week", so the build inlined the **whole body**.
+  PROOFS-R0 found 12 of 36 scheduled stories answering 200 with their text.
+- Its page arrives with the deploy that follows its go-live, and every path to live fires that
+  deploy (the Worker, the covers reconciler, the CMS). For the minutes in between (1.4 to 5 min,
+  measured 17–30 Oct), `app/components/NotFoundOrLiveStory.js` serves it from the 404: on a
+  `/stories/<slug>` address it asks `/api/story`. A 200 draws the story with the story page's own
+  component. Anything else is the ordinary 404, and the record is never read.
+- **Never build a page "in advance" again**, for scheduling or for anything else. If a go-live
+  stops being followed by a deploy, the 404 path keeps serving the story. That is the fallback,
+  and it is the right place for one.
+- ⚠ **Not closed: the database.** `cms_stories` is `.read: true` at its root and, during phase
+  T1, still carries `content`. On 31 Oct all 38 scheduled or held records had their full body
+  there, readable by anyone over REST. Closing that is a rules change with app consumers (T3). It
+  is not a build change.
+
+Guards: `tests/build/unreleased-pages.test.mjs` (over the built export, after the build in
+reader-tests) and `tests/unreleased/live-fallback.test.mjs` (two emulator builds, the real
+`/api/story`).
+
+## 🚨 NO TEST MAY PIN TO LIVE DATA THAT EDITORS CHANGE
+
+**UNRELEASED-1 (31 Oct 2026).** `tests/covers/descriptor-fit.test.mjs` asserted that the
+library's three longest descriptor words broke as CONSOLIDATION. IMPERSONATION. / ESTRANGEMENT.
+That was true at R19.1. On 30 Oct an editor typed INTERROGATION., and from then on `covers:verify`
+failed every run. When verify fails, reconcile never runs, so 26 held stories waited for covers,
+and nobody saw it for over a day.
+
+A test may **read** live data and assert a **property** of it ("every descriptor fits"). It may not
+assert the **values** an editor controls: a word, a title, a count, a slug. If a number has to be
+pinned, pin it to a fixture. And a property over live data that has no subject today must say
+SKIPPED, not pass.
+
 ## Covers: two rules, and they are different rules
 
 **The story library is typographic BY RULE.** Every published `cms_stories` cover is generated

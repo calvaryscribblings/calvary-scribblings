@@ -39,7 +39,9 @@ const BODIES_PATH = 'story_bodies';
  * and must read a story before it publishes; it does not apply this.)
  */
 export const STORY_NOT_FOUND = Object.freeze({ error: 'That story could not be found.', code: 'not_found' });
-export const isReadableStory = (story) => !!story && typeof story === 'object' && story.published !== false;
+// UNRELEASED-1: defined once, in app/lib/storyAccess.js, because the static export's page list
+// (hasStaticPage) must ask exactly the question this endpoint answers 404 on.
+export { isReadableStory } from '../../app/lib/storyAccess.js';
 
 /**
  * `{ content, extractedText }` for a slug, read with an admin token.

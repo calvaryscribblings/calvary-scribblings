@@ -157,6 +157,13 @@ on:
       - 'app/inspiring/page.js'
       - 'app/book-reader/page.js'
       - 'tests/**'
+      # UNRELEASED-1 — what the export builds for a story, and the 404 that reads a fresh one.
+      - 'app/lib/storyAccess.js'
+      - 'app/not-found.js'
+      - 'app/components/NotFoundOrLiveStory.js'
+      - 'app/components/NotFoundPage.js'
+      - 'functions/api/story.js'
+      - 'functions/api/_story-body.js'
       # R8.0 — the sample splitter, which tests/reader/sample-epub.spec.mjs imports directly.
       - 'scripts/make-sample-epub.mjs'
       - '.github/workflows/reader-tests.yml'
@@ -548,6 +555,13 @@ jobs:
         run: node --test tests/ci/deploy-hook-secrecy.test.mjs
         if: ${{ !cancelled() }}
 
+      # UNRELEASED-1 — a story that is not live (scheduled, held, hidden, a draft) has no page, no
+      # link and no metadata in the export. Over out/ as built above, against whatever is
+      # unreleased in cms_stories right now; it names counts only, never a slug (logs are public).
+      - name: Unreleased stories are absent from the export
+        run: npm run test:unreleased:export
+        if: ${{ !cancelled() }}
+
       # R45 — THE QUIZ MARKER IS OFF THE CARDS, proved against what PAINTS.
       #
       # It runs HERE, after the build, and not in the hygiene job, for the same reason as the
@@ -586,6 +600,14 @@ jobs:
       # Retry, rendered content staying, and the house 404.
       - name: Designed states (unreachable database, retry, content stays, the 404)
         run: npx playwright test -c tests/states/playwright.config.mjs
+        if: ${{ !cancelled() }}
+
+      # UNRELEASED-1 — and readable the moment it goes live: two real builds from the RTDB
+      # emulator, the real /api/story Function, a story flipped live with no page built opening
+      # through the 404 and matching its built page. LAST, because it builds out/ twice (it sets
+      # the one above aside and puts it back, but nothing after it should have to trust that).
+      - name: A fresh story reads through the 404 until its page is built (emulator)
+        run: npm run test:unreleased
         if: ${{ !cancelled() }}
 
       - name: Upload traces and reports

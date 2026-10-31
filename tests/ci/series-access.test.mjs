@@ -544,16 +544,20 @@ describe('a pulled story keeps no page at a URL a reader can type', () => {
   test('a published story does', () => {
     assert.equal(hasStaticPage({ published: true }), true);
     assert.equal(hasStaticPage({}), true);           // absent means published, as everywhere else
-    assert.equal(hasStaticPage(null), true);
   });
 
-  test('a SCHEDULED story still does — the cron flips a record, not a deploy', () => {
-    // The external calvary-newsletter Worker sets published:true when publishAt arrives. If
-    // the page were not already built, the story would go live to a 404 until someone
-    // deployed. Presence, not futurity: the page must survive the instant the schedule fires,
-    // when the record is briefly still published:false with a past publishAt.
-    assert.equal(hasStaticPage({ published: false, publishAt: '2027-01-01T09:00:00Z' }), true);
-    assert.equal(hasStaticPage({ published: false, publishAt: '2020-01-01T09:00:00Z' }), true);
+  test('a missing record does not — the same answer /api/story gives it (404)', () => {
+    assert.equal(hasStaticPage(null), false);
+    assert.equal(hasStaticPage(undefined), false);
+  });
+
+  test('a SCHEDULED story does not — its page arrives with the deploy after its go-live', () => {
+    // UNRELEASED-1. R12.1 built these, because the Worker then flipped a record without a
+    // deploy. It fires the stories hook on every publishing tick now, and a page built early
+    // carried the whole body (a future publishAt reads as "free this week").
+    assert.equal(hasStaticPage({ published: false, publishAt: '2027-01-01T09:00:00Z' }), false);
+    assert.equal(hasStaticPage({ published: false, publishAt: '2020-01-01T09:00:00Z' }), false);
+    assert.equal(hasStaticPage({ published: false, publishAt: '2027-01-01T09:00:00Z', coverHold: true }), false);
   });
 
   test('all three route enumerations use it', () => {

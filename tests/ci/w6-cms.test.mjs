@@ -50,7 +50,7 @@ describe('W6 · Hide sticks (ADM-04)', () => {
   });
   test('a hidden story keeps no static page, even with a publishAt', () => {
     assert.equal(hasStaticPage({ published: false, publishAt: PAST, hiddenAt: NOW }), false);
-    assert.equal(hasStaticPage({ published: false, publishAt: FUTURE }), true, 'a scheduled one still does');
+    assert.equal(hasStaticPage({ published: false, publishAt: FUTURE }), false, 'nor a scheduled one (UNRELEASED-1)');
   });
   test('an edit of a hidden story leaves hiddenAt alone; a new schedule or a publish clears it', () => {
     assert.match(page, /if \(unschedule\?\.hide\) storyData\.hiddenAt = Date\.now\(\);/);

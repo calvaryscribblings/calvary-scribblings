@@ -277,45 +277,45 @@ export function isGateable(story) {
 }
 
 /**
- * Should the static export build a page for this record at all?
+ * Is this story LIVE — readable by the public right now? The one test every reader of a story
+ * asks: /api/story and /api/evaluate-quiz (through functions/api/_story-body.js, which
+ * re-exports this) and the static export (hasStaticPage, below).
  *
- * ── THE HOLE THIS CLOSES (R12.1) ─────────────────────────────────────────────────
+ * A record that is missing, not an object, or `published === false` is not live, whatever else
+ * it carries: a future publishAt (scheduled), a coverHold (held), a hiddenAt (hidden).
+ */
+export const isReadableStory = (story) => !!story && typeof story === 'object' && story.published !== false;
+
+/**
+ * Should the static export build a page for this record at all? ONLY IF IT IS LIVE.
  *
- * `generateStaticParams` in app/stories/[slug]/page.js, app/stories/[slug]/layout.js
- * and app/reader/[slug]/page.js all enumerated EVERY KEY of cms_stories with no
- * published filter. So hiding a story removed it from every index-fed surface —
- * library, search, category pages, /quizzes, Voices — and left its page standing at
- * a URL anyone could still type or had already bookmarked.
+ * ── THE RULE (UNRELEASED-1, 31 Oct 2026) ─────────────────────────────────────────
  *
- * Measured on the deploy that found it: 182 static story pages against 158 published
- * records. Twenty-four hidden stories had live pages carrying their real title, their
- * trailer quote and, for reader-mode records, a client redirect to /reader/<slug>
- * that resolved a still-public epubUrl. "Unpublished" meant "delisted", not "gone".
+ * A story that is not live has no page, no text, no title and no metadata anywhere in the
+ * export. This is the same test /api/story answers 404 on (isReadableStory), on the same
+ * principle: there is no reader-facing difference between "never existed" and "not for you
+ * to know about yet", and the one that leaks less wins. Its page arrives with the deploy that
+ * follows its go-live.
  *
- * ── WHY NOT JUST `published !== false` ───────────────────────────────────────────
+ * ── WHAT THIS REPLACED, AND WHY IT WAS SAFE TO REPLACE ───────────────────────────
  *
- * Because that would break SCHEDULED PUBLISHING, and quietly. A scheduled story sits
- * at published:false with a future publishAt until the external calvary-newsletter
- * Worker flips it — and the Worker writes a database record, not a deploy. Today the
- * flip works without a rebuild precisely BECAUSE the page was already built. Filter
- * on published alone and a scheduled story goes live to a 404 until someone happens
- * to deploy.
+ * R12.1 closed one hole — every key of cms_stories got a page, so 24 hidden stories kept
+ * live pages with their titles, trailers and epubUrl redirects — and opened another. It built
+ * a page for anything published OR carrying a publishAt, because the scheduled-publish Worker
+ * then flipped a story with a database write and no deploy, and the page had to exist already.
+ * But a page built for a scheduled story is a page served before its time: the free-week
+ * policy reads a future publishAt as "free this week", so the build inlined the WHOLE body.
+ * PROOFS-R0 (31 Oct) found 12 of 36 scheduled stories answering 200 with their full text.
  *
- * So a page is built when the story is published OR when it is waiting on a clock.
- * `publishAt` is tested for PRESENCE, not for being in the future: a schedule that
- * has just fired is momentarily still published:false with a past publishAt, and the
- * page must exist across that boundary rather than only up to it.
- *
- * Measured at the time of writing: all 24 unpublished records carry no publishAt at
- * all, so this drops exactly the hidden ones and nothing else.
+ * The premise is gone. Every path that makes a story live now fires the stories deploy hook:
+ * the Worker on every tick that publishes (calvary-newsletter.worker.js, fireDeployHook), the
+ * covers reconciler when its patch publishes (scripts/covers/on-publish.mjs), the CMS on save.
+ * Measured from the Pages history before this change, 17–30 Oct: nine go-lives, each followed
+ * by a hook deploy within 2 minutes and a live page 1.4–5.0 minutes after publishAt. That window is
+ * how long a fresh story's URL answers 404, and it is the accepted cost.
  */
 export function hasStaticPage(story) {
-  const s = story || {};
-  if (s.published !== false) return true;
-  // W6 (ADM-04): a story an editor HID keeps no page, even with a publishAt. Before hiddenAt
-  // existed, "unpublished with a publishAt" could only mean "scheduled"; now a Hide says so.
-  if (s.hiddenAt) return false;
-  return typeof s.publishAt === 'string' && !!s.publishAt;
+  return isReadableStory(story);
 }
 
 /**
