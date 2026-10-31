@@ -97,7 +97,7 @@ test('THE FIELDS THAT MUST NOT TRAVEL WITHOUT THE COVER', async (t) => {
 
   await t.test('a held story is PUBLISHED by the patch that gives it a cover', () => {
     const held = { ...STORY, published: false, coverHold: true, cover: '', coverSizes: null, coverHash: '' };
-    const paths = coverFlipPaths('odeluwa', held, NEW, { published: true, coverHold: null });
+    const paths = coverFlipPaths('odeluwa', held, NEW, { published: true, coverHold: null }, null);
     assert.equal(paths[`${SOURCE_NODE}/odeluwa/published`], true);
     assert.equal(paths[`${SOURCE_NODE}/odeluwa/coverHold`], null);
     // And the index entry appears in the same instant — a published story with no index

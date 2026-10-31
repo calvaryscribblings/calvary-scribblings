@@ -17,7 +17,8 @@ import { validateDescriptor, canonicalDescriptor, wordsEchoingTitle } from '../l
 // held: see app/lib/rebuild.js.
 import { fireRebuild, HOOKS } from '../lib/rebuild';
 import { liveBuildId, waitForNewBuild, rebuildLine } from '../lib/rebuildWatch';
-import { storyStatus, statusLine, scheduleRefusal, unscheduleDecision, hidePaths, unhidePlan } from '../lib/storyState';
+import { storyStatus, statusLine, scheduleRefusal, unscheduleDecision, hideUpdate, unhideUpdate } from '../lib/storyState';
+import { bodyOf, recordSavePaths } from '../lib/storyText';
 import { readWithDeadline, classifyFailure } from '../lib/reliableRead';
 import Unavailable from '../components/Unavailable';
 import { slugify, newStorySlug } from '../lib/storySlug';
@@ -1050,8 +1051,10 @@ export default function AdminPage() {
         }
       }
 
-      const ownedPaths = {};
-      for (const [k, v] of Object.entries(storyData)) ownedPaths[`cms_stories/${slug}/${k}`] = v;
+      // One path per owned field, and the text placed by the record's NEXT state (PROOFS-R1,
+      // ruling 255): a story that is not live after this save keeps its text in story_bodies
+      // only, and one that is live has it in both. See app/lib/storyText.js.
+      const ownedPaths = recordSavePaths(slug, storyData);
 
       // The read below is for the INDEX PROJECTION ONLY — never written back to
       // cms_stories. buildIndexRecord derives the index's quiz badge from quizMeta,
@@ -1111,37 +1114,24 @@ export default function AdminPage() {
       if (preserved.length) console.info(`[admin/save] ${slug}: preserved ${preserved.length} field(s) the editor does not own — ${preserved.join(', ')}`);
       if (unexpected.length) console.warn(`[admin/save] ${slug}: UNEXPECTED preserved field(s) — ${unexpected.join(', ')}. Not written by this form and not in the known set; confirm they belong on cms_stories and add them to PRESERVED_EXPECTED.`);
 
-      // ── THE BODY, WRITTEN TWICE, IN THE SAME UPDATE ────────────────────────
-      // Phase T1 of the gating work (STORY-SERVING-CONTRACT.md §7). The body now
-      // lives at story_bodies/<slug> — a node with `.read: false`, served only by
-      // /api/story with an admin token — while cms_stories keeps its copy so that
-      // already-deployed app versions, which read that node directly and cannot be
-      // updated, do not lose their story text the day the endpoint ships.
+      // ── THE BODY, IN THE SAME UPDATE ────────────────────────────────────────
+      // Phase T1 put the body at story_bodies/<slug> (founder-read, served by /api/story) as well
+      // as on cms_stories, and PROOFS-R1 (ruling 255) keeps the public copy for LIVE stories only:
+      // already-deployed app versions read a live story's text from cms_stories and cannot be
+      // updated, and nothing may read an unreleased one there. recordSavePaths above writes both
+      // nodes, in this one multi-path update, so they can never half-write.
+      // scripts/backfill-story-bodies.mjs --verify is the standing check.
       //
-      // BOTH COPIES GO IN THE SAME MULTI-PATH UPDATE, for exactly the reason the
-      // index does: a save that writes one node and not the other leaves a story
-      // whose gated body disagrees with its public one, and nothing would report
-      // it. RTDB applies a multi-path update atomically, so there is no window in
-      // which they can differ. scripts/backfill-story-bodies.mjs --verify is the
-      // standing check.
-      //
-      // extractedText travels WITH content and is not optional: it is the second
-      // copy of the body (the EPUB's plain text, read by generate-quiz.js for
-      // reader-mode stories). Moving one without the other gates the story and
-      // publishes the story.
-      const bodyPaths = {
-        [`story_bodies/${slug}/content`]: storyData.content,
-        [`story_bodies/${slug}/extractedText`]: storyData.extractedText,
-      };
+      // extractedText travels WITH content and is not optional: it is the second copy of the
+      // body (the EPUB's plain text, read by generate-quiz.js for reader-mode stories).
 
-      // Atomic dual-write: the owned fields, the slim index entry and the gated
-      // body copy land in ONE multi-path update so they can never half-write. A
-      // hidden next-state removes the index entry (see indexUpdatePaths).
+      // Atomic: the owned fields, the text in its place and the slim index entry land in ONE
+      // multi-path update so they can never half-write. A next-state that is not live removes
+      // the index entry (see indexUpdatePaths).
       await update(ref(db), {
         ...ownedPaths,
         ...descriptorPaths,
         ...indexUpdatePaths(slug, projected),
-        ...bodyPaths,
       });
       // Notify followers of this author when the story GOES LIVE with this save — not on every
       // later edit of a live story (before W6, each "Update Story" re-notified every follower).
@@ -1243,11 +1233,14 @@ export default function AdminPage() {
   async function hideStory(id) {
     if (!confirm('Hide this story? It disappears from the platform immediately but keeps all data (reads, comments, quotes). Unhide anytime.')) return;
     try {
-      const { ref, update } = await import('firebase/database');
+      const { ref, update, get } = await import('firebase/database');
       // W6 (ADM-04): published:false AND hiddenAt, with the (now-ineligible) index entry removed,
       // in one atomic update. hiddenAt is what stops the scheduled-publish Worker republishing a
       // story that carries a past publishAt on its next tick (app/lib/storyState.js).
-      await update(ref(db), hidePaths(id));
+      // PROOFS-R1: the text leaves the public record in the same update (hideUpdate). Both reads
+      // must answer: a Hide that could not see the text could not be sure to keep it.
+      const [rec, body] = await Promise.all([get(ref(db, `cms_stories/${id}`)), get(ref(db, `story_bodies/${id}`))]);
+      await update(ref(db), hideUpdate(id, rec.val() || {}, body.val()));
       setMsg('✓ Story hidden. It stays hidden until you unhide it — the scheduled publisher will not bring it back.'); loadStories();
     } catch (e) { setMsg(`✗ Story NOT hidden — ${e.message}`); return; }
     rebuildAfter('Hidden');
@@ -1261,11 +1254,12 @@ export default function AdminPage() {
       // Unhide needs the full record to rebuild the index entry, so read it,
       // then flip published + re-project the index entry in one atomic update.
       // W6: a story with no generated cover is HELD instead of published (unhidePlan).
-      const snap = await get(ref(db, `cms_stories/${id}`));
-      const plan = unhidePlan(id, snap.val() || {});
+      // PROOFS-R1: the text comes back from story_bodies in the same update as the flip, and the
+      // index entry's opening and read time are projected from it (unhideUpdate).
+      const [snap, body] = await Promise.all([get(ref(db, `cms_stories/${id}`)), get(ref(db, `story_bodies/${id}`))]);
+      const plan = unhideUpdate(id, snap.val() || {}, body.val());
       live = plan.live;
-      const full = { ...(snap.val() || {}), published: plan.live, hiddenAt: null };
-      await update(ref(db), { ...plan.paths, ...indexUpdatePaths(id, full) });
+      await update(ref(db), plan.paths);
       setMsg(plan.live
         ? '✓ Story unhidden in the database.'
         : '◷ Unhidden, and held for its cover: it has no generated cover yet, so it publishes itself when the cover lands (usually about fifteen minutes).');
@@ -1283,7 +1277,18 @@ export default function AdminPage() {
     if (outcome === 'held') setForm(f => ({ ...f, coverHold: true, recordStatus: 'waiting_cover' }));
   }
 
-  function openEdit(story) {
+  async function openEdit(story) {
+    // PROOFS-R1 (ruling 255): the text is read from story_bodies, the only place a story that is
+    // not live keeps it. If that read fails the editor does NOT open: a form with an empty body
+    // would save an empty body over the real one.
+    let body;
+    try {
+      const { ref, get } = await import('firebase/database');
+      body = bodyOf((await readWithDeadline(() => get(ref(db, `story_bodies/${story.id}`)))).val(), story);
+    } catch (e) {
+      setMsg(`✗ Couldn't open this story — its text could not be read (${e.message}). Nothing was changed. Try again.`);
+      return;
+    }
     // Preserve existing (backfilled) attribution by stable id — never re-derive by name.
     const selectedAuthor = story.authorGuestId
       ? `guest:${story.authorGuestId}`
@@ -1295,7 +1300,7 @@ export default function AdminPage() {
       // Preserve existing derivatives across an edit — a full-node overwrite that
       // dropped coverSizes would strip the srcset until the next cover re-upload.
       coverSizes: story.coverSizes || null,
-      content: story.content, publishAt: story.publishAt ? toDatetimeLocal(new Date(story.publishAt)) : '',
+      content: body.content, publishAt: story.publishAt ? toDatetimeLocal(new Date(story.publishAt)) : '',
       epubUrl: story.epubUrl || '',
       epubUpdatedAt: story.epubUpdatedAt || null,
       readerMode: story.readerMode || false,
@@ -1306,7 +1311,7 @@ export default function AdminPage() {
       bookReader: story.bookReader || false,
       prosePoetry: story.prosePoetry || false,
       featuredPin: story.featuredPin || false,
-      extractedText: story.extractedText || '',
+      extractedText: body.extractedText,
       authorHandle: story.authorHandle || '',
       selectedAuthor,
       handleInput: '', resolvedHandle: null, handleError: '',

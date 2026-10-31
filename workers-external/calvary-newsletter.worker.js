@@ -492,6 +492,28 @@ function publishDecision(story, now) {
   return "publish";
 }
 
+// PROOFS-R1 (ruling 255) — bodyOfMirror / goLiveBodyPathsMirror are a hand copy of
+// app/lib/storyText.js (bodyOf, and placementPaths with live = true); this Worker cannot import
+// it. The text to carry is story_bodies' copy where it has one, else the record's own (a record
+// from before the backfill). tests/rules/proofs-r1.test.mjs runs this Worker against the emulator
+// and compares its flip with placementPaths.
+const BODY_FIELDS_MIRROR = ["content", "extractedText"];
+function bodyOfMirror(bodyRec, story) {
+  const out = {};
+  for (const f of BODY_FIELDS_MIRROR) {
+    out[f] = typeof bodyRec?.[f] === "string" ? bodyRec[f] : typeof story?.[f] === "string" ? story[f] : "";
+  }
+  return out;
+}
+function goLiveBodyPathsMirror(slug, body) {
+  const out = {};
+  for (const f of BODY_FIELDS_MIRROR) {
+    out[`story_bodies/${slug}/${f}`] = body[f];
+    out[`cms_stories/${slug}/${f}`] = body[f];
+  }
+  return out;
+}
+
 // Returns true if anything went live, which is what earns the rebuild.
 async function publishDueStories(env, now) {
   const res = await fetch(`${env.FIREBASE_DATABASE_URL}/cms_stories.json?auth=${env.FIREBASE_SECRET}`);
@@ -507,19 +529,27 @@ async function publishDueStories(env, now) {
         continue;
       }
       try {
+        // PROOFS-R1 (ruling 255): a scheduled story's text is in story_bodies only, never on the
+        // public record. It is read here and copied onto the record IN THE FLIP'S OWN PATCH. A
+        // read that fails skips the story; the next tick tries again. No text, no publish.
+        const bodyRes = await fetch(`${env.FIREBASE_DATABASE_URL}/story_bodies/${slug}.json?auth=${env.FIREBASE_SECRET}`);
+        if (!bodyRes.ok) { console.error(`Publish of ${slug} skipped: its text could not be read (HTTP ${bodyRes.status})`); continue; }
+        const body = bodyOfMirror(await bodyRes.json(), story);
         // Flip published AND write the slim index record in ONE atomic multi-path
         // PATCH (root .json). A bare `cms_stories/<slug>/published: true` write would
         // leave the now-live story with NO cms_stories_index entry — invisible on
         // every index-fed surface (homepage, category pages, search, gateway-build,
         // Voices) since the Phase A cut-over. This mirrors the admin's unhideStory():
-        // the story object read here is still pre-flip, so project { ...story,
-        // published: true } to get published:true into the index record.
-        const indexRecord = buildIndexRecordMirror(slug, { ...story, published: true });
+        // the story object read here is still pre-flip, so project { ...story, ...body,
+        // published: true } to get published:true, the opening and the read time into the
+        // index record.
+        const indexRecord = buildIndexRecordMirror(slug, { ...story, ...body, published: true });
         const flip = await fetch(`${env.FIREBASE_DATABASE_URL}/.json?auth=${env.FIREBASE_SECRET}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             [`cms_stories/${slug}/published`]: true,
+            ...goLiveBodyPathsMirror(slug, body),
             [`cms_stories_index/${slug}`]: indexRecord,
             // A skip alert for this story, if one was raised, is answered by this publish.
             [`ops/publish_skips/${slug}`]: null,

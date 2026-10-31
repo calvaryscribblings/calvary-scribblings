@@ -5,6 +5,7 @@ import { READ_DEADLINE_MS, classifyFailure } from '../lib/reliableRead';
 import { useOnline, reconnectDatabase } from '../lib/useReliable';
 import { useEffect, useState, useRef } from 'react';
 import { attachmentOf } from '../lib/squarePostBody';
+import { LiveStoryOnly } from '../lib/storyLive';
 import { announcedPieceOf } from '../lib/deletedContent';
 import { useRouter } from 'next/navigation';
 import { stories as allStories } from '../lib/stories';
@@ -249,11 +250,13 @@ function SquarePostCard({ post, profileData, isAuthor, badge }) {
       <PostBody text={post.text} surface="profile-own" withdrawn={post.withdrawn === true} removedBy={post.removedBy} style={{ marginBottom: '0.55rem', paddingLeft: '2.75rem' }} piece={announcedPieceOf(post)} />
 
       {post.attachedStory && (
-        <div onClick={e => { e.stopPropagation(); const a = attachmentOf(post); if (a) window.location.href = a.href; }}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '2.75rem', marginBottom: '0.55rem', padding: '0.4rem 0.65rem', background: 'rgba(107,47,173,0.07)', border: '1px solid rgba(107,47,173,0.16)', borderRadius: '7px', cursor: 'pointer' }}>
-          {post.attachedStory.cover && <img src={post.attachedStory.cover} alt="" style={{ width: 24, height: 34, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }} />}
-          <span style={{ fontSize: '0.72rem', color: 'rgba(167,139,250,0.72)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{post.attachedStory.title}</span>
-        </div>
+        <LiveStoryOnly slug={attachmentOf(post)?.storyId}>
+          <div onClick={e => { e.stopPropagation(); const a = attachmentOf(post); if (a) window.location.href = a.href; }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '2.75rem', marginBottom: '0.55rem', padding: '0.4rem 0.65rem', background: 'rgba(107,47,173,0.07)', border: '1px solid rgba(107,47,173,0.16)', borderRadius: '7px', cursor: 'pointer' }}>
+            {post.attachedStory.cover && <img src={post.attachedStory.cover} alt="" style={{ width: 24, height: 34, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }} />}
+            <span style={{ fontSize: '0.72rem', color: 'rgba(167,139,250,0.72)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{post.attachedStory.title}</span>
+          </div>
+        </LiveStoryOnly>
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', paddingLeft: '2.75rem' }}>

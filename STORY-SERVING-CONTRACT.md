@@ -725,6 +725,32 @@ The rule that replaces it, and it holds for every phase:
 its own step, named as such, in §7.3 — never a consequence of a step whose stated
 purpose was to be invisible to readers.
 
+### Ruling 255 (PROOFS-R1, 31 Oct 2026) — T1's dual-write holds for LIVE stories only
+
+> "A scheduled story's text stays out of the public part of the database until it goes live,
+> so nobody can read it early except its writer, through Proofs." (Ikenna)
+
+T1 kept the public copy so that installed apps would not lose live stories' text. An
+unreleased story has no reader to lose it, so its text never goes on `cms_stories`:
+
+- **Not live** (`isReadableStory` false: scheduled, held, hidden, retired, draft): `content`
+  and `extractedText` are in `story_bodies/<slug>` **only**.
+- **Live:** in both, identical, exactly as T1 has it.
+
+One function places the text, `placementPaths` in `app/lib/storyText.js`, and every path that
+changes a story's state writes it **in the same multi-path update as the change**: the CMS save,
+extract-text, Hide, Unhide, retirement, the covers reconciler's release, and the scheduled-publish
+Worker's flip (a hand copy, `goLiveBodyPathsMirror`, held to it by
+`tests/rules/proofs-r1-flip.test.mjs`). Taking text off a record also writes it into
+`story_bodies`, so a story is never left with its text in neither place. Records written
+before the ruling are brought into line by `scripts/stories/unreleased-text-out.mjs`, and
+`scripts/backfill-story-bodies.mjs --verify` now fails on any story that is not live but still
+has public text ("exposed"). That script also PATCHes `story_bodies` now instead of PUTting it:
+`story_bodies` is the only copy of an unreleased story and can't be rebuilt from `cms_stories`.
+
+What stays public about an unreleased story is its record **without text**: title, byline,
+cover, category, dates and the scheduling fields. T3 is unchanged by this.
+
 ### Phase T2 — the app ships and takes up
 
 The app session ships the `/api/story` client. Adoption is watched via the

@@ -28,7 +28,7 @@
 //   2. THE HOURS (ruling 210)          → 403 closed    "The Square opens at 8pm."
 //      Posts and replies, 20:00–00:05 London on the SERVER's clock. Founders are exempt. Edits
 //      are not checked: they are already bound to five minutes after a post that was in hours.
-//   3. THE RECORD                      → 400 invalid · 403 poll · 404 missing
+//   3. THE RECORD                      → 400 invalid · 403 poll · 404 missing · 404 story
 //      The text caps again (refusalFor), the attachment and poll shapes, the thread a reply
 //      belongs to. Built on the server: createdAt is the server's time, the author snapshot comes
 //      from users/{uid}, and no count is written (counts are who reacted — square_reactions).
@@ -49,6 +49,8 @@
 
 import { dbBase, lookupUser, mintAccessToken, SCOPES, FIREBASE_TIMEOUT_MS } from '../bookstore/_lib.js';
 import { isFounder } from '../../../app/lib/founders.js';
+import { isReadableStory } from '../../../app/lib/storyAccess.js';
+import { INDEX_PATH } from '../../../app/lib/storyIndex.js';
 import {
   SQUARE_WRITE_COPY,
   RATE_NODE,
@@ -74,6 +76,7 @@ const ERRORS = {
   closed: SQUARE_WRITE_COPY.closed,
   rate: SQUARE_WRITE_COPY.tooMuch,
   unavailable: 'That couldn’t be sent just now.',
+  story: 'That story isn’t on the site.',
 };
 
 function reply(data, status = 200) {
@@ -211,6 +214,13 @@ export async function handleWrite(context, { now = Date.now() } = {}) {
       replyTo,
     });
     if (!built.ok) return fail(built.code, built.status, built.message);
+
+    // PROOFS-R1 (ruling 255): a card may point only at a story that is LIVE. A scheduled, held,
+    // hidden or deleted one is refused, so a post can't announce a title before its time. Read
+    // from the index, which holds exactly the live stories (isIndexed is isReadableStory) at a
+    // few hundred bytes each, rather than a record that carries the whole text.
+    const slug = built.record.attachedStory?.id;
+    if (slug && !isReadableStory(await db.get(`${INDEX_PATH}/${slug}`))) return fail('story', 404);
 
     // ── 4. the pace ── ruling 211 ────────────────────────────────────────────────────
     if (!(await takeSlot(db, uid, action, now))) return fail('rate', 429);

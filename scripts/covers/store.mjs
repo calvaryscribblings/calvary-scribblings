@@ -42,6 +42,7 @@
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { indexUpdatePaths, isIndexed } from '../../app/lib/storyIndex.js';
+import { BODIES_PATH, bodyOf, placementPaths } from '../../app/lib/storyText.js';
 import { RETIRED_PATH, isRetired } from '../../app/lib/retiredStories.js';
 
 export const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
@@ -198,15 +199,31 @@ export async function uploadCoverSet(bucket, dir, png, sizes) {
  * page, the category pages, search, the gateway build, Voices) would list a story that is not
  * on the site yet. Caught by the suite, not by eye.
  */
-export function coverFlipPaths(slug, story, { cover, coverSizes, coverHash }, extra = {}) {
-  const merged = { ...story, cover, coverSizes, coverHash, ...extra };
+export function coverFlipPaths(slug, story, { cover, coverSizes, coverHash }, extra = {}, bodyRec = undefined) {
+  // PROOFS-R1 (ruling 255): a held story's text is in story_bodies only. A patch that PUBLISHES
+  // it copies the text onto the record in this same patch, and projects the index's opening and
+  // read time from it; the caller passes the story_bodies read as `bodyRec`. A patch that
+  // publishes nothing (a live story's new cover, a scheduled story's cover-only release) leaves
+  // the text exactly where it is.
+  const goesLive = extra.published === true;
+  if (goesLive && bodyRec === undefined) throw new Error(`${slug}: publishing needs its story_bodies read`);
+  const body = goesLive ? bodyOf(bodyRec, story) : null;
+  const merged = { ...story, ...(body || {}), cover, coverSizes, coverHash, ...extra };
   return {
     [`${SOURCE_NODE}/${slug}/cover`]: cover,
     [`${SOURCE_NODE}/${slug}/coverSizes`]: coverSizes,
     [`${SOURCE_NODE}/${slug}/coverHash`]: coverHash,
     ...Object.fromEntries(Object.entries(extra).map(([k, v]) => [`${SOURCE_NODE}/${slug}/${k}`, v])),
+    ...(body ? placementPaths(slug, body, true) : {}),
     ...indexUpdatePaths(slug, merged),
   };
+}
+
+/** story_bodies/<slug>, read with the reconciler's token. Throws on a failed read: no text, no publish. */
+export async function readBody(token, slug) {
+  const res = await fetch(`${DB_URL}/${BODIES_PATH}/${encodeURIComponent(slug)}.json?access_token=${token}`);
+  if (!res.ok) throw new Error(`story_bodies read failed: HTTP ${res.status}`);
+  return res.json();
 }
 
 /** See (4) at the top of this file: `access_token=`, never `auth=`. */

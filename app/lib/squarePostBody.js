@@ -288,6 +288,8 @@ export function attachmentOf(post) {
     const a = p.attachedStory;
     return {
       kind: 'story',
+      // The slug, for the liveness check (app/lib/storyLive.js): the id, else the house url's tail.
+      storyId: a.id || (/^\/stories\/([^/?#]+)/.exec(a.url || '') || [])[1] || null,
       href: a.url || `/stories/${a.id}`,
       eyebrow: a.categoryName || 'Story',
       title: a.title || 'Untitled',

@@ -27,6 +27,13 @@
 // rather than removing the field — an old client renders that field, and a deleted
 // one gives its reader a story page with a cover, a byline and no words.
 //
+// ── PROOFS-R1 (ruling 255): story_bodies IS NOW THE ONLY COPY OF AN UNRELEASED STORY ──
+// A story that is not live keeps its text in story_bodies alone (app/lib/storyText.js). So this
+// can no longer derive story_bodies wholesale from cms_stories: it PATCHes the records that carry
+// text publicly and leaves every other body exactly where it is. (It used to PUT the whole node,
+// which would now delete every scheduled story's only copy.) --verify also counts the bodies held
+// back on purpose, and fails on any story that is not live but still has public text.
+//
 // ── IDEMPOTENT, AND VERIFIABLE ───────────────────────────────────────────────
 // Re-running writes the same bytes. `--verify` re-reads both nodes and reports any
 // slug where they disagree, which is the standing check for the dual-write in
@@ -37,6 +44,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cert } from 'firebase-admin/app';
+import { isReadableStory } from '../app/lib/storyAccess.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -106,16 +114,27 @@ async function main() {
         differs.push(slug);
       }
     }
-    const extra = Object.keys(live).filter((s) => !bodies[s]);
+    // In story_bodies only: right for a story that is not live, an orphan if the record is gone.
+    const heldBack = Object.keys(live).filter((s) => !bodies[s] && all[s] && !isReadableStory(all[s]));
+    const extra = Object.keys(live).filter((s) => !bodies[s] && !all[s]);
+    // PROOFS-R1: the invariant itself. A story that isn't live must have no public text.
+    const exposed = slugs.filter((s) => !isReadableStory(all[s]));
 
     console.log(`\n── VERIFY ───────────────────────────────────────────────────`);
     console.log(`  in step           ${slugs.length - missing.length - differs.length}`);
     console.log(`  missing           ${missing.length}`);
     console.log(`  differing         ${differs.length}`);
+    console.log(`  held back         ${heldBack.length}   (not live: text in story_bodies only, as it should be)`);
     console.log(`  orphaned          ${extra.length}   (in story_bodies, not in cms_stories)`);
+    console.log(`  exposed           ${exposed.length}   (not live, but text still on cms_stories)`);
     for (const s of missing) console.log(`    MISSING   ${s}`);
     for (const s of differs) console.log(`    DIFFERS   ${s}`);
     for (const s of extra) console.log(`    ORPHAN    ${s}`);
+    for (const s of exposed) console.log(`    EXPOSED   ${s}`);
+    if (exposed.length) {
+      console.log('\nAn exposed slug is unreleased text on the public node: scripts/stories/unreleased-text-out.mjs removes it.');
+      process.exitCode = 1;
+    }
     if (missing.length || differs.length) {
       console.log('\nA differing slug means a writer touched one node and not the other.');
       console.log('The dual-write lives in app/admin/page.js — check it before re-running --apply.');
@@ -129,13 +148,11 @@ async function main() {
     return;
   }
 
-  // PUT rather than PATCH: story_bodies is derived wholesale from cms_stories, so
-  // the node should end up mirroring exactly this set. A PATCH would leave behind
-  // the body of a story that has since been deleted — and an orphaned body on an
-  // unreadable node is not dangerous, but it is a lie about what exists.
+  // PATCH, not PUT (PROOFS-R1): story_bodies is the ONLY copy of every story that isn't live,
+  // so it can't be rebuilt from cms_stories. A PATCH replaces exactly the records written here.
   const token = await adminToken(svc);
   const writeRes = await fetch(`${DB_URL}/${BODIES_PATH}.json`, {
-    method: 'PUT',
+    method: 'PATCH',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(bodies),
   });

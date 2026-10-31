@@ -12,6 +12,9 @@
 // been scheduled opened with "Schedule for later" ticked and a Schedule Story button, and the list
 // badged it Scheduled and removed its View link. 48 live stories carry a past publishAt.
 
+import { bodyOf, placementPaths } from './storyText.js';
+import { indexUpdatePaths } from './storyIndex.js';
+
 export const GENERATED_COVER_RE = /covers-typographic/;
 export const hasGeneratedCover = (cover) => GENERATED_COVER_RE.test(String(cover || ''));
 
@@ -110,4 +113,27 @@ export function unhidePlan(id, rec) {
     return { live: true, paths: { ...base, [`cms_stories/${id}/published`]: true, [`cms_stories/${id}/coverHold`]: null } };
   }
   return { live: false, paths: { ...base, [`cms_stories/${id}/published`]: false, [`cms_stories/${id}/coverHold`]: true } };
+}
+
+/**
+ * PROOFS-R1 (ruling 255) — HIDE AND UNHIDE AS WHOLE UPDATES, text included.
+ *
+ * `rec` is the record as read (cms_stories/<id>), `bodyRec` the story_bodies/<id> read. Hide takes
+ * the text out of the public record in the same write that takes the story down, and makes sure
+ * story_bodies holds it first (bodyOf). Unhide puts it back in the same write as the flip, and the
+ * index entry's opening and read time are projected from that same text. A story Unhide only HOLDS
+ * for its cover is not live, so its text stays in story_bodies alone.
+ */
+export function hideUpdate(id, rec, bodyRec, now = Date.now()) {
+  return { ...hidePaths(id, now), ...placementPaths(id, bodyOf(bodyRec, rec), false) };
+}
+
+export function unhideUpdate(id, rec, bodyRec) {
+  const plan = unhidePlan(id, rec);
+  const body = bodyOf(bodyRec, rec);
+  const next = { ...(rec || {}), ...body, published: plan.live, hiddenAt: null };
+  return {
+    live: plan.live,
+    paths: { ...plan.paths, ...placementPaths(id, body, plan.live), ...indexUpdatePaths(id, next) },
+  };
 }

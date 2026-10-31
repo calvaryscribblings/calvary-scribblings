@@ -5,6 +5,8 @@ import { useAuth } from '../../lib/AuthContext';
 import { useReliableLoad } from '../../lib/useReliable';
 import Unavailable from '../../components/Unavailable';
 import { extractEpubFromUrl } from '../../lib/epubExtract';
+import { bodyOf, extractTextPaths } from '../../lib/storyText';
+import { isReadableStory } from '../../lib/storyAccess';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
@@ -51,15 +53,19 @@ export default function ExtractTextPage() {
   const storiesLoad = useReliableLoad(async () => {
     if (!isAdmin) return null;
     const { ref, get } = await import('firebase/database');
-    const snap = await get(ref(db, 'cms_stories'));
+    // PROOFS-R1: a story that is not live keeps its text in story_bodies only, so the length
+    // shown is read from there. Read from cms_stories it would say 0 for every scheduled story,
+    // and "Extract all missing" would re-extract them all.
+    const [snap, bodiesSnap] = await Promise.all([get(ref(db, 'cms_stories')), get(ref(db, 'story_bodies'))]);
     if (!snap.exists()) return [];
+    const bodies = bodiesSnap.val() || {};
     return Object.entries(snap.val())
       .map(([slug, st]) => ({
         slug,
         title: st.title || slug,
         author: st.author || '',
         epubUrl: st.epubUrl || '',
-        extractedLength: (st.extractedText || '').length,
+        extractedLength: bodyOf(bodies[slug], st).extractedText.length,
       }))
       .filter(st => st.epubUrl)
       .sort((a, b) => a.title.localeCompare(b.title));
@@ -76,7 +82,7 @@ export default function ExtractTextPage() {
     setStatuses(prev => ({ ...prev, [slug]: { state: 'busy' } }));
     try {
       const text = await extractEpubFromUrl(story.epubUrl);
-      const { ref, update } = await import('firebase/database');
+      const { ref, update, get } = await import('firebase/database');
       // THE SECOND BODY WRITER, and it dual-writes for the same reason the composer
       // does. extractedText is a copy of the story's text; since phase T1 it lives at
       // story_bodies/<slug> as well, where /api/story reads it and where
@@ -85,10 +91,11 @@ export default function ExtractTextPage() {
       // generated from the OLD extraction while the admin page reported the new one.
       // One multi-path update from the root, so the pair cannot half-write.
       // See STORY-SERVING-CONTRACT.md §7 and scripts/backfill-story-bodies.mjs --verify.
-      await update(ref(db), {
-        [`cms_stories/${slug}/extractedText`]: text,
-        [`story_bodies/${slug}/extractedText`]: text,
-      });
+      //
+      // PROOFS-R1 (ruling 255): the public copy is written only while the story is LIVE, read
+      // at this moment rather than from the list loaded earlier. extractTextPaths says how.
+      const published = (await get(ref(db, `cms_stories/${slug}/published`))).val();
+      await update(ref(db), extractTextPaths(slug, text, isReadableStory({ published })));
       setStatuses(prev => ({ ...prev, [slug]: { state: 'done', length: text.length } }));
     } catch (e) {
       console.error('[extract-text]', slug, e);

@@ -10,7 +10,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  storyStatus, statusLine, scheduleRefusal, unscheduleDecision, hidePaths, unhidePlan,
+  storyStatus, statusLine, scheduleRefusal, unscheduleDecision, hidePaths, unhidePlan, hideUpdate,
   MIN_SCHEDULE_LEAD_WITHOUT_COVER_MS,
 } from '../../app/lib/storyState.js';
 import { buildIdOf, waitForNewBuild, rebuildLine } from '../../app/lib/rebuildWatch.js';
@@ -46,7 +46,10 @@ describe('W6 · Hide sticks (ADM-04)', () => {
     assert.deepEqual(hidePaths('s', NOW), {
       'cms_stories/s/published': false, 'cms_stories/s/hiddenAt': NOW, 'cms_stories_index/s': null,
     });
-    assert.match(page, /await update\(ref\(db\), hidePaths\(id\)\);/);
+    // PROOFS-R1: the page writes hideUpdate, which is hidePaths plus the text taken off the record.
+    assert.match(page, /await update\(ref\(db\), hideUpdate\(id, rec\.val\(\) \|\| \{\}, body\.val\(\)\)\);/);
+    const whole = hideUpdate('s', {}, { content: 'c', extractedText: 'e' }, NOW);
+    for (const [k, v] of Object.entries(hidePaths('s', NOW))) assert.equal(whole[k], v, k);
   });
   test('a hidden story keeps no static page, even with a publishAt', () => {
     assert.equal(hasStaticPage({ published: false, publishAt: PAST, hiddenAt: NOW }), false);

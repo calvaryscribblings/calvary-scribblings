@@ -91,7 +91,7 @@ import { checkLock, lockFailureMessage } from './design-lock.mjs';
 import {
   RETIRED_NODE, storiesInScope,
   BUCKET, DB_URL, SOURCE_NODE, WIDTHS,
-  assertStoryScope, coverDir, coverFlipPaths, deriveFrom, rtdbPatch, accessToken,
+  assertStoryScope, coverDir, coverFlipPaths, deriveFrom, rtdbPatch, accessToken, readBody,
   sha12, uploadCoverSet, urlPointsAt,
 } from './store.mjs';
 
@@ -282,7 +282,10 @@ async function main() {
       // Six fields — cover, coverSizes.w360, coverSizes.w720, coverHash, and the whole
       // re-projected cms_stories_index record — plus whatever must not travel without them.
       const extras = extraFields(a);
-      await rtdbPatch(token, coverFlipPaths(a.slug, a.story, { ...urls, coverHash: hash }, extras));
+      // PROOFS-R1: a release that publishes carries the story's text from story_bodies in the
+      // same patch (coverFlipPaths). A failed read fails this story, which stays held.
+      const bodyRec = extras.published === true ? await readBody(token, a.slug) : undefined;
+      await rtdbPatch(token, coverFlipPaths(a.slug, a.story, { ...urls, coverHash: hash }, extras, bodyRec));
       flipped++;
       console.log(
         `✓ ${a.slug.padEnd(46)} ${a.plan.livery.key.padEnd(10)} ${a.plan.title.size}px×${a.plan.title.lines.length}` +

@@ -21,6 +21,8 @@ import MessagesPanel from '../components/square/MessagesPanel';
 import ReaderCard from '../components/square/ReaderCard';
 import useSafety from '../components/square/useSafety';
 import { sendSquareWrite } from '../lib/squareWrite';
+import { INDEX_PATH } from '../lib/storyIndex';
+import { rememberStory } from '../lib/storyLive';
 import { REACTION_TYPES, withReactionCounts } from '../lib/squareReactions';
 
 
@@ -763,9 +765,14 @@ export default function SquarePage() {
     (async () => {
       const db = await getDB();
       const { ref, get } = await import('firebase/database');
-      const snap = await get(ref(db, 'cms_stories'));
+      // PROOFS-R1 (ruling 255): the attach sheet offers LIVE stories only, so it reads the index,
+      // which holds exactly those. It used to read the whole of cms_stories: every story's text
+      // downloaded to draw a list of titles, and the scheduled ones offered as attachable.
+      const snap = await get(ref(db, INDEX_PATH));
       if (snap.exists()) {
         const list = Object.entries(snap.val()).map(([id, s]) => ({ id, ...s, cover: s.cover || '', url: `/stories/${id}` }));
+        // Every story in the index is live: the room's cards for them need no read of their own.
+        for (const { id } of list) rememberStory(id, true);
         const nameMap = await resolveAuthorNames(list);
         setCmsStories(withCurrentAuthorNames(list, nameMap));
       }

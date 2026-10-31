@@ -84,7 +84,9 @@ test('app/admin/page.js is the only client that creates a cms_stories record', (
       if (statSync(f).isDirectory()) walk(f); else if (/\.(jsx?|mjs)$/.test(n)) files.push(f);
     }
   })(join(ROOT, 'app'));
-  const creators = files.filter((f) => /ownedPaths\[`cms_stories\/\$\{slug\}\/\$\{k\}`\]/.test(readFileSync(f, 'utf8')))
+  // PROOFS-R1: the owned fields are written through recordSavePaths (app/lib/storyText.js), which
+  // places the text by the record's next state; the creation site is its call on the editor's form.
+  const creators = files.filter((f) => /recordSavePaths\(slug, storyData\)/.test(readFileSync(f, 'utf8')))
     .map((f) => relative(ROOT, f));
   assert.deepEqual(creators, ['app/admin/page.js']);
 });

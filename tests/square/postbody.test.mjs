@@ -21,6 +21,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import PostBody from '../../app/components/conversation/PostBody.js';
 import AttachmentCard from '../../app/components/conversation/AttachmentCard.js';
+import { rememberStory } from '../../app/lib/storyLive.js';
 import {
   SURFACES, SURFACE_KEYS, MAX_POST_CHARS, MAX_REPLY_CHARS,
   paragraphsOf, segmentsOf, refusalFor, showCounter, attachmentOf, capFor,
@@ -261,13 +262,26 @@ describe('the Open Pages announcement is a card, not a link', () => {
     assert.match(html, /Open Pages/);           // the eyebrow, since a piece has no category
   });
 
-  test('and still renders for a story, which has a cover and a category', () => {
+  test('and still renders for a story, which has a cover and a category — once it is known LIVE', () => {
+    rememberStory('safety-net', true);
     const att = attachmentOf({ attachedStory: { id: 'safety-net', title: 'Safety Net', author: 'A. Chikere', categoryName: 'Fiction', cover: '/c.webp' } });
     assert.equal(att.kind, 'story');
+    assert.equal(att.storyId, 'safety-net');
     const html = render(createElement(AttachmentCard, { attachment: att }));
     assert.match(html, /href="\/stories\/safety-net"/);
     assert.match(html, /Fiction/);
     assert.match(html, /src="\/c\.webp"/);
+  });
+
+  test('PROOFS-R1 (ruling 255): a story card draws NOTHING for a story not known to be live', () => {
+    rememberStory('not-yet', false);
+    const notLive = attachmentOf({ attachedStory: { id: 'not-yet', title: 'Not Yet', categoryName: 'Fiction', cover: '/n.webp' } });
+    assert.equal(render(createElement(AttachmentCard, { attachment: notLive })), '');
+    // …and nothing before the answer either: an unreleased title never flashes in the room.
+    const unknown = attachmentOf({ attachedStory: { id: 'never-asked', title: 'Never Asked' } });
+    assert.equal(render(createElement(AttachmentCard, { attachment: unknown })), '');
+    // a url-only legacy card still finds its slug
+    assert.equal(attachmentOf({ attachedStory: { url: '/stories/old-one?x=1', title: 'Old' } }).storyId, 'old-one');
   });
 
   test('a post with no attachment renders nothing at all', () => {

@@ -33,6 +33,7 @@ import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 import { RETIRED_PATH, BOOK_READER_REASON, BOOK_READER_PULLED } from '../../app/lib/retiredStories.js';
 import { INDEX_PATH } from '../../app/lib/storyIndex.js';
+import { BODIES_PATH, BODY_FIELDS, bodyOf, placementPaths } from '../../app/lib/storyText.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
@@ -41,8 +42,12 @@ const ui = process.argv.indexOf('--unretire');
 const UNRETIRE = ui >= 0 ? process.argv[ui + 1] : null;
 
 /** The update a retirement writes. Pure — tests/ci/retired-stories.test.mjs asserts its shape. */
-export function retirePaths(slug, story, { now = Date.now(), reason = BOOK_READER_REASON, retiredOn = '2026-08-16' } = {}) {
+// PROOFS-R1 (ruling 255): a retired story is not live, so its text leaves the public record in the
+// same update and stays in story_bodies (`body` is the story_bodies read; bodyOf falls back to the
+// record's own copy when story_bodies has none, so the text is never left in neither place).
+export function retirePaths(slug, story, { now = Date.now(), reason = BOOK_READER_REASON, retiredOn = '2026-08-16', body = null } = {}) {
   return {
+    ...placementPaths(slug, bodyOf(body, story), false),
     [`${RETIRED_PATH}/${slug}`]: { retiredAt: now, retiredOn, reason },
     [`cms_stories/${slug}/published`]: false,
     [`cms_stories/${slug}/hiddenAt`]: typeof story?.hiddenAt === 'number' ? story.hiddenAt : now,
@@ -91,6 +96,7 @@ async function main() {
       story: await read(`cms_stories/${slug}`),
       index: await read(`${INDEX_PATH}/${slug}`),
       marker: await read(`${RETIRED_PATH}/${slug}`),
+      body: await read(`${BODIES_PATH}/${slug}`),
     };
   }
   const present = BOOK_READER_PULLED.filter((s) => before[s].story);
@@ -103,7 +109,7 @@ async function main() {
   }
 
   const now = Date.now();
-  const updates = Object.assign({}, ...present.map((slug) => retirePaths(slug, before[slug].story, { now })));
+  const updates = Object.assign({}, ...present.map((slug) => retirePaths(slug, before[slug].story, { now, body: before[slug].body })));
   console.log(`\n${Object.keys(updates).length} paths in one atomic update.`);
   if (!APPLY) { console.log('DRY RUN — re-run with --apply.'); return; }
 
@@ -118,7 +124,7 @@ async function main() {
     const okMarker = !!(await read(`${RETIRED_PATH}/${slug}`));
     const okIndex = !(await read(`${INDEX_PATH}/${slug}`));
     const okState = s.published === false && typeof s.hiddenAt === 'number' && s.coverHold == null;
-    const rest = (o) => JSON.stringify(without(o, ['published', 'hiddenAt', 'coverHold']));
+    const rest = (o) => JSON.stringify(without(o, ['published', 'hiddenAt', 'coverHold', ...BODY_FIELDS]));
     const okRest = rest(s) === rest(before[slug].story);
     const ok = okMarker && okIndex && okState && okRest;
     if (!ok) bad++;
