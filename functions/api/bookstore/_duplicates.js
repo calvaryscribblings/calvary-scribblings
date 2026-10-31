@@ -36,7 +36,8 @@
 // ──────────────────────────────────────────────────────────────────────────
 
 import { dbBase, FIREBASE_TIMEOUT_MS, PURCHASES_PATH, storedReferences } from './_lib.js';
-import { DUPLICATES_PATH } from '../../../app/lib/bookstore/duplicates.js';
+import { DUPLICATES_PATH, duplicateAlertMessage } from '../../../app/lib/bookstore/duplicates.js';
+import { raiseAlert, alertKey } from '../_alerts.js';
 
 export { DUPLICATES_PATH };
 
@@ -235,4 +236,21 @@ export async function patchRoot(env, token, update) {
     signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`RTDB PATCH failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
+}
+
+/**
+ * RULING 261 — a duplicate emails Ikenna the moment it lands, ONCE. Called by both webhooks only
+ * when fileDuplicateOnce() reports a first filing; and the alert service keeps its own write-once
+ * record keyed on this duplicate, so even two first-filings racing could not send two. Never
+ * throws, and its outcome never reaches the webhook's answer.
+ */
+export async function alertDuplicate(env, token, entry, key) {
+  const msg = duplicateAlertMessage(entry);
+  return raiseAlert(env, {
+    kind: 'duplicate_payment',
+    key: await alertKey(entry.uid, entry.titleId, key),
+    subject: msg.subject,
+    lines: msg.lines,
+    token,
+  });
 }

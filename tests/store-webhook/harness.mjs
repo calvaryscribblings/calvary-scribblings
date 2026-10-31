@@ -10,6 +10,9 @@
 //   oauth2.googleapis.com/token           → an emulator admin token ("owner")
 //   api.paystack.co/transaction/verify/…  → the transaction this suite registered for that reference
 //                                          (Paystack's verify response shape: { status, data })
+//   api.resend.com/emails                 → RECORDED in `sentMail`, never delivered (ALERTS-1). A
+//                                          suite can make it refuse (resendRefuses(true)).
+// So no real email can be sent from here either: the key below is a dummy, and the host is stubbed.
 // Anything else is refused, so no request leaves the machine, and no money moves: there is no
 // refund API anywhere in this path, and nothing here could reach one.
 //
@@ -34,11 +37,16 @@ export const ENV = {
   FIREBASE_DATABASE_URL: FAKE,
   STRIPE_WEBHOOK_SECRET: STRIPE_SECRET,
   PAYSTACK_SECRET_KEY: PAYSTACK_SECRET,
+  RESEND_API_KEY: 're_test_harness_dummy',
+  FROM_EMAIL: 'alerts@harness.invalid',
 };
 
 const realFetch = globalThis.fetch;
 const paystackTxns = new Map();
 export const outbound = [];
+export const sentMail = [];
+let resendRefusing = false;
+export const resendRefuses = (on) => { resendRefusing = !!on; };
 
 /** Register what Paystack's verify endpoint will say about a reference. */
 export const paystackKnows = (txn) => paystackTxns.set(txn.reference, txn);
@@ -55,6 +63,11 @@ export function install() {
       return txn
         ? new Response(JSON.stringify({ status: true, message: 'Verification successful', data: txn }), { status: 200 })
         : new Response(JSON.stringify({ status: false, message: 'Transaction reference not found' }), { status: 400 });
+    }
+    if (url === 'https://api.resend.com/emails') {
+      if (resendRefusing) return new Response(JSON.stringify({ message: 'refused by the harness' }), { status: 500 });
+      sentMail.push({ auth: (init.headers || {}).Authorization ? 'present' : 'absent', ...JSON.parse(init.body || '{}') });
+      return new Response(JSON.stringify({ id: `harness-${sentMail.length}` }), { status: 200 });
     }
     if (url.startsWith(FAKE)) {
       const u = new URL(url);
@@ -77,7 +90,7 @@ export async function set(path, value) {
   const r = await realFetch(emu(path), { method: 'PUT', headers: H, body: JSON.stringify(value) });
   if (!r.ok) throw new Error(`emulator PUT ${path} ${r.status}`);
 }
-export async function wipe() { await set('', null); paystackTxns.clear(); outbound.length = 0; }
+export async function wipe() { await set('', null); paystackTxns.clear(); outbound.length = 0; sentMail.length = 0; resendRefusing = false; }
 
 // ── signed deliveries ──────────────────────────────────────────────────────────────────────
 const ctx = (request) => ({ request, env: ENV, waitUntil: () => {} });

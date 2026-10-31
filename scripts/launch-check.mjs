@@ -3,6 +3,7 @@
 //
 //   node scripts/launch-check.mjs            print the table
 //   node scripts/launch-check.mjs --email    …and mail it to Ikenna (via /api/ops/launch-email)
+//   node scripts/launch-check.mjs --email-if-red   …only when a row is red (the daily run, ALERTS-1)
 //   node scripts/launch-check.mjs --json     the rows as JSON
 //   --since <ISO>                            the "since the last check" instant (default: the
 //                                            previous launch-check workflow run, else 24h ago)
@@ -164,6 +165,53 @@ export function judgeSignals({ moneyFailures, publishSkips, since }) {
 // W23 — the Reading Room's dictionary. For weeks every Define was the calm miss and nobody saw an
 // error, because the miss IS calm by design. So the house dictionary answers to this row instead:
 // the live shard, read as a reader's browser reads it, must answer "serendipity" with a sense.
+// ── ALERTS-1: COVERS HEALTH (UNRELEASED-1's proposal, ruling 261) ─────────────────────────────
+// covers:verify pinned to live data and failed every run from 30 Oct; reconcile never ran and 26
+// held stories waited for covers for over a day with nobody seeing it. Red when either is true:
+//   · the last SUCCESSFUL scheduled reconcile is more than an hour old (it runs every 15 minutes);
+//   · any story held for a cover goes live within 72 hours (or is already overdue).
+// Evidence is counts and times only, never a slug: Actions logs are public, and an unreleased
+// story's slug is its title (W12).
+export const COVERS_RECONCILE_STALE_MS = 60 * MIN;
+export const COVERS_HELD_HORIZON_MS = 72 * 60 * MIN;
+
+/** Pure. The held stories that go live within the horizon (overdue included): { count, earliestMs }. */
+export function heldGoingLive(stories, now) {
+  const due = Object.values(stories || {})
+    .filter((s) => s && s.coverHold === true && s.published === false && !s.hiddenAt)
+    .map((s) => Date.parse(s.publishAt))
+    .filter((t) => Number.isFinite(t) && t <= now + COVERS_HELD_HORIZON_MS)
+    .sort((a, b) => a - b);
+  return { count: due.length, earliestMs: due.length ? due[0] : NaN };
+}
+
+export function judgeCovers({ lastReconcileOkAt, held }, now) {
+  const age = Number.isFinite(lastReconcileOkAt) ? Math.round((now - lastReconcileOkAt) / MIN) : null;
+  const stale = age === null || now - lastReconcileOkAt > COVERS_RECONCILE_STALE_MS;
+  const n = held?.count ?? 0;
+  const ev = [
+    `last successful reconcile ${fmt(lastReconcileOkAt)}${age === null ? '' : ` (${age} min ago)`}`,
+    n ? `${n} held for a cover and going live within 72 h, the first at ${fmt(held.earliestMs)}` : 'none held for a cover within 72 h',
+  ].join('; ');
+  return row('Covers', stale || n > 0 ? RED : GREEN, ev);
+}
+
+/** When the covers workflow last reconciled successfully on its schedule, from Actions. */
+async function lastReconcileOk() {
+  const token = process.env.GITHUB_TOKEN || (() => { try { return execSync('gh auth token', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return ''; } })();
+  const repo = process.env.GITHUB_REPOSITORY || 'calvaryscribblings/calvary-scribblings';
+  if (!token) return NaN;
+  const gh = (path) => fetch(`https://api.github.com/repos/${repo}/${path}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } })
+    .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const runs = (await gh('actions/workflows/covers.yml/runs?event=schedule&status=success&per_page=5'))?.workflow_runs || [];
+  for (const run of runs) {
+    const jobs = (await gh(`actions/runs/${run.id}/jobs`))?.jobs || [];
+    const rec = jobs.find((j) => j.name === 'reconcile covers');
+    if (rec && rec.conclusion === 'success') return Date.parse(rec.completed_at || run.updated_at);
+  }
+  return NaN;
+}
+
 export const DICTIONARY_PROBE = 'serendipity';
 export function judgeDictionary({ entry, error, ms }) {
   const t = Number.isFinite(ms) ? ` in ${ms} ms` : '';
@@ -316,7 +364,10 @@ export async function gather(now = Date.now(), { since: sinceArg } = {}) {
   const since = Number.isFinite(sinceArg) ? sinceArg : ((await previousRunStart()) ?? now - 24 * 3600_000);
   const signals = { moneyFailures: await val('ops/money_failures'), publishSkips: await val('ops/publish_skips'), since };
 
+  const covers = { lastReconcileOkAt: await lastReconcileOk(), held: heldGoingLive(await val('cms_stories'), now) };
+
   return {
+    covers,
     freeWeek, build, archiveHtml, series: { instalmentId: platinumId, res: seriesRes },
     bookStore: { pageStatus: bookPage, publishedTitles }, membership,
     jobs: {
@@ -343,6 +394,7 @@ export function judgeAll(g, now) {
     judgeHeartbeat('Job: push announcer', { lastAt: g.jobs.push.lastAt, staleMs: STALE.push, armed: g.jobs.push.armed }, now),
     judgeSignals(g.signals),
     judgeDictionary(g.dictionary),
+    judgeCovers(g.covers, now),
   ];
 }
 
@@ -368,7 +420,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   else console.log(renderText(rows, now));
   const { red, subject } = summarise(rows);
   console.log(`\n${subject}`);
-  if (args.includes('--email')) {
+  // ALERTS-1: --email sends the table whatever it says (Mondays, the launch day, a dispatch);
+  // --email-if-red sends it only when something is red (the daily run).
+  if (args.includes('--email') || (args.includes('--email-if-red') && red)) {
     const sent = await email(g.sa, rows, now);
     console.log(`emailed: ${sent.subject} (${sent.id})`);
   }

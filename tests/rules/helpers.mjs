@@ -52,18 +52,25 @@ export const convIdFor = (a, b) => [a, b].sort().join('_');
 // availableParallelism() - 1, which is 1 there — so the suite is already serial locally and
 // green forever. The CI runner has 4 cores. Do not remove the flag to "speed the suite up";
 // the ~20s it costs is the price of the emulator being shared.
+// The ports `firebase emulators:exec` actually started on, which it exports; else firebase.json's.
+// ALERTS-1: two sessions on one machine each run an emulator, and a hard-coded 9000 sent this
+// suite to the OTHER session's database. (Asserting against the wrong rules file proves nothing.)
+const portOf = (v, fallback) => Number(String(v || '').split(':').pop()) || fallback;
+export const DB_PORT = portOf(process.env.FIREBASE_DATABASE_EMULATOR_HOST, 9000);
+export const STORAGE_PORT = portOf(process.env.FIREBASE_STORAGE_EMULATOR_HOST, 9199);
+
 export async function makeEnv() {
   return initializeTestEnvironment({
     projectId: 'demo-calvary-rules',
     database: {
       rules: readFileSync(DB_RULES_PATH, 'utf8'),
       host: '127.0.0.1',
-      port: 9000,
+      port: DB_PORT,
     },
     storage: {
       rules: readFileSync(STORAGE_RULES_PATH, 'utf8'),
       host: '127.0.0.1',
-      port: 9199,
+      port: STORAGE_PORT,
     },
   });
 }

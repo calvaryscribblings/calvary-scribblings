@@ -8,7 +8,7 @@ import { test, before, after, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { DB_RULES_PATH, STORAGE_RULES_PATH, OWNER } from './helpers.mjs';
+import { DB_RULES_PATH, STORAGE_RULES_PATH, OWNER, DB_PORT, STORAGE_PORT } from './helpers.mjs';
 import { signupUpdate } from '../../app/lib/handle.js';
 
 const FRAGMENT = new URL('../../database.rules.users-private-strict-fragment.json', import.meta.url);
@@ -26,8 +26,8 @@ let env, owner;
 before(async () => {
   env = await initializeTestEnvironment({
     projectId: 'demo-calvary-rules',
-    database: { rules: privateStrictRules(), host: '127.0.0.1', port: 9000 },
-    storage: { rules: readFileSync(STORAGE_RULES_PATH, 'utf8'), host: '127.0.0.1', port: 9199 },
+    database: { rules: privateStrictRules(), host: '127.0.0.1', port: DB_PORT },
+    storage: { rules: readFileSync(STORAGE_RULES_PATH, 'utf8'), host: '127.0.0.1', port: STORAGE_PORT },
   });
   owner = env.authenticatedContext(OWNER).database();
 });

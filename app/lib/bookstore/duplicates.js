@@ -41,3 +41,30 @@ export function duplicateLine(d) {
     : 'date unknown';
   return `“${title}” · ${RAIL[d.rail] || d.rail || 'unknown rail'} · ${amount} · ${date} · reader ${d.uid}`;
 }
+
+// RULING 261 — the email a new duplicate raises (functions/api/_alerts.js). Internal references
+// only: the title, the rail, the amount, the time and the reader's uid. No payment reference, no
+// reader's name or email. The last line is the ruling's own.
+export function duplicateAlertMessage(d) {
+  const title = d.title || d.titleId;
+  const amount = formatPrice(String(d.currency || '').toLowerCase(), d.amount)
+    || (typeof d.amount === 'number' ? `${d.amount} ${d.currency || ''}`.trim() : 'unknown');
+  const time = typeof d.receivedAt === 'number'
+    ? new Date(d.receivedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/London' })
+    : 'unknown';
+  return {
+    subject: `Paid twice: “${title}”`,
+    lines: [
+      'A reader paid again for a book already in their library.',
+      '',
+      `Title:   ${title} (${d.titleId})`,
+      `Rail:    ${RAIL[d.rail] || d.rail || 'unknown'}`,
+      `Amount:  ${amount}`,
+      `Time:    ${time} London`,
+      `Reader:  ${d.uid}`,
+      '',
+      'Their copy stands on the first payment. The second is listed in /admin until it is refunded.',
+      'Refund by hand in Stripe or Paystack.',
+    ],
+  };
+}

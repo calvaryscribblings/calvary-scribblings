@@ -892,6 +892,10 @@
         ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
         ".write": false
       },
+      "editor_alerts": {
+        ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+        ".write": false
+      },
       "test_buyers": {
         ".read": false,
         ".write": false

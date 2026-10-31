@@ -61,6 +61,7 @@ import {
   buildDuplicateEntry,
   fileDuplicateOnce,
   readDuplicates,
+  alertDuplicate,
   refundPlan,
   promotionUpdates,
   refundedUpdates,
@@ -317,12 +318,16 @@ async function handleGrant(env, session) {
   // Not a sale of a new copy, so no grant write and no readership move. Filed once per
   // reference, however many times Stripe delivers it. See _duplicates.js.
   if (isDuplicatePayment(existing, [session.id, paymentIntent])) {
-    const { filed } = await fileDuplicateOnce(env, token, uid, titleId, duplicateKey('stripe', session.id), buildDuplicateEntry({
+    const dupKey = duplicateKey('stripe', session.id);
+    const entry = buildDuplicateEntry({
       rail: 'stripe', uid, titleId,
       amount: session.amount_total, currency: session.currency,
       refs: { stripeSessionId: session.id, stripePaymentIntent: paymentIntent },
       title: fields?.title,
-    }));
+    });
+    const { filed } = await fileDuplicateOnce(env, token, uid, titleId, dupKey, entry);
+    // Ruling 261: the first filing emails Ikenna; a retry raises nothing. Never alters the answer.
+    if (filed) await alertDuplicate(env, token, entry, dupKey);
     console.log(`[${LABEL}] DUPLICATE payment for ${uid}/${titleId} — ${filed ? 'filed for a hand refund' : 'already filed'}; the copy is unchanged (ruling 256)`);
     return { verdict: 'duplicate' };
   }

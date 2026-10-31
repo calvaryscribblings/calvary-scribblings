@@ -31,7 +31,19 @@ export const SCHEDULES = {
   '5 7 30 9 *': { label: `${LAUNCH_DATE_SHORT} 08:05 London (BST)`, valid: (ms) => londonDate(ms) === LAUNCH_DAY && londonOffsetHours(ms) === 1 },
   '10 23 * * 0': { label: 'Monday 00:10 London, in BST (Sunday 23:10 UTC)', valid: (ms) => londonOffsetHours(ms) === 1 },
   '10 0 * * 1': { label: 'Monday 00:10 London, in GMT', valid: (ms) => londonOffsetHours(ms) === 0 },
+  // ALERTS-1 — EVERY DAY at 08:05 London, emailing only on red. Not on a Monday, whose 00:10 run
+  // has already sent the table whatever it said.
+  '5 7 * * *': { label: 'daily 08:05 London, in BST (emails only on red)', valid: (ms) => londonOffsetHours(ms) === 1 && !isLondonMonday(ms), daily: true },
+  '5 8 * * *': { label: 'daily 08:05 London, in GMT (emails only on red)', valid: (ms) => londonOffsetHours(ms) === 0 && !isLondonMonday(ms), daily: true },
 };
+
+/** Is it Monday in London at `ms`? */
+export function isLondonMonday(ms) {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', weekday: 'short' }).format(new Date(ms)) === 'Mon';
+}
+
+/** How the run mails: 'if-red' on the daily cron, 'always' otherwise. */
+export const emailMode = (schedule) => (SCHEDULES[schedule]?.daily ? 'if-red' : 'always');
 
 /** Should this scheduled run go ahead? A manual dispatch (no cron) always does. */
 export function shouldRun(schedule, ms = Date.now()) {
@@ -45,4 +57,5 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   const run = shouldRun(cron);
   console.log(`[gate] schedule="${cron || '(manual)'}" ${SCHEDULES[cron]?.label || ''} → run=${run}`);
   console.log(`run=${run}`);
+  console.log(`mode=${emailMode(cron)}`);
 }

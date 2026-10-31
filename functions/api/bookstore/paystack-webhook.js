@@ -61,6 +61,7 @@ import {
   buildDuplicateEntry,
   fileDuplicateOnce,
   readDuplicates,
+  alertDuplicate,
   refundPlan,
   promotionUpdates,
   refundedUpdates,
@@ -284,10 +285,14 @@ async function handleGrant(env, data) {
   // this payment beside it for Ikenna to refund by hand. Not a new copy, so no grant write and
   // no readership move. Filed once per reference. See _duplicates.js.
   if (isDuplicatePayment(existing, [reference])) {
-    const { filed } = await fileDuplicateOnce(env, token, uid, titleId, duplicateKey('paystack', reference), buildDuplicateEntry({
+    const dupKey = duplicateKey('paystack', reference);
+    const entry = buildDuplicateEntry({
       rail: 'paystack', uid, titleId, amount: txn.amount, currency: 'NGN',
       refs: { paystackRef: reference }, title: fields?.title,
-    }));
+    });
+    const { filed } = await fileDuplicateOnce(env, token, uid, titleId, dupKey, entry);
+    // Ruling 261: the first filing emails Ikenna; a retry raises nothing. Never alters the answer.
+    if (filed) await alertDuplicate(env, token, entry, dupKey);
     console.log(`[${LABEL}] DUPLICATE payment for ${uid}/${titleId} — ${filed ? 'filed for a hand refund' : 'already filed'}; the copy is unchanged (ruling 256)`);
     return { verdict: 'duplicate' };
   }
