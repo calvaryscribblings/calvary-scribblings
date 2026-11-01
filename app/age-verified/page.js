@@ -19,7 +19,7 @@ export default function AgeVerifiedPage() {
 
     (async () => {
       try {
-        const res = await fetch(`${WORKER_URL}/check-session?sessionId=${sessionId}`);
+        const res = await fetch(`${WORKER_URL}/check-session?sessionId=${encodeURIComponent(sessionId)}`) /* LIVE-PATHS-1: no injected params */;
         const data = await res.json();
 
         if (data.passed) {

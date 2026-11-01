@@ -44,6 +44,7 @@
 //     old scan did not distinguish parents.
 
 import { openGuard } from './safety/guard.mjs';
+import { isId } from '../app/lib/ids.js';
 
 const USER_COMMENTS_PATH = 'user_comments';
 
@@ -74,7 +75,8 @@ for (const [slug, thread] of Object.entries(comments)) {
     if (!c || typeof c !== 'object') continue;
     total++;
     if (c.replies && typeof c.replies === 'object') nested += Object.keys(c.replies).length;
-    const uid = typeof c.authorUid === 'string' ? c.authorUid : null;
+    // LIVE-PATHS-1: authorUid is a reader-written field; only a real uid becomes a path.
+    const uid = isId('uid', c.authorUid) ? c.authorUid : null;
     if (!uid) {
       if (typeof c.uid === 'string') legacyUidField++;
       else unattributed++;

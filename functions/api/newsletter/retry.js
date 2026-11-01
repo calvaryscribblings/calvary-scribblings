@@ -18,6 +18,8 @@
 // pass by typing the answer into the request. A stranger could have sent an
 // arbitrary issue, under the platform's own FROM address, to the whole list,
 // and no recall exists for mail.
+import { isId } from '../../../app/lib/ids.js';
+
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 const WORKER = 'https://calvary-newsletter.calvarymediauk.workers.dev';
 
@@ -55,7 +57,7 @@ export async function onRequestPost(context) {
   let body;
   try { body = await request.json(); }
   catch { return json({ error: 'Invalid request body.' }, 400); }
-  if (typeof body?.sendId !== 'string') return json({ error: 'sendId required.' }, 400);
+  if (!isId('sendId', body?.sendId)) return json({ error: 'Invalid sendId. Nothing was sent.' }, 400); // LIVE-PATHS-1
   if (!env.NEWSLETTER_SEND_SECRET) return json({ error: 'Server misconfigured.' }, 500);
 
   console.log('[newsletter/retry] uid:', uid, '(verified) | send:', body.sendId);

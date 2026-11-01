@@ -240,7 +240,8 @@ function CommentsSection({ slug, onSignIn }) {
         }
         unsubDB = onValue(ref(db, `comments/${slug}`), (snap) => {
           if (snap.exists()) {
-            const list = Object.entries(snap.val()).map(([id, c]) => ({ id, ...c })).sort((a, b) => b.createdAt - a.createdAt);
+            // LIVE-PATHS-1: the KEY is the id; a stored `id` field never overrides it.
+            const list = Object.entries(snap.val()).map(([id, c]) => ({ ...c, id })).sort((a, b) => b.createdAt - a.createdAt);
             setComments(list);
           } else { setComments([]); }
           setLoading(false);

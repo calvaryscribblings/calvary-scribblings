@@ -22,6 +22,7 @@ import { bodyOf, recordSavePaths } from '../lib/storyText';
 import { readWithDeadline, classifyFailure } from '../lib/reliableRead';
 import Unavailable from '../components/Unavailable';
 import { slugify, newStorySlug } from '../lib/storySlug';
+import { assertId } from '../lib/ids';
 import { RETIRED_PATH, isRetired, retiredNotice } from '../lib/retiredStories';
 import { DUPLICATES_PATH, DUPLICATE_ALERT, openDuplicates, duplicateLine } from '../lib/bookstore/duplicates';
 import { loadWriterRoster, findWriterByHandle, normaliseHandle } from '../lib/writerRoster';
@@ -744,7 +745,9 @@ export default function AdminPage() {
       const snap = await readWithDeadline(() => get(ref(db, 'cms_stories')));
       if (snap.exists()) {
         const data = snap.val();
-        const list = Object.entries(data).map(([id, s]) => ({ id, ...s }));
+        // LIVE-PATHS-1 (SAFETY-1 audit #3): the KEY wins. Putting the key FIRST let a stored `id` field
+        // override it, so a record carrying id:'' made Hide write `cms_stories_index/: null`.
+        const list = Object.entries(data).map(([id, s]) => ({ ...s, id }));
         list.sort((a, b) => {
           const aTime = a.publishAt ? new Date(a.publishAt).getTime() : new Date(a.date).getTime();
           const bTime = b.publishAt ? new Date(b.publishAt).getTime() : new Date(b.date).getTime();
@@ -867,7 +870,9 @@ export default function AdminPage() {
         const verdict = await newStorySlug({ title: form.title, chosen: form.slug, isTaken });
         if (!verdict.ok) {
           setSaving(false);
-          if (verdict.reason === 'empty') {
+          if (verdict.reason === 'invalid') {
+            setMsg('✗ Not saved — this title makes a web address longer than 128 characters. Shorten the title and save again.');
+          } else if (verdict.reason === 'empty') {
             setMsg('✗ Not saved — this title makes no web address (it needs at least one letter a–z or digit). Add one to the title and save again.');
           } else {
             const owner = (await get(ref(db, `cms_stories/${verdict.slug}/title`))).val();
@@ -879,6 +884,7 @@ export default function AdminPage() {
         }
         slug = verdict.slug;
       }
+      assertId('slug', slug); // LIVE-PATHS-1: before any path is built from it
       const categoryObj = CATEGORIES.find(c => c.value === form.category);
       const coverFilename = form.coverFilename.trim();
       const coverPath = coverFilename.startsWith('http') ? coverFilename : (coverFilename.startsWith('/') ? coverFilename : `/${coverFilename}`);
@@ -1211,6 +1217,7 @@ export default function AdminPage() {
     if (isRetired(retired, id)) { setMsg(retiredNotice(retired[id])); return; }
     if (!confirm('Delete this story? This cannot be undone.')) return;
     try {
+      assertId('slug', id); // LIVE-PATHS-1: '' here would null four whole nodes
       const { ref, update } = await import('firebase/database');
       // Atomic: drop the full record, its index entry and its gated body together.
       // story_bodies joins the set for the same reason the index did — a body left
@@ -1233,6 +1240,7 @@ export default function AdminPage() {
   async function hideStory(id) {
     if (!confirm('Hide this story? It disappears from the platform immediately but keeps all data (reads, comments, quotes). Unhide anytime.')) return;
     try {
+      assertId('slug', id);
       const { ref, update, get } = await import('firebase/database');
       // W6 (ADM-04): published:false AND hiddenAt, with the (now-ineligible) index entry removed,
       // in one atomic update. hiddenAt is what stops the scheduled-publish Worker republishing a
@@ -1250,6 +1258,7 @@ export default function AdminPage() {
     if (isRetired(retired, id)) { setMsg(retiredNotice(retired[id])); return false; }
     let live = false;
     try {
+      assertId('slug', id);
       const { ref, update, get } = await import('firebase/database');
       // Unhide needs the full record to rebuild the index entry, so read it,
       // then flip published + re-project the index entry in one atomic update.

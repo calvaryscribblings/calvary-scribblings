@@ -28,6 +28,7 @@
 // body moved, so only the body needs a token.
 
 import { dbBase, mintAccessToken, SCOPES, FIREBASE_TIMEOUT_MS } from './bookstore/_lib.js';
+import { assertId } from '../../app/lib/ids.js';
 
 const BODIES_PATH = 'story_bodies';
 
@@ -54,6 +55,7 @@ export { isReadableStory } from '../../app/lib/storyAccess.js';
  * can keep their existing `(story.content || '')` idiom without a null check.
  */
 export async function readStoryBody(env, slug) {
+  assertId('slug', slug); // LIVE-PATHS-1: '' read the whole of story_bodies with the service account
   if (!env?.FIREBASE_CLIENT_EMAIL || !env?.FIREBASE_PRIVATE_KEY) {
     throw new Error('story body read is not configured (FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY)');
   }

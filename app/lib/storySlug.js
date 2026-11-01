@@ -11,6 +11,8 @@
 // a live read, and offers the first free address when the natural one is taken. An EDIT keeps
 // its own slug and never comes here. No Firebase import, so node tests load it directly.
 
+import { isId } from './ids.js';
+
 /** The address a title would take. Unchanged from the CMS's original rule, so no live story moves. */
 export function slugify(title) {
   return String(title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -37,6 +39,7 @@ export async function firstFreeSlug(base, isTaken) {
  * The verdict for a NEW story.
  *   { ok: true, slug }                          write here
  *   { ok: false, reason: 'empty' }              the title makes no address
+ *   { ok: false, reason: 'invalid', slug }     the address is over 128 characters (LIVE-PATHS-1, app/lib/ids.js)
  *   { ok: false, reason: 'taken', slug, offer } `slug` belongs to another story; `offer` is free (or null)
  * `chosen` is an address the admin already accepted from an earlier offer; it is checked like
  * any other, so an offer that was taken in the meantime is refused too.
@@ -44,6 +47,8 @@ export async function firstFreeSlug(base, isTaken) {
 export async function newStorySlug({ title, chosen, isTaken }) {
   const slug = chosen || slugify(title);
   if (!slug) return { ok: false, reason: 'empty' };
+  // LIVE-PATHS-1: an address the id check would refuse is refused here, with its own message.
+  if (!isId('slug', slug)) return { ok: false, reason: 'invalid', slug };
   if (!(await isTaken(slug))) return { ok: true, slug };
   return { ok: false, reason: 'taken', slug, offer: await firstFreeSlug(slugify(title) || slug, isTaken) };
 }

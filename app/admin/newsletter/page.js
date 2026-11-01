@@ -10,6 +10,7 @@ import { sendOutcome, retryOutcome, draftOutcome, confirmSendQuestion } from "..
 import { londonWallToUtcIso, utcToLondonWall, scheduledMs, formatLondon } from "../../lib/londonTime";
 import { readWithDeadline, classifyFailure } from "../../lib/reliableRead";
 import Unavailable from "../../components/Unavailable";
+import { isId } from "../../lib/ids";
 
 const uuid = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -178,7 +179,8 @@ export default function NewsletterPage() {
       .then(async (r) => { if (!r.ok) throw new Error(`drafts: HTTP ${r.status}`); return r.json(); }))
     .then(data => {
       if (data && typeof data === 'object' && !data.error) {
-        const list = Object.values(data).sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+        // LIVE-PATHS-1: the KEY is the id, never a stored `id` field (as app/admin/page.js).
+        const list = Object.entries(data).map(([id, d]) => ({ ...d, id })).sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
         setDrafts(list);
       } else if (data?.error) throw new Error(data.error);
     }).catch(failed("drafts"));
@@ -389,6 +391,10 @@ export default function NewsletterPage() {
     } else if (intent === "save") {
       schedule = draftSchedule;
     }
+    // LIVE-PATHS-1: an id is checked before any request leaves (the proxy and the Worker check again).
+    if (draftId && !isId("draftId", draftId)) {
+      setStatus("error"); setStatusMsg("Draft NOT saved — this draft's id is not valid. Nothing was sent."); return;
+    }
     setStatus("loading");
     setStatusMsg(intent === "schedule" ? "Scheduling newsletter…" : intent === "unschedule" ? "Unscheduling…" : "Saving draft…");
     let res = null;
@@ -450,6 +456,9 @@ export default function NewsletterPage() {
 
   async function doSend(isTest) {
     setConfirmOpen(false);
+    if (!isTest && draftId && !isId("draftId", draftId)) {
+      setStatus("error"); setStatusMsg("NOT sent — this draft's id is not valid. Nobody was mailed."); return;
+    }
     setRetrySendId(null);
     setStatus("loading");
     setStatusMsg(isTest ? "Sending test email…" : `Sending to ${subscriberCount} subscribers…`);
@@ -482,6 +491,7 @@ export default function NewsletterPage() {
   }
 
   async function retryFailed(sendId) {
+    if (!isId("sendId", sendId)) { setStatus("error"); setStatusMsg("NOT retried — that send's id is not valid. Nobody was mailed."); return; }
     setStatus("loading");
     setStatusMsg("Retrying the ones that failed…");
     try {
@@ -500,6 +510,7 @@ export default function NewsletterPage() {
   }
 
   async function deleteDraft(d) {
+    if (!isId("draftId", d?.id)) { setStatus("error"); setStatusMsg("Draft NOT deleted — its id is not valid. Nothing was sent."); return; }
     if (!confirm(`Delete the draft "${d.subject || "(no subject)"}"? This cannot be undone.`)) return;
     try {
       const idToken = await user.getIdToken();

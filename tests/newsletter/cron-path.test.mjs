@@ -93,22 +93,23 @@ function makeDb() {
       'not-yet': { title: 'Not Yet', published: false, publishAt: FUTURE, content: 'x' },
       'already-live': { title: 'Live', published: true, content: 'x' },
     },
+    // Draft keys are Date.now() strings, the only shape the Worker makes (LIVE-PATHS-1 skips others).
     newsletter_drafts: {
-      'due-inline': {
+      '1758790800011': {
         status: 'scheduled', scheduledAt: PAST, subject: 'Issue 8 — the inline one',
         issueNumber: 8, blocks: INLINE_BLOCKS,
       },
-      'due-legacy': {
+      '1758790800012': {
         status: 'scheduled', scheduledAt: PAST, subject: 'Issue 9 — the legacy one',
         issueNumber: 9,
         intro: 'Legacy **stays** literal & <b>escaped</b>.',
         stories: [{ slug: 'old-tale', title: 'Old Tale', author: 'C. Writer' }],
       },
-      'not-due': {
+      '1758790800013': {
         status: 'scheduled', scheduledAt: FUTURE, subject: 'Issue 10 — later',
         issueNumber: 10, blocks: INLINE_BLOCKS,
       },
-      'still-a-draft': {
+      '1758790800014': {
         status: 'draft', scheduledAt: PAST, subject: 'Never sent',
         issueNumber: 11, blocks: INLINE_BLOCKS,
       },
@@ -193,8 +194,8 @@ test('a sent draft is deleted and an unsent one is left alone', async () => {
   const calls = await runCron(makeDb());
   const deleted = calls.filter((c) => c.method === 'DELETE').map((c) => new URL(c.url).pathname);
   assert.deepEqual(deleted.sort(), [
-    '/newsletter_drafts/due-inline.json',
-    '/newsletter_drafts/due-legacy.json',
+    '/newsletter_drafts/1758790800011.json',
+    '/newsletter_drafts/1758790800012.json',
   ]);
 });
 

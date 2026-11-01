@@ -14,6 +14,7 @@
 
 import { bodyOf, placementPaths } from './storyText.js';
 import { indexUpdatePaths } from './storyIndex.js';
+import { assertId } from './ids.js';
 
 export const GENERATED_COVER_RE = /covers-typographic/;
 export const hasGeneratedCover = (cover) => GENERATED_COVER_RE.test(String(cover || ''));
@@ -93,6 +94,9 @@ export function unscheduleDecision(choice) {
  * editor unhides the story — not until the next fifteen-minute tick.
  */
 export function hidePaths(id, now = Date.now()) {
+  // LIVE-PATHS-1 (SAFETY-1 audit #3): an empty id here wrote `cms_stories_index/: null`, the
+  // whole index. Every helper below that builds a path from an id checks it first.
+  assertId('slug', id);
   return {
     [`cms_stories/${id}/published`]: false,
     [`cms_stories/${id}/hiddenAt`]: now,
@@ -108,6 +112,7 @@ export function hidePaths(id, now = Date.now()) {
  * @returns {{ paths: object, live: boolean }}
  */
 export function unhidePlan(id, rec) {
+  assertId('slug', id);
   const base = { [`cms_stories/${id}/hiddenAt`]: null };
   if (hasGeneratedCover(rec?.cover)) {
     return { live: true, paths: { ...base, [`cms_stories/${id}/published`]: true, [`cms_stories/${id}/coverHold`]: null } };
@@ -125,10 +130,12 @@ export function unhidePlan(id, rec) {
  * for its cover is not live, so its text stays in story_bodies alone.
  */
 export function hideUpdate(id, rec, bodyRec, now = Date.now()) {
+  assertId('slug', id);
   return { ...hidePaths(id, now), ...placementPaths(id, bodyOf(bodyRec, rec), false) };
 }
 
 export function unhideUpdate(id, rec, bodyRec) {
+  assertId('slug', id);
   const plan = unhidePlan(id, rec);
   const body = bodyOf(bodyRec, rec);
   const next = { ...(rec || {}), ...body, published: plan.live, hiddenAt: null };

@@ -410,7 +410,8 @@ function NotificationsPanel({ user, onClose, hidden, onOpenReader }) {
       const { ref, onValue } = await import('firebase/database');
       if (cancelled) return;
       unsub = onValue(ref(db, `notifications/${user.uid}`), (snap) => {
-        setAll(snap.exists() ? Object.entries(snap.val()).map(([id, n]) => ({ id, ...n })).sort((a, b) => b.createdAt - a.createdAt) : []);
+        // LIVE-PATHS-1: the KEY is the id; a stored `id` field never overrides it.
+        setAll(snap.exists() ? Object.entries(snap.val()).map(([id, n]) => ({ ...n, id })).sort((a, b) => b.createdAt - a.createdAt) : []);
         setLoading(false);
       });
     })();

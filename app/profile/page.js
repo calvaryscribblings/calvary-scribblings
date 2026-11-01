@@ -503,7 +503,8 @@ export default function ProfilePage() {
             const { ref, onValue } = await import('firebase/database');
             unsubNotifs = onValue(ref(db, `library_notifications/${u.uid}`), snap => {
               if (!snap.exists()) { setLibNotifs([]); setUnreadLibCount(0); return; }
-              const items = Object.entries(snap.val()).map(([id, n]) => ({ id, ...n })).sort((a, b) => b.createdAt - a.createdAt).slice(0, 40);
+              // LIVE-PATHS-1: the KEY is the id; a stored `id` field never overrides it.
+              const items = Object.entries(snap.val()).map(([id, n]) => ({ ...n, id })).sort((a, b) => b.createdAt - a.createdAt).slice(0, 40);
               setLibNotifs(items);
               setUnreadLibCount(items.filter(n => !n.read).length);
             });

@@ -91,7 +91,7 @@ async function readTitles(token) {
   const res = await fetch(`${DB_URL}/${TITLES_PATH}.json?access_token=${token}`);
   if (!res.ok) throw new Error(`RTDB GET ${TITLES_PATH} failed: HTTP ${res.status} ${await res.text()}`);
   const raw = (await res.json()) || {};
-  return Object.entries(raw).map(([id, doc]) => ({ id, ...(doc || {}) }));
+  return Object.entries(raw).map(([id, doc]) => ({ ...(doc || {}), id })); // LIVE-PATHS-1: the key wins
 }
 
 /**

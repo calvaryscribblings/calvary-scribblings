@@ -63,6 +63,7 @@
 import { publishedAtMsFor } from './storyAccess.js';
 import { parseBlocks } from './htmlBlocks.js';
 import { walkToProse } from './prosePredicate.js';
+import { assertId } from './ids.js';
 
 export const INDEX_PATH = 'cms_stories_index';
 
@@ -217,6 +218,7 @@ export function buildQuizSummary(quizMeta) {
 // cms_stories/${slug} so the pair can never half-write. An index-ineligible
 // (hidden) or null (deleted) next-state removes the index entry.
 export function indexUpdatePaths(slug, story) {
+  assertId('slug', slug); // LIVE-PATHS-1: '' would null the whole index
   return {
     [`${INDEX_PATH}/${slug}`]: isIndexed(story) ? buildIndexRecord(slug, story) : null,
   };

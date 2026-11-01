@@ -28,6 +28,7 @@ import { renderMarkdown } from '../../lib/openPagesMarkdown';
 import { indexedCommentWrite } from '../../lib/userComments';
 import { Reaction, useReactionNote, useKeyedReactionNote } from '../../components/conversation/Reaction';
 import { DELETED_RESPONSE, DELETED_PIECE, PIECE_ID_RE, isTombstone } from '../../lib/deletedContent';
+import { isId } from '../../lib/ids';
 
 const REPORT_REASONS = ['Harmful content', 'Spam', 'Plagiarism', 'Other'];
 
@@ -265,7 +266,8 @@ export default function OpenPageDetailClient({ params }) {
   }, [user]);
 
   async function toggleBlock(uid) {
-    if (!user || !uid || uid === user.uid) return;
+    // LIVE-PATHS-1: `uid` is a comment's stored authorUid field; only a real uid becomes a path.
+    if (!user || !isId('uid', uid) || uid === user.uid) return;
     setBlockBusy(uid);
     const isBlocked = blocked.has(uid);
     // Optimistic: the comment should vanish on the click, not after a round trip.

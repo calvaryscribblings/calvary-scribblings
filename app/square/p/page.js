@@ -28,7 +28,7 @@ import PostBody from '../../components/conversation/PostBody';
 import AttachmentCard from '../../components/conversation/AttachmentCard';
 import { PostMenu, ReportModal } from '../../components/conversation/SquarePostMenu';
 import { attachmentOf, refusalFor, showCounter, MAX_REPLY_CHARS } from '../../lib/squarePostBody';
-import { sendSquareWrite } from '../../lib/squareWrite';
+import { sendSquareWrite, isPostId } from '../../lib/squareWrite';
 import { withReactionCounts } from '../../lib/squareReactions';
 import { isTombstone, announcedPieceOf, DELETED_POST } from '../../lib/deletedContent';
 import { mentionHandles, resolveHandle, matchReaders } from '../../lib/squareHandles';
@@ -172,6 +172,8 @@ function Thread() {
   // ── where the thread lives ──────────────────────────────────────────────────
   useEffect(() => {
     if (!id) { setState({ phase: 'missing' }); return; }
+    // LIVE-PATHS-1: ?id= becomes square_posts/<id>; a slash or anything else non-id is refused here.
+    if (!isPostId(id)) { setState({ phase: 'gone' }); return; }
     let cancelled = false;
     const offs = [];
     (async () => {
@@ -186,9 +188,12 @@ function Thread() {
         const post = { id, ...snap.val() };
         // Replies live beside their parent in whichever node holds the thread —
         // the horizon moves a thread whole, so they are never split across the two.
-        const rootId = post.parentId || id;
+        // LIVE-PATHS-1: parentId is a reader-written string; one that isn't a post id (a '/' would
+        // aim a moderator's removal inside another post) is not followed.
+        const parentOk = isPostId(post.parentId);
+        const rootId = parentOk ? post.parentId : id;
         let root = post;
-        if (post.parentId) {
+        if (parentOk) {
           const rs = await get(ref(db, `${where}/${rootId}`));
           root = rs.exists() ? { id: rootId, ...rs.val() } : { id: rootId, authorUid: null, createdAt: post.createdAt, missing: true };
         }

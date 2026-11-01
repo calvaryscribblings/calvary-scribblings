@@ -1,7 +1,10 @@
+import { isId } from '../../app/lib/ids.js';
 export async function onRequest(context) {
   const url = new URL(context.request.url);
   const slug = url.searchParams.get('slug');
-  if (!slug) return new Response('Missing slug', { status: 400 });
+  // LIVE-PATHS-1: the slug was spliced raw into cms_stories/<slug>/cover.json, so `x/../../<node>/<field>`
+  // read any public string and this route then FETCHED it and served the bytes. Pattern first.
+  if (!isId('slug', slug)) return new Response('Missing slug', { status: 400 });
 
   try {
     const dbUrl = `https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app/cms_stories/${slug}/cover.json`;

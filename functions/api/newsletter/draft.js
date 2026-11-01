@@ -17,6 +17,12 @@
 // here — so the allowlist was a check anyone could pass by typing the answer
 // into the request. A stranger could save or delete any newsletter draft,
 // including a scheduled one due to go out.
+//
+// LIVE-PATHS-1: the draft id is checked here (app/lib/ids.js, kind draftId) before anything is
+// sent to the Worker, and the Worker checks it again. An id the Worker spliced into
+// newsletter_drafts/${id}.json unchecked could delete every draft or replace the subscriber list.
+import { isId } from '../../../app/lib/ids.js';
+
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 const WORKER = 'https://calvary-newsletter.calvarymediauk.workers.dev';
 
@@ -64,6 +70,11 @@ export async function onRequestPost(context) {
   let body;
   try { body = await request.json(); }
   catch { return json({ error: 'Invalid request body.' }, 400); }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return json({ error: 'Invalid request body.' }, 400);
+  // A new draft has no id (the Worker makes one); a saved one must carry a valid one. Never cleaned.
+  if (body.id !== undefined && body.id !== null && !isId('draftId', body.id)) {
+    return json({ error: 'Invalid draft id. Nothing was saved.' }, 400);
+  }
 
   if (!env.NEWSLETTER_SEND_SECRET) return json({ error: 'Server misconfigured.' }, 500);
 
@@ -97,7 +108,7 @@ export async function onRequestDelete(context) {
 
   const url = new URL(request.url);
   const id = url.searchParams.get('id');
-  if (!id) return json({ error: 'id required.' }, 400);
+  if (!isId('draftId', id)) return json({ error: 'Invalid draft id. Nothing was deleted.' }, 400);
 
   console.log('[newsletter/draft] delete | uid:', gate.uid, '(verified) | id:', id);
 

@@ -45,7 +45,8 @@ export default function SubmissionsPage() {
           // Get user display name
           const userSnap = await get(ref(db, `users/${uid}/displayName`));
           const displayName = userSnap.exists() ? userSnap.val() : 'Reader';
-          all.push({ uid, slug, displayName, ...sub });
+          // LIVE-PATHS-1: the keys win; a submitter's stored uid/slug fields never steer the marking writes.
+          all.push({ displayName, ...sub, uid, slug });
         }
       }
     }

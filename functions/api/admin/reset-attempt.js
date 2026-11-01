@@ -1,3 +1,4 @@
+import { isId } from '../../../app/lib/ids.js';
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 const ADMIN_EMAILS = ['ikennaworksfromhome@gmail.com', 'fynbecki@gmail.com'];
@@ -192,9 +193,11 @@ export async function onRequestPost(context) {
 
   const { uid: targetUid, slug, action = 'reset', reason } = body;
 
-  if (!slug || typeof slug !== 'string') return json({ error: 'slug required.' }, 400);
+  // LIVE-PATHS-1 (SAFETY-1 audit #6): slug '/' collapsed quiz_submissions/<uid>/<slug> onto the
+  // reader's whole node. Both ids are checked before any path is built.
+  if (!isId('slug', slug)) return json({ error: 'slug required.' }, 400);
   if (!['reset', 'unlock', 'bulk'].includes(action)) return json({ error: 'Invalid action.' }, 400);
-  if (action !== 'bulk' && (!targetUid || typeof targetUid !== 'string')) {
+  if (action !== 'bulk' && !isId('uid', targetUid)) {
     return json({ error: 'uid required.' }, 400);
   }
 

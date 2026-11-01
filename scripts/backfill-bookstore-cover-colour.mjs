@@ -141,7 +141,7 @@ async function main() {
   const snap = await db.ref(TITLES_PATH).once('value');
   const all = snap.val() || {};
   const rows = Object.entries(all)
-    .map(([id, t]) => ({ id, ...t }))
+    .map(([id, t]) => ({ ...t, id })) // LIVE-PATHS-1: the key wins
     .filter((t) => (ONLY ? t.slug === ONLY : true))
     .filter((t) => t.coverUrl || t.coverSizes);
 

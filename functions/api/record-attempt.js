@@ -1,3 +1,4 @@
+import { isId } from '../../app/lib/ids.js';
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 
 function json(data, status = 200) {
@@ -94,7 +95,10 @@ export async function onRequestPost(context) {
   catch { return json({ error: 'Invalid request body.' }, 400); }
 
   const { slug } = body;
-  if (!slug || typeof slug !== 'string') return json({ error: 'slug required.' }, 400);
+  // LIVE-PATHS-1 (SAFETY-1 audit #7): the slug becomes cms_stories/<slug> and
+  // quizAttemptCounted/<uid>/<slug> in a service-account write; a slash or '' moved it.
+  if (!isId('slug', slug)) return json({ error: 'slug required.' }, 400);
+  if (!isId('uid', uid)) return json({ error: 'Unauthorised.' }, 401);
 
   console.log('[record-attempt] uid:', uid, '| slug:', slug);
 

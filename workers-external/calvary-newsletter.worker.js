@@ -32,7 +32,34 @@
 // byte-identical to what buildEmail below actually emits, by slicing buildEmail
 // out of THIS file and running it. Inline parity alone was not enough; the
 // preview also has to segment paragraphs and gate formats the same way.
+//
+// LIVE-PATHS-1 CONTRACT: the ID RULES block below is a byte-for-byte copy of the one in
+// app/lib/ids.js (tests/ci/live-paths-ids.test.mjs). Every newsletter_drafts path goes through
+// draftUrl(), which refuses an id that isn't a draftId before any URL is built. Before this, a
+// DELETE of /draft/. (normalised to /draft/) deleted EVERY draft, and a save with id
+// "../subscribers" replaced the subscriber list.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ── ID RULES MIRROR (app/lib/ids.js ⇄ workers-external/calvary-newsletter.worker.js) ──
+const ID_RULES = {
+  slug: { re: /^[a-z0-9]+(?:-[a-z0-9]+)*$/, max: 128 },
+  draftId: { re: /^[1-9][0-9]{12}$/, max: 13 },
+  uid: { re: /^[A-Za-z0-9]+$/, max: 64 },
+  sendId: { re: /^[A-Za-z0-9_-]{20}$/, max: 20 },
+};
+
+function isId(kind, value) {
+  const rule = ID_RULES[kind];
+  if (!rule) throw new Error(`isId: unknown id kind "${kind}"`);
+  return typeof value === "string" && value.length > 0 && value.length <= rule.max && rule.re.test(value);
+}
+// ── END ID RULES MIRROR ──
+
+// The one place a newsletter_drafts/<id> URL is built. Throws on a bad id: never cleaned up.
+function draftUrl(env, id) {
+  if (!isId("draftId", id)) throw new Error("Refused draft id: not a draftId. Nothing was sent to the database.");
+  return `${env.FIREBASE_DATABASE_URL}/newsletter_drafts/${id}.json?auth=${env.FIREBASE_SECRET}`;
+}
 
 export default {
   async fetch(request, env) {
@@ -125,7 +152,12 @@ export default {
         // W6: a Send pressed on a saved or scheduled draft LOCKS that draft first, so the cron
         // cannot mail the same issue again at its scheduled time (before W6 it did: the draft
         // stayed 'scheduled' and was sent twice).
-        const draftId = !testEmail && typeof body.draftId === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(body.draftId) ? body.draftId : null;
+        // LIVE-PATHS-1: a draftId that is present must be valid; a malformed one used to be ignored
+        // and the issue mailed unlocked. Refused before anyone is mailed.
+        if (body.draftId !== undefined && body.draftId !== null && !isId("draftId", body.draftId)) {
+          return Response.json({ error: "Invalid draft id. Nothing was sent." }, { status: 400, headers: cors });
+        }
+        const draftId = !testEmail && body.draftId ? body.draftId : null;
         if (draftId) {
           const lock = await patchDraft(env, draftId, { status: "sending", sendingSince: new Date().toISOString() });
           if (!lock.ok) return Response.json({ error: `Could not lock the draft (HTTP ${lock.status}). Nothing was sent.` }, { status: 502, headers: cors });
@@ -149,7 +181,7 @@ export default {
           return Response.json({ error: "Unauthorised" }, { status: 401, headers: cors });
         }
         const { sendId } = await request.json();
-        if (typeof sendId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(sendId)) {
+        if (!isId("sendId", sendId)) {
           return Response.json({ error: "sendId required" }, { status: 400, headers: cors });
         }
         const recUrl = `${env.FIREBASE_DATABASE_URL}/newsletter_sends/${sendId}.json?auth=${env.FIREBASE_SECRET}`;
@@ -191,14 +223,21 @@ export default {
           return Response.json({ error: "Unauthorised" }, { status: 401, headers: cors });
         }
         const body = await request.json();
+        if (!body || typeof body !== "object" || Array.isArray(body)) {
+          return Response.json({ error: "Invalid request body." }, { status: 400, headers: cors });
+        }
         const { id, subject, issueNumber, scheduledAt } = body;
+        // LIVE-PATHS-1: a new draft has no id; a saved one must carry a valid one. Never cleaned up.
+        if (id !== undefined && id !== null && !isId("draftId", id)) {
+          return Response.json({ error: "Invalid draft id. Nothing was saved." }, { status: 400, headers: cors });
+        }
         const blocks = Array.isArray(body.blocks)
           ? body.blocks
           : [
               ...(body.intro && body.intro.trim() ? [{ type: "text", id: Date.now().toString(), content: body.intro }] : []),
               ...((body.stories || []).map((s, i) => ({ type: "story", id: (Date.now() + i + 1).toString(), ...s }))),
             ];
-        const draftId = id || Date.now().toString();
+        const draftId = id ?? Date.now().toString();
         const draft = {
           id: draftId,
           subject: subject || "",
@@ -209,7 +248,7 @@ export default {
           // W6: scheduledAt arrives as UTC ISO from the admin; see scheduledMs() for older drafts.
           status: scheduledAt ? "scheduled" : "draft",
         };
-        const put = await fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_drafts/${draftId}.json?auth=${env.FIREBASE_SECRET}`, {
+        const put = await fetch(draftUrl(env, draftId), {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(draft),
@@ -228,8 +267,13 @@ export default {
         if (!authHeader || authHeader !== `Bearer ${env.NEWSLETTER_SEND_SECRET}`) {
           return Response.json({ error: "Unauthorised" }, { status: 401, headers: cors });
         }
-        const draftId = url.pathname.split("/draft/")[1];
-        const del = await fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_drafts/${draftId}.json?auth=${env.FIREBASE_SECRET}`, { method: "DELETE" });
+        // LIVE-PATHS-1: the URL parser has already normalised the path (/draft/. arrives as /draft/,
+        // an empty id), so the id is checked AFTER parsing and refused, never repaired.
+        const draftId = url.pathname.slice("/draft/".length);
+        if (!isId("draftId", draftId)) {
+          return Response.json({ error: "Invalid draft id. Nothing was deleted." }, { status: 400, headers: cors });
+        }
+        const del = await fetch(draftUrl(env, draftId), { method: "DELETE" });
         if (!del.ok) return Response.json({ error: `The draft was not deleted (database refused it: HTTP ${del.status}).` }, { status: 502, headers: cors });
         return Response.json({ success: true }, { headers: cors });
       } catch (err) {
@@ -620,7 +664,7 @@ function scheduledMs(value) {
 }
 
 async function patchDraft(env, id, fields) {
-  return fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_drafts/${id}.json?auth=${env.FIREBASE_SECRET}`, {
+  return fetch(draftUrl(env, id), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(fields),
@@ -633,7 +677,9 @@ async function sendDueNewsletters(env, now) {
   const drafts = await draftsRes.json();
   if (!drafts || typeof drafts !== "object") return;
   for (const [id, draft] of Object.entries(drafts)) {
-    if (draft.status !== "scheduled" || !draft.scheduledAt) continue;
+    // LIVE-PATHS-1: a key that isn't a draftId is left alone and reported, never mailed or written.
+    if (!isId("draftId", id)) { console.error(`Draft key skipped: not a draftId (${String(id).length} chars).`); continue; }
+    if (!draft || draft.status !== "scheduled" || !draft.scheduledAt) continue;
     const at = scheduledMs(draft.scheduledAt);
     if (!Number.isFinite(at) || at > now.getTime()) continue;
     try {
@@ -655,7 +701,7 @@ async function sendDueNewsletters(env, now) {
 // lost nor re-sent by a later tick. Before W6 the draft was deleted whatever happened.
 async function settleDraftAfterSend(env, id, result) {
   if (result && result.success && result.failed === 0) {
-    const del = await fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_drafts/${id}.json?auth=${env.FIREBASE_SECRET}`, { method: "DELETE" });
+    const del = await fetch(draftUrl(env, id), { method: "DELETE" });
     if (!del.ok) console.error(`Newsletter ${id} was sent, but its draft could not be removed (HTTP ${del.status}).`);
     return;
   }

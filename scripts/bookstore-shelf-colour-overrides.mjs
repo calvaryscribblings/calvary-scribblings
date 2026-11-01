@@ -194,7 +194,7 @@ async function main() {
   const genres = Object.keys(gval).length
     ? sortGenres(Object.entries(gval).map(([slug, g]) => ({ slug, ...g })))
     : sortGenres(GENRE_SEED);
-  const rows = Object.entries(all).map(([id, t]) => ({ id, ...t }));
+  const rows = Object.entries(all).map(([id, t]) => ({ ...t, id })); // LIVE-PATHS-1: the key wins
   const bySlug = new Map(rows.map((t) => [t.slug, t]));
 
   console.log(`${Object.keys(SHELF_COLOUR_OVERRIDES).length} override(s) on record`);

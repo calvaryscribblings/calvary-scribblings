@@ -151,6 +151,9 @@ export default function QuizzesPage() {
   const [extractMissing, setExtractMissing] = useState(null);
   const searchRef = useRef(null);
   const [selectedSlug, setSelectedSlug] = useState('');
+  // LIVE-PATHS-1 (SAFETY-1 audit #5): the selection a slow load or generation must still match
+  // when it lands. Without it, A's quiz arriving after B was picked was saved over B's.
+  const currentSlugRef = useRef('');
   const [quiz, setQuiz] = useState(null);
   const [warnings, setWarnings] = useState([]);
   const [generating, setGenerating] = useState(false);
@@ -180,6 +183,7 @@ export default function QuizzesPage() {
     setWarnings([]);
     setError('');
     setMsg('');
+    currentSlugRef.current = selectedSlug;
     loadExistingQuiz(selectedSlug);
   }, [selectedSlug]);
 
@@ -279,6 +283,7 @@ export default function QuizzesPage() {
     try {
       const { ref, get } = await import('firebase/database');
       const snap = await readWithDeadline(() => get(ref(db, `cms_quizzes/${slug}`)));
+      if (currentSlugRef.current !== slug) return; // a later selection owns the editor now
       setQuizRead('ready');
       if (snap.exists()) {
         setQuiz(snap.val());
@@ -312,6 +317,7 @@ export default function QuizzesPage() {
     // filter only filters, and the mode is its own control — defaulted from the
     // selected story and overridable. The request body is unchanged.
     const generateMode = genMode === 'reader' ? 'reader' : 'story';
+    const forSlug = selectedSlug;
     setGenerating(true); setError(''); setMsg(''); setWarnings([]);
     try {
       // The Function derives the admin uid from this token and checks it against
@@ -324,7 +330,7 @@ export default function QuizzesPage() {
           'content-type': 'application/json',
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ slug: selectedSlug, mode: generateMode }),
+        body: JSON.stringify({ slug: forSlug, mode: generateMode }),
       });
       let data;
       try {
@@ -336,6 +342,11 @@ export default function QuizzesPage() {
       if (!res.ok) {
         console.error('[generate-quiz] server error response:', data);
         throw new Error(data.error || JSON.stringify(data) || 'Generation failed.');
+      }
+      if (currentSlugRef.current !== forSlug) {
+        showMsg(`A quiz generated for ${forSlug} was discarded: a different story is selected now.`, 'info');
+        setGenerating(false);
+        return;
       }
       setQuiz(data.quiz);
       setWarnings(data.warnings || []);

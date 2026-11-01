@@ -33,6 +33,7 @@
 // has none (bodyOf). So a story is never left with its text in neither place, whatever state the
 // two nodes were in before.
 import { isReadableStory } from './storyAccess.js';
+import { assertId } from './ids.js';
 
 export const BODIES_PATH = 'story_bodies';
 export const STORIES_PATH = 'cms_stories';
@@ -57,6 +58,7 @@ export function bodyOf(bodyRec, publicRec) {
  * Deep paths only, so it merges into any update that writes other fields of the same record.
  */
 export function placementPaths(slug, body, live) {
+  assertId('slug', slug); // LIVE-PATHS-1: '' would place the text over the whole node
   const out = {};
   for (const f of BODY_FIELDS) {
     const v = isStr(body?.[f]) ? body[f] : '';
@@ -71,6 +73,7 @@ export function placementPaths(slug, body, live) {
  * record's NEXT state. `fields` is the editor's storyData, which always carries `published`.
  */
 export function recordSavePaths(slug, fields) {
+  assertId('slug', slug);
   const out = {};
   for (const [k, v] of Object.entries(fields || {})) {
     if (!BODY_FIELDS.includes(k)) out[`${STORIES_PATH}/${slug}/${k}`] = v;
@@ -84,6 +87,7 @@ export function recordSavePaths(slug, fields) {
  * there, so a stale public copy from before this round can't outlive a fresh extraction.
  */
 export function extractTextPaths(slug, text, live) {
+  assertId('slug', slug);
   return {
     [`${BODIES_PATH}/${slug}/extractedText`]: text,
     [`${STORIES_PATH}/${slug}/extractedText`]: live ? text : null,

@@ -1,5 +1,6 @@
 import { readStoryBody, STORY_NOT_FOUND, isReadableStory } from './_story-body.js';
 import { consume, limitResponse, capFromEnv } from './_ratelimit.js';
+import { isId } from '../../app/lib/ids.js';
 
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 
@@ -186,6 +187,16 @@ export async function onRequestPost(context) {
   const uid = await verifyToken(token, env.NEXT_PUBLIC_FIREBASE_API_KEY);
   if (!uid) return evalJson({ error: 'Unauthorised.' }, 401);
 
+  let body;
+  try { body = await request.json(); }
+  catch { return evalJson({ error: 'Invalid request body.' }, 400); }
+
+  const { slug, type, attemptIndex } = body;
+  console.log('[evaluate-quiz] uid:', uid, '| slug:', slug, '| type:', type);
+
+  if (!isId('slug', slug) || !['hardball', 'essays'].includes(type)) // LIVE-PATHS-1: shape only, before the limiter's write, so a bad id sends nothing anywhere
+    return evalJson({ error: 'slug and type are required.' }, 400);
+
   // THE CEILING, charged before any work is done — before the story is read and long
   // before Anthropic is called. A refused caller costs one database increment and nothing
   // else. See EVAL_CAPS above for where the numbers come from; consume() fails closed, so
@@ -197,16 +208,6 @@ export async function onRequestPost(context) {
     console.warn('[evaluate-quiz] refused | uid:', uid, '|', verdict.reason, verdict.scope ?? '');
     return limitResponse(verdict);
   }
-
-  let body;
-  try { body = await request.json(); }
-  catch { return evalJson({ error: 'Invalid request body.' }, 400); }
-
-  const { slug, type, attemptIndex } = body;
-  console.log('[evaluate-quiz] uid:', uid, '| slug:', slug, '| type:', type);
-
-  if (!slug || !['hardball', 'essays'].includes(type))
-    return evalJson({ error: 'slug and type are required.' }, 400);
 
   let story;
   try {

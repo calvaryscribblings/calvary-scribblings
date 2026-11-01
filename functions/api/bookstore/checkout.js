@@ -30,7 +30,7 @@
 // R5b: json() and the token verifier moved to ./_lib.js when stream.js became the third
 // caller. Behaviour is unchanged — the move exists so the three endpoints cannot drift.
 import { STRIPE_VERSION } from '../_stripe.js';
-import { json, dbBase, lookupUser, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS, CLAIM_ENDPOINT, FREE_TITLE_ERROR, readerHoldsTitle, alreadyOwnedBody } from './_lib.js';
+import { json, dbBase, lookupUser, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS, CLAIM_ENDPOINT, FREE_TITLE_ERROR, readerHoldsTitle, alreadyOwnedBody, REF_SAFE_TITLE_ID } from './_lib.js';
 // R8.4 — the SAME country resolver the region endpoint serves to the client, and the SAME
 // matcher the storefront marks with. Importing them rather than re-deriving is the point: a
 // shelf that says "not sold in your region" and a till that disagrees is worse than either
@@ -75,7 +75,8 @@ export async function onRequestPost(context) {
   const { idToken, titleId, currency } = body || {};
 
   if (!idToken || typeof idToken !== 'string') return json({ error: 'Sign in to buy this book.' }, 401);
-  if (!titleId || typeof titleId !== 'string') return json({ error: 'titleId required.' }, 400);
+  // LIVE-PATHS-1: the same title-id gate paystack-checkout, claim and stream already apply.
+  if (typeof titleId !== 'string' || !REF_SAFE_TITLE_ID.test(titleId)) return json({ error: 'titleId required.' }, 400);
 
   const cur = typeof currency === 'string' ? currency.toLowerCase() : '';
   if (!ALLOWED_CURRENCIES.has(cur)) {

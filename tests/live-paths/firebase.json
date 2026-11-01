@@ -1,0 +1,7 @@
+{
+  "emulators": {
+    "database": { "host": "127.0.0.1", "port": 9471 },
+    "ui": { "enabled": false },
+    "singleProjectMode": true
+  }
+}

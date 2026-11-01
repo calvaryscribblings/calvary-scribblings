@@ -95,6 +95,7 @@ import {
   sha12, uploadCoverSet, urlPointsAt,
 } from './store.mjs';
 import { openGuard, pushId } from '../safety/guard.mjs';
+import { isId } from '../../app/lib/ids.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const DELAY_MS = 120;
@@ -171,6 +172,9 @@ function assess({ slug, story, held }) {
 async function notifyFollowers(guard, token, slug, story) {
   const uid = story.authorUid;
   if (!uid) return 0;
+  // LIVE-PATHS-1: authorUid is a FIELD, spliced unencoded into a REST URL; `../users` would have
+  // read every user's key as a "follower". Only a real uid builds the URL.
+  if (!isId('uid', uid)) throw new Error('followers read refused: the story\'s authorUid is not a uid');
   const res = await fetch(`${DB_URL}/followers/${uid}.json?shallow=true&access_token=${token}`);
   if (!res.ok) throw new Error(`followers read failed: HTTP ${res.status}`);
   const followers = Object.keys((await res.json()) ?? {});

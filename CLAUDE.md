@@ -317,6 +317,21 @@ mutation run silently executed the wrong harness. Nothing shipped wrong, but onl
 results were implausible enough to re-check. For a before/after comparison of one file, copy that
 file aside and back.
 
+## An id is checked before it becomes a database address
+
+**LIVE-PATHS-1 (1 Nov 2026).** Any database path or REST URL built from a value a caller can
+influence (a URL segment, a query string, a body, a form field, or a FIELD a reader can write)
+goes through `app/lib/ids.js` first: `assertId(kind, v)` / `isId(kind, v)`, before the path is
+built. A bad id is refused with a 400, never trimmed, decoded or otherwise cleaned. Kinds and how
+each pattern was derived are in that file; a new kind needs the same derivation from live keys.
+
+- **The key wins.** Build lists as `({ ...rec, id })`, never `({ id, ...rec })`: a stored `id`
+  field must never override the record's key.
+- **The newsletter Worker carries a byte-identical copy** of the rules block (dashboard-pasted, it
+  can't import). Every `newsletter_drafts/<id>` URL there goes through `draftUrl()`.
+  `tests/ci/live-paths-ids.test.mjs` fails on drift. Upload with
+  `scripts/workers/upload-newsletter.mjs`, which backs up and compares the live code first.
+
 ## Retired stories: `cms_stories_retired/{slug}` means never published again
 
 **W35 (7 Oct 2026).** The ten Book Reader records pulled on 16 Aug (eight still exist) are

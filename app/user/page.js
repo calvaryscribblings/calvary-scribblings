@@ -15,6 +15,7 @@ import { USER_COMMENTS_PATH, loadCommentsFor, commentCountOf } from '../lib/user
 import PostBody from '../components/conversation/PostBody';
 import { postHref } from '../lib/squareThreads';
 import { reactionsOf, withReactionCounts } from '../lib/squareReactions';
+import { isId } from '../lib/ids';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -321,7 +322,8 @@ export default function UserPage() {
       const params = new URLSearchParams(window.location.search);
       const id = params.get('id');
       const handle = params.get('handle');
-      if (id) {
+      // LIVE-PATHS-1: ?id= becomes followers/<id>/… and following/<me>/<id>; only a real uid is taken.
+      if (id && isId('uid', id)) {
         setUid(id);
       } else if (handle) {
         try {

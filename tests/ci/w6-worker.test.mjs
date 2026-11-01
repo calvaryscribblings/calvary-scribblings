@@ -52,7 +52,7 @@ globalThis.fetch = async (url, init = {}) => {
       for (const [k, v] of Object.entries(body)) setAt(path ? `${path}/${k}` : k, v);
       return ok(body);
     }
-    if (method === 'POST') { const id = `-P${++pushN}`; setAt(`${path}/${id}`, body); return ok({ name: id }); }
+    if (method === 'POST') { const id = `-P${String(++pushN).padStart(18, "0")}`; /* a push id is 20 characters (LIVE-PATHS-1) */ setAt(`${path}/${id}`, body); return ok({ name: id }); }
   }
   throw new Error(`unexpected fetch ${method} ${url}`);
 };
@@ -185,10 +185,10 @@ describe('W6 · /send — refusals are refusals, partials are partial', () => {
 describe('W6 · drafts — scheduled right, sent once', () => {
   test('ADM-22: a Send on a scheduled draft locks it, so the tick cannot mail it again', async () => {
     data.subscribers = subscribers(2);
-    data.newsletter_drafts = { d1: { id: 'd1', ...ISSUE, status: 'scheduled', scheduledAt: PAST } };
-    const res = await post('/send', { ...ISSUE, draftId: 'd1' });
+    data.newsletter_drafts = { '1758790800001': { id: '1758790800001', ...ISSUE, status: 'scheduled', scheduledAt: PAST } };
+    const res = await post('/send', { ...ISSUE, draftId: '1758790800001' });
     assert.equal(res.status, 200);
-    assert.equal(data.newsletter_drafts?.d1, undefined, 'a clean send removes the draft');
+    assert.equal(data.newsletter_drafts?.['1758790800001'], undefined, 'a clean send removes the draft');
     const before = resend.calls.length;
     await tick();
     assert.equal(resend.calls.length, before, 'the tick sent nothing more');
@@ -198,10 +198,10 @@ describe('W6 · drafts — scheduled right, sent once', () => {
     data.subscribers = subscribers(60);
     let batch = 0;
     resend.fail = () => ++batch === 1;
-    data.newsletter_drafts = { d2: { id: 'd2', ...ISSUE, status: 'scheduled', scheduledAt: PAST } };
+    data.newsletter_drafts = { '1758790800002': { id: '1758790800002', ...ISSUE, status: 'scheduled', scheduledAt: PAST } };
     await tick();
-    assert.equal(data.newsletter_drafts.d2.status, 'failed');
-    assert.equal(data.newsletter_drafts.d2.failedCount, 50);
+    assert.equal(data.newsletter_drafts['1758790800002'].status, 'failed');
+    assert.equal(data.newsletter_drafts['1758790800002'].failedCount, 50);
     const calls = resend.calls.length;
     await tick();
     assert.equal(resend.calls.length, calls);
@@ -244,7 +244,7 @@ describe('W6 · London time — BST and GMT, and the two copies agree', () => {
   test('the Worker schedules a zoneless BST draft at 08:00 UTC — NOT an hour late', async () => {
     data.subscribers = subscribers(1);
     const wall = '2026-10-01T09:00';
-    data.newsletter_drafts = { d3: { id: 'd3', ...ISSUE, status: 'scheduled', scheduledAt: wall } };
+    data.newsletter_drafts = { '1758790800003': { id: '1758790800003', ...ISSUE, status: 'scheduled', scheduledAt: wall } };
     const RealDate = Date;
     const at = (iso) => {
       const fixed = RealDate.parse(iso);

@@ -1,4 +1,5 @@
 import { readStoryBody } from './_story-body.js';
+import { isId } from '../../app/lib/ids.js';
 
 const QUIZ_ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
@@ -242,7 +243,7 @@ export async function onRequestPost(context) {
   console.log('[generate-quiz] slug:', slug, '| mode:', mode, '| uid:', uid, '(verified)');
   console.log('[generate-quiz] ANTHROPIC_API_KEY set:', !!env.ANTHROPIC_API_KEY);
 
-  if (!slug || !['story', 'reader'].includes(mode))
+  if (!isId('slug', slug) || !['story', 'reader'].includes(mode)) // LIVE-PATHS-1
     return quizJson({ error: 'slug and mode are required.' }, 400);
 
   let story;

@@ -43,7 +43,9 @@ export const EXEMPT = {
   'scripts/storage/lifecycle.mjs': ['bucket-config', 'sets the main bucket lifecycle rules from storage/lifecycle.json'],
 };
 
-const OTHER_SERVICE = /anthropic|stripe|paystack|facebook|graph\.|exp\.host|expo|hook|HOOK|calvaryscribblings\.co|SITE|resend|oauth2\.googleapis|firebaserules|\/api\//;
+// api.cloudflare.com: Worker code uploads (scripts/workers/upload-newsletter.mjs, LIVE-PATHS-1), which
+// back up the live code and verify it first; not the database.
+const OTHER_SERVICE = /anthropic|stripe|paystack|facebook|graph\.|exp\.host|expo|hook|HOOK|calvaryscribblings\.co|SITE|resend|oauth2\.googleapis|firebaserules|api\.cloudflare\.com|\/api\//;
 
 /** Drop block comments and whole-line // comments (strings with "//" in them survive). */
 export function stripComments(src) {

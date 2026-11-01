@@ -96,6 +96,7 @@ import { fileURLToPath } from 'node:url';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 import { openGuard } from '../safety/guard.mjs';
+import { isId } from '../../app/lib/ids.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..', '..');
@@ -178,7 +179,8 @@ async function main() {
     db.ref('square_posts').get(),
     db.ref('square_reactions').get(),
   ]);
-  const posts = Object.entries(postSnap.val() || {}).map(([id, p]) => ({ id, ...p }));
+  // LIVE-PATHS-1: the KEY is the id; a stored `id` field never overrides it.
+  const posts = Object.entries(postSnap.val() || {}).map(([id, p]) => ({ ...p, id }));
   const reactions = reactSnap.val() || {};
 
   const plan = planSweep(posts, now);
@@ -217,6 +219,7 @@ async function main() {
   // One multi-path update per thread-batch: the archive write and the live
   // removal land together, so a record is never in neither place.
   let moved = 0;
+  let badAuthorUid = 0;
   const CHUNK = 100;
   for (let i = 0; i < plan.move.length; i += CHUNK) {
     const batch = plan.move.slice(i, i + CHUNK);
@@ -227,7 +230,11 @@ async function main() {
       if (reactions[id]) patch[`square_archive_reactions/${id}`] = reactions[id];
       patch[`square_posts/${id}`] = null;
       patch[`square_reactions/${id}`] = null;
-      if (p.authorUid) patch[`user_square_posts/${p.authorUid}/${id}`] = null;
+      // LIVE-PATHS-1: authorUid is a field the post's owner can rewrite to any string. A '.' in it
+      // made the guard throw and stalled every hourly sweep; a '/' nested the write. Only a real
+      // uid builds a path; anything else leaves that one index entry alone (counted below).
+      if (isId('uid', p.authorUid)) patch[`user_square_posts/${p.authorUid}/${id}`] = null;
+      else if (p.authorUid) badAuthorUid++;
     }
     await db.ref().update(patch);
     moved += batch.length;
@@ -239,6 +246,7 @@ async function main() {
   });
 
   console.log(`\n  ✓ SWEPT — ${moved} records moved to square_archive. ${plan.keep.length} remain in the room.\n`);
+  if (badAuthorUid) console.log(`  ⚠ ${badAuthorUid} moved post(s) carried an authorUid that is not a uid: their user_square_posts entry was left alone.\n`);
   process.exit(0);
 }
 

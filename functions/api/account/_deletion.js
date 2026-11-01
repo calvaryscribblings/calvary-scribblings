@@ -43,6 +43,7 @@
 
 import { STRIPE_VERSION } from '../_stripe.js';
 import { json, dbBase, lookupUser, mintAccessToken, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS, STORAGE_BUCKET } from '../bookstore/_lib.js';
+import { assertId } from '../../../app/lib/ids.js';
 
 export const DELETION_PATH = (uid) => `deletions/${uid}`;
 
@@ -153,6 +154,9 @@ const sameEmail = (a, b) => typeof a === 'string' && typeof b === 'string' && a.
  * @param email the Auth email, or null
  */
 export function planOwned(uid, { user, following, followers, handles, subscribers, waitlist, instalments }, email) {
+  // LIVE-PATHS-1 (SAFETY-1 audit #9): '' here would null ~40 whole nodes. A verified token makes it
+  // impossible today; this makes it impossible whatever calls it tomorrow.
+  assertId('uid', uid);
   const u = {};
   for (const n of OWNED_NODES) u[`${n}/${uid}`] = null;
   // W49 — their instalment reads: one ledger entry per instalment they read, keyed inst-first, so
@@ -202,6 +206,7 @@ export class StepError extends Error {
 }
 
 export async function runDeletion(uid, email, io, log = console) {
+  assertId('uid', uid);
   const now = io.now();
   const path = DELETION_PATH(uid);
   let record;

@@ -39,6 +39,7 @@ import { buildReport, contentKeyFor, convIdFor } from '../../lib/contentReports'
 import { THREAD_COPY } from '../../lib/squareThreads';
 import { sendDmImage, prepareImage, imageExpired, reportImage, DM_IMAGE_EXPIRED, DM_IMAGE_PREVIEW_NOTE } from '../../lib/dmImages';
 import { useKeyboardInset } from '../useKeyboard';
+import { isId } from '../../lib/ids';
 
 const FF = 'Cormorant Garamond, Georgia, serif';
 const INK = (a) => `rgba(245,240,232,${a})`;
@@ -155,6 +156,7 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
   const who = (uid) => identityOf({ authorUid: uid }, identities[uid]);
 
   const open = (otherUid) => {
+    if (!isId('uid', otherUid)) return; // LIVE-PATHS-1: becomes dm_conversations/<me>/<convId>
     setActiveConv({ convId: convIdFor(user.uid, otherUid), otherUid });
     setShowNewMsg(false); setNewMsgSearch(''); setNewMsgResults([]);
     setMenuOpen(false); setPicking(false); setReportMsg(null); setReportState('');
