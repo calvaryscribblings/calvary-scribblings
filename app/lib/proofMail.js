@@ -128,86 +128,194 @@ export function proofsByWriter(stories, retired, now) {
 export const mailable = (account) =>
   !!account && account.disabled !== true && account.emailVerified === true && typeof account.email === 'string' && account.email.includes('@');
 
-// ── THE WORDS (DRAFT, for Ikenna's ruling) ────────────────────────────────────────────
+// ── THE WORDS (RULED: 296–298, 2 Nov 2026; docs/COPY-RULINGS.md) ──────────────────────
 // Every line of every writer email, and every new line in /admin/proofs. Change them here and
-// nowhere else, and record the ruling in docs/COPY-RULINGS.md. House style, rule 13.
+// nowhere else, and record the ruling in docs/COPY-RULINGS.md. House style, rule 13, and single
+// quotes (ruling 296): a title and a button name are set ‘like this’, never in double quotes.
+//
+// Each email is a list of BLOCKS. The text part and the designed HTML part are both rendered from
+// that one list (mailText / mailHtml), so they can't carry different words, order or links.
+//   { t: 'p', lines: [..] }                  a paragraph (lines inside it break, no blank line)
+//   { t: 'link', lead?, url }                an optional lead line, then the link on its own line
+//   { t: 'stories', label, items: [{ title, when, url }] }
+//   { t: 'steps', label, items: [..] }       a numbered list ("1. …")
+//   { t: 'signoff', lines: [..] }
 export const MAIL_SENDER_NAME = 'Calvary Scribblings';
 export const SAMPLE_PREFIX = '[Sample] ';
+/** Ruling 298: replies reach the editors. Every writer email, samples included. */
+export const MAIL_REPLY_TO = 'admin@calvaryscribblings.co.uk';
 
-const q = (title) => `“${title}”`;
-const SIGN_OFF = ['', 'The editors', 'Calvary Scribblings'];
-const HOW_TO = [
-  'How to use it:',
-  `1. Go to ${PROOFS_URL} and sign in with the account you write under.`,
-  '2. Open a story to read its proof.',
-  '3. If something doesn’t match your story (a word, a line break, the title, the cover), press “Report a discrepancy” on the proof and tell us what’s wrong and where.',
-  '',
-  'Your story still goes live on time: a report never holds it back, and the editors will look before then if they can. A story leaves Proofs the moment it goes live.',
-];
-const REPORT_LINE = 'If something doesn’t match your story, press “Report a discrepancy” on the proof. Your story still goes live on time.';
-const storyBlock = (s) => [q(s.title), `Goes live ${londonWhen(s.goLiveMs)}, London time`, proofUrl(s.slug)];
+const q = (title) => `‘${title}’`;
+const BUTTON = q('Report a discrepancy');
+const P = (...lines) => ({ t: 'p', lines });
+const SIGN_OFF = { t: 'signoff', lines: ['The editors', 'Calvary Scribblings'] };
+const HOW_TO = {
+  t: 'steps',
+  label: 'How to use it:',
+  items: [
+    `Go to ${PROOFS_URL} and sign in with the account you write under.`,
+    'Open a story to read its proof.',
+    `If something doesn’t match your story (a word, a line break, the title, the cover), press ${BUTTON} on the proof and tell us what’s wrong and where.`,
+  ],
+};
+const REPORT_LINE = P(`If something doesn’t match your story, press ${BUTTON} on the proof. Your story still goes live on time.`);
+const storyItem = (s) => ({ title: q(s.title), when: `Goes live ${londonWhen(s.goLiveMs)}, London time`, url: proofUrl(s.slug) });
+
+const mail = (subject, blocks) => ({ subject, blocks, lines: mailText(blocks).split('\n') });
 
 export const PROOF_MAIL_COPY = Object.freeze({
   opening: (stories) => {
     const has = stories.length > 0;
-    return {
-      subject: has ? 'Your proofs are ready' : 'Proofs: read your stories before they go live',
-      lines: [
-        'Hello,',
-        '',
-        ...(has ? ['Your proofs are ready.', ''] : []),
-        'Proofs is a new page on Calvary Scribblings for our writers. It shows each of your stories that’s scheduled but not yet live, exactly as it’ll publish: the title, the cover and every line of the text. Only you and the editors can see it.',
-        '',
-        ...(has
-          ? [stories.length === 1 ? 'Your scheduled story:' : 'Your scheduled stories:', '', ...stories.flatMap((s, i) => [...(i ? [''] : []), ...storyBlock(s)]), '']
-          : ['You have no stories scheduled just now. When one is scheduled, we’ll email you, and its proof will be there until it goes live.', '']),
-        ...HOW_TO,
-        '',
-        'We’ll also email you whenever a story of yours is scheduled, when its go-live date changes, and two days before it goes live.',
-        ...SIGN_OFF,
-      ],
-    };
+    return mail(has ? 'Your proofs are ready' : 'Proofs: read your stories before they go live', [
+      P('Hello,'),
+      ...(has ? [P('Your proofs are ready.')] : []),
+      P('Proofs is a new page on Calvary Scribblings for our writers. It shows each of your stories that’s scheduled but not yet live, exactly as it’ll publish: the title, the cover and every line of the text. Only you and the editors can see it.'),
+      has
+        ? { t: 'stories', label: stories.length === 1 ? 'Your scheduled story:' : 'Your scheduled stories:', items: stories.map(storyItem) }
+        : P('You have no stories scheduled just now. When one is scheduled, we’ll email you, and its proof will be there until it goes live.'),
+      HOW_TO,
+      P('Your story still goes live on time: a report never holds it back, and the editors will look before then if they can. A story leaves Proofs the moment it goes live.'),
+      P('We’ll also email you whenever a story of yours is scheduled, when its go-live date changes, and two days before it goes live.'),
+      SIGN_OFF,
+    ]);
   },
-  scheduled: (s) => ({
-    subject: `${q(s.title)} is scheduled`,
-    lines: [
-      'Hello,', '',
-      `Your story ${q(s.title)} is scheduled. It goes live ${londonWhen(s.goLiveMs)}, London time.`, '',
-      'Its proof is ready, exactly as it’ll publish:', proofUrl(s.slug), '',
-      REPORT_LINE,
-      ...SIGN_OFF,
-    ],
-  }),
-  changed: (s, prevMs) => ({
-    subject: `${q(s.title)} has a new go-live date`,
-    lines: [
-      'Hello,', '',
-      `The go-live date of your story ${q(s.title)} has changed. It now goes live ${londonWhen(s.goLiveMs)}, London time.`,
-      ...(Number.isFinite(prevMs) ? [`Before, it was ${londonWhen(prevMs)}.`] : []), '',
-      'Its proof:', proofUrl(s.slug), '',
-      REPORT_LINE,
-      ...SIGN_OFF,
-    ],
-  }),
-  reminder: (s) => ({
-    subject: `${q(s.title)} goes live on ${londonWhen(s.goLiveMs).replace(/ at .*$/, '')}`,
-    lines: [
-      'Hello,', '',
-      `Your story ${q(s.title)} goes live ${londonWhen(s.goLiveMs)}, London time.`, '',
-      'There’s still time to read its proof:', proofUrl(s.slug), '',
-      REPORT_LINE,
-      ...SIGN_OFF,
-    ],
-  }),
+  scheduled: (s) => mail(`${q(s.title)} is scheduled`, [
+    P('Hello,'),
+    P(`Your story ${q(s.title)} is scheduled. It goes live ${londonWhen(s.goLiveMs)}, London time.`),
+    { t: 'link', lead: 'Its proof is ready, exactly as it’ll publish:', url: proofUrl(s.slug) },
+    REPORT_LINE,
+    SIGN_OFF,
+  ]),
+  changed: (s, prevMs) => mail(`${q(s.title)} has a new go-live date`, [
+    P('Hello,'),
+    P(`The go-live date of your story ${q(s.title)} has changed. It now goes live ${londonWhen(s.goLiveMs)}, London time.`,
+      ...(Number.isFinite(prevMs) ? [`It was due to go live ${londonWhen(prevMs)}.`] : [])),
+    { t: 'link', lead: 'Its proof:', url: proofUrl(s.slug) },
+    REPORT_LINE,
+    SIGN_OFF,
+  ]),
+  reminder: (s) => mail(`${q(s.title)} goes live on ${londonWhen(s.goLiveMs).replace(/ at .*$/, '')}`, [
+    P('Hello,'),
+    P(`Your story ${q(s.title)} goes live ${londonWhen(s.goLiveMs)}, London time.`),
+    { t: 'link', lead: 'There’s still time to read its proof:', url: proofUrl(s.slug) },
+    REPORT_LINE,
+    SIGN_OFF,
+  ]),
 });
 
+// ── THE TEXT PART ────────────────────────────────────────────────────────────────────────
+function blockText(b) {
+  switch (b.t) {
+    case 'p': case 'signoff': return b.lines.join('\n');
+    case 'link': return [...(b.lead ? [b.lead] : []), b.url].join('\n');
+    case 'stories': return [b.label, '', b.items.map((i) => [i.title, i.when, i.url].join('\n')).join('\n\n')].join('\n');
+    case 'steps': return [b.label, ...b.items.map((x, i) => `${i + 1}. ${x}`)].join('\n');
+    default: return '';
+  }
+}
+export const mailText = (blocks) => blocks.map(blockText).join('\n\n');
+
+// ── THE DESIGNED PART (HTML) ─────────────────────────────────────────────────────────────
+// The house mail is the newsletter Worker's (workers-external/calvary-newsletter.worker.js,
+// buildEmail / buildNewsletterWelcome): a purple masthead with the serif wordmark, a white card on
+// #f8f7fc, Georgia body at 16px / 1.75 in #1a1a2e, Arial for small labels, purple links. These
+// numbers are TAKEN from it. The rest is built for mail clients:
+//   · tables and inline styles only; the card is 600 wide (the brief's cap; the newsletter is 620)
+//     and fluid below that.
+//   · CHOSEN: the side padding 40px (the newsletter's) drops to 24px under 600 wide.
+//   · CHOSEN: Cormorant Garamond (the site's serif) for the wordmark and story titles, through
+//     Google Fonts; clients that don't load web fonts (Gmail, Outlook) fall back to Georgia, which
+//     is the newsletter's own face, so the fallback is still the house.
+//   · DERIVED: every link on its own line sits in a 44px-tall row (20px line + 12px above and below), the site's
+//     touch-target floor.
+//   · ONE LEFT EDGE: masthead, paragraphs, lists, links and sign-off all start at the card's inner
+//     padding; the step numbers sit in their own 24px column INSIDE that edge (CHOSEN width).
+//   · NO IMAGES at all, so nothing is lost when a client blocks them, and no emoji (the
+//     newsletter's tagline carries one; it is left out here).
+//   · DARK MODE ON PURPOSE: color-scheme / supported-color-schemes declare both, and a
+//     prefers-color-scheme block (Apple Mail, iOS, Outlook for Mac) and [data-ogsc]/[data-ogsb]
+//     rules (Outlook.com) switch to the admin's own dark ground (#0c0c10 / #141419, text #f0ece4)
+//     with house gold #c9a84c for links. The masthead keeps its purple in both (white on #6b2fad
+//     reads either way), so an app that inverts colours on its own (Gmail) has nothing light-on-
+//     light to break.
+//   · The ONE thing in the HTML that isn't in the text part is the masthead wordmark "Calvary
+//     Scribblings", as on every house mail; the tests compare the body below it.
+const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const SERIF = "Georgia,'Times New Roman',serif";
+const DISPLAY = "'Cormorant Garamond',Georgia,'Times New Roman',serif";
+const SANS = 'Arial,Helvetica,sans-serif';
+const INK = '#1a1a2e', PURPLE = '#6b2fad';
+// A URL inside a sentence (step 1 of the opening email) is a link too, as in the text part. Its
+// 14px vertical padding grows the tap area to 44px or more without moving the line (DERIVED, measured).
+const linkify = (escaped) => escaped.replace(/https:\/\/[^\s<]+[^\s<.,;:)]/g, (u) => `<a class="cs-link" href="${u}" style="color:${PURPLE};text-decoration:underline;padding:14px 0;word-break:break-all;">${u}</a>`);
+const para = (inner, extra = '') => `<p class="cs-text" style="margin:0 0 16px;color:${INK};font-family:${SERIF};font-size:16px;line-height:1.75;${extra}">${inner}</p>`;
+// 4px under the row: with the row's own 12px, the gap below a link is the paragraphs' 16px (DERIVED).
+// 14px: the longest proof address fits one line at 600 wide (CHOSEN by measurement; it wraps at 375).
+const linkRow = (url) => `<p style="margin:0 0 4px;"><a class="cs-link" href="${esc(url)}" style="display:inline-block;padding:12px 0;font-family:${SANS};font-size:14px;line-height:20px;color:${PURPLE};text-decoration:underline;word-break:break-all;">${esc(url)}</a></p>`;
+const label = (text) => `<p class="cs-label" style="margin:0 0 8px;color:${PURPLE};font-family:${SANS};font-size:13px;line-height:20px;font-weight:bold;">${esc(text)}</p>`;
+
+function blockHtml(b) {
+  switch (b.t) {
+    case 'p': return para(b.lines.map((l) => linkify(esc(l))).join('<br>'));
+    case 'signoff': return para(b.lines.map(esc).join('<br>'), 'margin:8px 0 0;');
+    case 'link': return `${b.lead ? para(esc(b.lead), 'margin:0;') : ''}${linkRow(b.url)}`;
+    case 'stories': return `${label(b.label)}${b.items.map((i) => `<div class="cs-rule" style="border-top:1px solid #e6e1f0;padding-top:12px;">`
+      + `<p class="cs-text" style="margin:0;color:${INK};font-family:${DISPLAY};font-size:22px;line-height:28px;font-weight:600;">${esc(i.title)}</p>`
+      + `<p class="cs-muted" style="margin:2px 0 0;color:#55556a;font-family:${SERIF};font-size:15px;line-height:24px;">${esc(i.when)}</p>`
+      + `${linkRow(i.url)}</div>`).join('')}`;
+    case 'steps': return `${label(b.label)}<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 16px;">${b.items.map((x, i) =>
+      `<tr><td valign="top" width="24" class="cs-text" style="width:24px;color:${INK};font-family:${SERIF};font-size:16px;line-height:1.75;">${i + 1}.</td>`
+      + `<td valign="top" class="cs-text" style="color:${INK};font-family:${SERIF};font-size:16px;line-height:1.75;padding:0 0 4px;">${linkify(esc(x))}</td></tr>`).join('')}</table>`;
+    default: return '';
+  }
+}
+
+/** The designed part. `subject` goes in <title> only (the subject line is the client's). */
+export function mailHtml({ subject, blocks }) {
+  return `<!DOCTYPE html>
+<html lang="en-GB" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>${esc(subject)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:light dark;supported-color-schemes:light dark;}
+@media (max-width:599px){.cs-pad{padding-left:24px !important;padding-right:24px !important;}}
+@media (prefers-color-scheme:dark){
+.cs-bg{background:#0c0c10 !important;}.cs-card{background:#141419 !important;}
+.cs-text{color:#f0ece4 !important;}.cs-muted{color:#b8b3aa !important;}
+.cs-link,.cs-label{color:#c9a84c !important;}.cs-rule{border-top-color:#2c2c36 !important;}}
+[data-ogsc] .cs-text{color:#f0ece4 !important;}[data-ogsc] .cs-muted{color:#b8b3aa !important;}
+[data-ogsc] .cs-link,[data-ogsc] .cs-label{color:#c9a84c !important;}
+[data-ogsb] .cs-bg{background:#0c0c10 !important;}[data-ogsb] .cs-card{background:#141419 !important;}
+</style>
+</head>
+<body class="cs-bg" style="margin:0;padding:0;background:#f8f7fc;">
+<table role="presentation" class="cs-bg" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8f7fc;"><tr><td align="center" style="padding:24px 0;">
+<table role="presentation" class="cs-card" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#ffffff;">
+<tr><td class="cs-pad" style="background:${PURPLE};padding:28px 40px;"><p style="margin:0;color:#ffffff;font-family:${DISPLAY};font-size:30px;line-height:36px;font-weight:600;">Calvary Scribblings</p></td></tr>
+<tr><td class="cs-pad" data-cs-body style="padding:32px 40px 36px;text-align:left;">
+${blocks.map(blockHtml).join('\n')}
+</td></tr>
+</table>
+</td></tr></table>
+</body>
+</html>`;
+}
+
 /** The email as it will be sent. `from` is the site's own FROM_EMAIL, as every site email. */
-export function composeWriterMail(fromEmail, to, { subject, lines }, { sample = false } = {}) {
+export function composeWriterMail(fromEmail, to, { subject, blocks }, { sample = false } = {}) {
+  const full = `${sample ? SAMPLE_PREFIX : ''}${subject}`;
   return {
     from: `${MAIL_SENDER_NAME} <${fromEmail}>`,
     to: [to],
-    subject: `${sample ? SAMPLE_PREFIX : ''}${subject}`,
-    text: lines.join('\n'),
+    reply_to: MAIL_REPLY_TO,
+    subject: full,
+    text: mailText(blocks),
+    html: mailHtml({ subject: full, blocks }),
   };
 }
 

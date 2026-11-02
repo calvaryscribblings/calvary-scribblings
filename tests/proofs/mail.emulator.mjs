@@ -118,7 +118,8 @@ describe('the opening list, and unticking', () => {
     const one = to(W1)[0];
     assert.equal(one.subject, 'Your proofs are ready');
     assert.equal(one.from, 'Calvary Scribblings <alerts@example.test>');
-    const a = one.text.indexOf('“The Invented Lantern”'), b = one.text.indexOf(`“${STORIES['pm-one-b'].title}”`);
+    assert.ok(sent.every((m) => m.reply_to === 'admin@calvaryscribblings.co.uk' && m.html && m.text), 'Reply-To, HTML and text on every email (ruling 298)');
+    const a = one.text.indexOf('‘The Invented Lantern’'), b = one.text.indexOf(`‘${STORIES['pm-one-b'].title}’`);
     assert.ok(a > 0 && b > a, 'both stories, soonest first');
     assert.ok(one.text.includes(`Goes live ${londonWhen(NOW + 5 * D)}, London time`));
     assert.ok(one.text.includes(proofUrl('pm-one-a')));
@@ -182,7 +183,7 @@ describe('once and only once', () => {
     const t = await tick();
     assert.equal(t.scheduled, 1);
     const m = to(W1)[0];
-    assert.equal(m.subject, '“A Second Invented Title” is scheduled');
+    assert.equal(m.subject, '‘A Second Invented Title’ is scheduled');
     assert.ok(m.text.includes(`It goes live ${londonWhen(NOW + 10 * D)}, London time.`));
     assert.ok(m.text.includes(proofUrl('pm-one-c')));
     const rec = await ledger(W1, 'pm-one-c');
@@ -197,9 +198,9 @@ describe('once and only once', () => {
     assert.equal((await tick()).changed, 1);
     assert.equal(to(W1).length, 1);
     const m = to(W1)[0];
-    assert.equal(m.subject, '“The Invented Lantern” has a new go-live date');
+    assert.equal(m.subject, '‘The Invented Lantern’ has a new go-live date');
     assert.ok(m.text.includes(`It now goes live ${londonWhen(G2)}, London time.`));
-    assert.ok(m.text.includes(`Before, it was ${londonWhen(NOW + 5 * D)}.`));
+    assert.ok(m.text.includes(`It was due to go live ${londonWhen(NOW + 5 * D)}.`));
     await tick();
     assert.equal(to(W1).length, 1, 'no resend');
     // Changed back to the first time: they were last told G2, so they are told again.
@@ -232,7 +233,7 @@ describe('once and only once', () => {
     await tick(G2 - REMINDER_LEAD_MS - 60_000);
     assert.equal(to(W1).length, 2);
     assert.equal((await tick(G2 - REMINDER_LEAD_MS + 60_000)).reminder, 1);
-    assert.deepEqual(to(W1).map((m) => m.subject.replace(/“[^”]*”/, 'T').split(' ').slice(1, 3).join(' ')), ['goes live', 'has a', 'goes live']);
+    assert.deepEqual(to(W1).map((m) => m.subject.replace(/‘.*’/, 'T').split(' ').slice(1, 3).join(' ')), ['goes live', 'has a', 'goes live']);
   });
 
   test('a failed send is recorded and not retried (a lost email beats a double one)', async () => {
@@ -380,7 +381,9 @@ describe('Send me a sample', () => {
     assert.equal(sent.length, 5);
     assert.ok(sent.every((m) => m.to.length === 1 && m.to[0] === 'founder@example.test'), 'only the founder, whatever the body says');
     assert.ok(sent.every((m) => m.subject.startsWith(SAMPLE_PREFIX)));
-    assert.deepEqual(sent.map((m) => m.subject.slice(SAMPLE_PREFIX.length).replace(/“[^”]*”/, 'T')).map((s) => s.split(' ').slice(0, 3).join(' ')),
+    assert.ok(sent.every((m) => m.reply_to === 'admin@calvaryscribblings.co.uk'), 'samples carry Reply-To too');
+    assert.ok(sent.every((m) => m.html.includes(`<title>${SAMPLE_PREFIX}`)), 'the designed part is the marked sample');
+    assert.deepEqual(sent.map((m) => m.subject.slice(SAMPLE_PREFIX.length).replace(/‘.*’/, 'T')).map((s) => s.split(' ').slice(0, 3).join(' ')),
       ['Your proofs are', 'Proofs: read your', 'T is scheduled', 'T has a', 'T goes live']);
     for (const m of sent) for (const slug of Object.keys(STORIES)) assert.ok(!m.text.includes(slug), 'no real story in a sample');
     assert.equal(await get('proofs_mail'), null, 'a sample writes no ledger');

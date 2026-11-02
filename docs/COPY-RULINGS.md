@@ -654,3 +654,92 @@ rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest
   - **Not shown to readers** (`functions/api/record-attempt.js`, the response QuizCard fires and forgets): "No approved quiz for this story." (404).
 - **293:** record-attempt does not count a quiz on a retired story (`cms_stories_retired/<slug>` exists).
 - **294:** A revision the screen flagged can be withdrawn by its author and resubmitted through the editor, not rewritten in place (the rules refuse a reader's write to a pending record whose key is live).
+
+## 2 Nov 2026 (Ikenna): the writer emails (PROOFS-R3), rulings 296–303
+
+- **296:** The writer-email wording is ruled as drafted (every line is in `app/lib/proofMail.js`: `PROOF_MAIL_COPY` for the five emails and `PROOF_MAIL_ADMIN_COPY` for /admin/proofs), with two changes:
+  - House style uses single quotes. A title and a button name are written ‘The Lamplighter’s Daughter’ and ‘Report a discrepancy’, never in double quotes.
+  - In the date-change email, "Before, it was {old time}." becomes "It was due to go live {old time}."
+- **297:** "Hello," is the greeting.
+- **298:** Every writer email carries Reply-To: admin@calvaryscribblings.co.uk, so replies reach the editors. Samples carry it too.
+- **299:** A writer unticked at opening gets no email until a founder presses "Email them".
+- **300:** An unverified email address counts as none.
+- **301:** A writer gets no email when a story comes off the schedule.
+- **302:** A failed send is recorded and never retried.
+- **303 (reversed):** The designed emails are built now, not in a later round. Each email is designed HTML in the house's mail style (the newsletter's), with the plain text kept as the alternative part. Both parts carry the same words, in the same order, with the same links. The one addition is the masthead wordmark, as on every house mail.
+
+### The emails as ruled
+
+Sender: `Calvary Scribblings <FROM_EMAIL>`, with Reply-To admin@calvaryscribblings.co.uk. Samples put `[Sample] ` before each subject. {Title}, {time}, {link} and {date} are filled in per story. Times are the London date and 24-hour time, e.g. "Sunday 8 November at 06:30".
+
+**Opening, writer with scheduled stories.** Subject: "Your proofs are ready"
+> Hello,
+>
+> Your proofs are ready.
+>
+> Proofs is a new page on Calvary Scribblings for our writers. It shows each of your stories that’s scheduled but not yet live, exactly as it’ll publish: the title, the cover and every line of the text. Only you and the editors can see it.
+>
+> Your scheduled stories: (with one story: "Your scheduled story:")
+>
+> ‘{Title}’ / Goes live {time}, London time / {link} (repeated for each story, soonest first)
+>
+> How to use it:
+> 1. Go to https://calvaryscribblings.co.uk/proofs and sign in with the account you write under.
+> 2. Open a story to read its proof.
+> 3. If something doesn’t match your story (a word, a line break, the title, the cover), press ‘Report a discrepancy’ on the proof and tell us what’s wrong and where.
+>
+> Your story still goes live on time: a report never holds it back, and the editors will look before then if they can. A story leaves Proofs the moment it goes live.
+>
+> We’ll also email you whenever a story of yours is scheduled, when its go-live date changes, and two days before it goes live.
+>
+> The editors / Calvary Scribblings
+
+**Opening, writer with no scheduled stories.** Subject: "Proofs: read your stories before they go live". It is the same email with two differences:
+- there is no "Your proofs are ready." line;
+- in place of the story list it says: "You have no stories scheduled just now. When one is scheduled, we’ll email you, and its proof will be there until it goes live."
+
+**Scheduled.** Subject: "‘{Title}’ is scheduled"
+> Hello,
+>
+> Your story ‘{Title}’ is scheduled. It goes live {time}, London time.
+>
+> Its proof is ready, exactly as it’ll publish: / {link}
+>
+> If something doesn’t match your story, press ‘Report a discrepancy’ on the proof. Your story still goes live on time.
+>
+> The editors / Calvary Scribblings
+
+**Date changed.** Subject: "‘{Title}’ has a new go-live date"
+> Hello,
+>
+> The go-live date of your story ‘{Title}’ has changed. It now goes live {time}, London time. / It was due to go live {old time}.
+>
+> Its proof: / {link}
+
+The rest is the same as the "scheduled" email, from "If something doesn’t match…" to the sign-off.
+
+**48 hours before.** Subject: "‘{Title}’ goes live on {date}"
+> Hello,
+>
+> Your story ‘{Title}’ goes live {time}, London time.
+>
+> There’s still time to read its proof: / {link}
+
+The rest is the same as the "scheduled" email.
+
+**/admin/proofs:**
+- The opening list:
+  - "Who gets the opening email"
+  - "Opening Proofs emails each writer ticked below once: what Proofs is and how to use it. Writers with a scheduled story also get the list of their stories and when each goes live. Untick anyone who shouldn’t be emailed. They’ll still see their own proofs, but get no emails."
+  - Row labels: "No scheduled stories" / "1 scheduled story" / "{n} scheduled stories", "No verified email address", "Already emailed", "Emailed, but it couldn’t be delivered".
+  - Buttons: "Open Proofs and email 1 writer" / "Open Proofs and email {n} writers" / "Open Proofs without emailing anyone", "Cancel", "Opening…".
+  - After opening: "Proofs is open. {n} emails sent." (or "1 email sent."), plus "{n} emails couldn’t be sent." when any failed.
+  - On failure: "Proofs couldn’t be opened: ".
+- The sample control: "Send me a sample", "Sends each writer email, filled in with invented stories, to your own address only.", "Sending…", "Sent {n} samples to your address." (or "Sent 1 sample…"), "The samples couldn’t be sent: ".
+- Writers not emailed:
+  - "Not emailed"
+  - "Unticked when Proofs opened. They can see their own proofs, but get no emails."
+  - "Email them", "Emailed.", "The email couldn’t be sent: "
+- Writers with no address: "These writers have no verified email address on their account, so nothing has been sent. Once they have one, they’ll get the opening email with their first scheduled story."
+
+Pinned in `tests/proofs/mail.test.mjs` (single quotes, the date-change line, the greeting, Reply-To, HTML and text identical in words and links) and `tests/proofs/mail.emulator.mjs`.

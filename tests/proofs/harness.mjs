@@ -59,7 +59,7 @@ export function install() {
     if (url === 'https://api.resend.com/emails') {
       const b = JSON.parse(init.body || '{}');
       if (resendFails.next) { const st = resendFails.next; resendFails.next = 0; return new Response('{}', { status: st }); }
-      sent.push({ subject: b.subject, text: b.text, to: b.to, from: b.from });
+      sent.push({ subject: b.subject, text: b.text, html: b.html, to: b.to, from: b.from, reply_to: b.reply_to });
       return new Response(JSON.stringify({ id: `email-${sent.length}` }), { status: 200 });
     }
     if (url.startsWith(FAKE)) {

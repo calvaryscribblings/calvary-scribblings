@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import yaml from 'js-yaml';
 import {
   dueFor, seedRecord, writerState, proofsByWriter, mailable, composeWriterMail, sampleMails, writerPath, storyLedgerPath,
-  REMINDER_LEAD_MS, PROOF_MAIL_COPY, PROOF_MAIL_ADMIN_COPY, SAMPLE_PREFIX, logKey,
+  REMINDER_LEAD_MS, PROOF_MAIL_COPY, PROOF_MAIL_ADMIN_COPY, SAMPLE_PREFIX, logKey, mailHtml, mailText, MAIL_REPLY_TO,
 } from '../../app/lib/proofMail.js';
 import { countsLine } from '../../scripts/proofs/mail-tick.mjs';
 import { findIdentifiers } from '../../scripts/ops/redact.mjs';
@@ -80,6 +80,7 @@ test('the words: house style (curly, short forms), no story text, every email li
     assert.ok(!/\b(do not|cannot|can not|it will|we will|you are|that is|there is)\b/i.test(text), `a long form in ${m.kind}`);
     assert.ok(text.includes('https://calvaryscribblings.co.uk/proofs'), `${m.kind} links Proofs`);
     assert.ok(m.lines.at(-2) === 'The editors' && m.lines.at(-1) === 'Calvary Scribblings');
+    assert.equal(m.lines[0], 'Hello,', 'ruling 297');
   }
   for (const v of Object.values(PROOF_MAIL_ADMIN_COPY)) {
     const t = typeof v === 'function' ? [v(0), v(1), v(2)].join(' ') : v;
@@ -92,6 +93,7 @@ test('the words: house style (curly, short forms), no story text, every email li
 test('a sample is marked, and goes to the one address given', () => {
   const m = composeWriterMail('from@example.test', 'founder@example.test', PROOF_MAIL_COPY.scheduled(s(NOW + D)), { sample: true });
   assert.ok(m.subject.startsWith(SAMPLE_PREFIX));
+  assert.equal(m.reply_to, MAIL_REPLY_TO);
   assert.deepEqual(m.to, ['founder@example.test']);
   assert.equal(m.from, 'Calvary Scribblings <from@example.test>');
   assert.equal(sampleMails(NOW).length, 5);
@@ -110,4 +112,60 @@ test('the workflow: a quarter-hourly schedule, one concurrency group, the guard 
   assert.equal(doc.concurrency['cancel-in-progress'], false);
   const run = doc.jobs.tick.steps.map((st) => st.run || '').join('\n');
   assert.match(run, /node scripts\/proofs\/mail-tick\.mjs 2>&1 \| node scripts\/ops\/log-guard\.mjs/);
+});
+
+// ── PROOFS-R3 finish: the rulings and the designed part ───────────────────────────────────
+const decode = (h) => h.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+/** The words of the designed body, in order: tags out, entities decoded, whitespace folded. */
+function htmlWords(html) {
+  const body = html.slice(html.indexOf('data-cs-body'), html.lastIndexOf('</td></tr>'));
+  return decode(body.slice(body.indexOf('>') + 1).replace(/<br>/g, ' ').replace(/<\/(p|td|tr|div)>/g, ' ').replace(/<[^>]+>/g, ' ')).split(/\s+/).filter(Boolean).join(' ');
+}
+const textWords = (text) => text.split(/\s+/).filter(Boolean).join(' ');
+const hrefs = (html) => [...html.matchAll(/href="([^"]+)"/g)].map((m) => decode(m[1])).filter((u) => !u.startsWith('https://fonts.'));
+const textLinks = (text) => [...text.matchAll(/https:\/\/[^\s]+[^\s.,;:)]/g)].map((m) => m[0]);
+
+test('ruling 296: titles and the button name in single quotes, never double; the date-change line', () => {
+  for (const m of sampleMails(NOW)) {
+    const all = `${m.subject}\n${mailText(m.blocks)}\n${htmlWords(mailHtml(m))}`;
+    assert.ok(!/[“”"]/.test(all), `${m.kind} carries a double quote`);
+  }
+  const ch = sampleMails(NOW).find((m) => m.kind === 'changed');
+  assert.match(mailText(ch.blocks), /\nIt was due to go live \w+ \d+ \w+ at \d\d:\d\d\.\n/);
+  assert.ok(!mailText(ch.blocks).includes('Before, it was'));
+  assert.ok(mailText(sampleMails(NOW)[0].blocks).includes('press ‘Report a discrepancy’ on the proof'));
+  assert.ok(sampleMails(NOW)[0].lines.includes('‘The Lamplighter’s Daughter’'));
+});
+
+test('the HTML and text parts carry the same words, in the same order, and the same links', () => {
+  for (const m of sampleMails(NOW)) {
+    const html = mailHtml(m), text = mailText(m.blocks);
+    assert.equal(htmlWords(html), textWords(text.replace(/^(\d+)\. /gm, '$1. ')), `${m.kind}: words differ`);
+    assert.deepEqual(hrefs(html), textLinks(text), `${m.kind}: links differ`);
+    assert.ok(textLinks(text).length >= 1);
+  }
+});
+
+test('built for mail clients: tables and inline styles, 600 wide, dark mode declared, no images, no SVG, no emoji', () => {
+  for (const m of sampleMails(NOW)) {
+    const html = mailHtml(m);
+    assert.match(html, /<table role="presentation" class="cs-card" width="600"[^>]*max-width:600px/);
+    assert.match(html, /<meta name="color-scheme" content="light dark">/);
+    assert.match(html, /<meta name="supported-color-schemes" content="light dark">/);
+    assert.match(html, /@media \(prefers-color-scheme:dark\)/);
+    assert.match(html, /\[data-ogsc\]/);
+    assert.ok(!/<img|<svg|\.svg/i.test(html), 'no image: nothing is lost when images are blocked');
+    assert.ok(!/\p{Extended_Pictographic}/u.test(html), 'no emoji');
+    assert.match(html, /font-family:'Cormorant Garamond',Georgia,'Times New Roman',serif/);
+    for (const a of html.match(/<a [^>]*>/g)) assert.match(a, /padding:1[24]px 0/, 'every link has its tap padding');
+    // Images blocked: the words are all live text, so the stripped body still reads in full.
+    assert.ok(htmlWords(html).startsWith('Hello,'));
+  }
+});
+
+test('the designed part escapes what it is given', () => {
+  const m = PROOF_MAIL_COPY.scheduled({ slug: 'x-y', title: 'A <b>bold</b> & "odd" title', goLiveMs: NOW + D });
+  const html = mailHtml(m);
+  assert.ok(html.includes('‘A &lt;b&gt;bold&lt;/b&gt; &amp; &quot;odd&quot; title’'));
+  assert.ok(!html.includes('<b>bold</b>'));
 });

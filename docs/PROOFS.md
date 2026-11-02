@@ -102,6 +102,15 @@ its email: nothing is sent; if it comes back at a new time, "changed".
 **Samples.** "Send me a sample" mails all five emails, filled with invented stories, to the
 signed-in founder's own verified Auth address, and writes nothing.
 
+**The mail itself (rulings 296–303).** Each email is designed HTML with its plain text as the
+alternative part. Both are rendered from one block list (`mailHtml` and `mailText` in
+`app/lib/proofMail.js`), so they carry the same words, order and links, and the tests compare them.
+The design is the newsletter's: a purple masthead, a white card, Georgia body text and purple
+links. It uses table layout and inline styles, is 600 wide, and declares light and dark colour
+schemes with a dark palette of its own. There are no images, no SVG and no emoji. Every writer
+email, samples included, carries Reply-To admin@calvaryscribblings.co.uk. The words are ruled
+(296–298) and recorded in docs/COPY-RULINGS.md.
+
 ## Tests
 
 | command | what |
