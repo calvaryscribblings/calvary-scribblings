@@ -29,7 +29,10 @@ import '../unreleased/server.mjs';                      // the outside-call refu
 import { onRequest as storyFn } from '../../functions/api/story.js';
 import { onRequest as storiesGuard } from '../../functions/stories/[[path]].js';
 import { onRequest as readerGuard } from '../../functions/reader/[[path]].js';
-import { _resetGuardForTests, GUARD_MS } from '../../app/lib/edgeGuard.mjs';
+import { _resetGuardForTests, GUARD_MS, ledgerFor, ledgerKey } from '../../app/lib/edgeGuard.mjs';
+import { onRequest as bookstoreGuard } from '../../functions/bookstore/[[path]].js';
+import { onRequest as seriesGuard } from '../../functions/series/[[path]].js';
+import { onRequest as voicesGuard } from '../../functions/voices/[[path]].js';
 import { isRoutingRuleMatch } from './vendor/pages-dev-util.mjs';
 import { colo, deployment, listen } from './pages-runtime.mjs';
 import { generateKeyPairSync } from 'node:crypto';
@@ -38,6 +41,8 @@ const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const NS = 'calvary-scribblings-default-rtdb';
 const EMU = 'http://127.0.0.1:9000';
 const tmp = mkdtempSync(join(tmpdir(), 'edge-proof-'));
+/** The fixture's ledger secret. Production's is EDGE_LEDGER_KEY in the Pages project, which no test reads. */
+const LEDGER_SECRET = 'edge-proof-fixture-secret-0123456789abcdef';
 
 const STANDING = 'emu-standing-tale';
 const GONE = 'emu-gone-tale';                 // hidden after build A — its record stays
@@ -89,7 +94,7 @@ function guard(dir, { ledgerFrom = null, now = null } = {}) {
   return execFileSync('node', ['scripts/generate-edge-guard.mjs'], {
     cwd: ROOT, encoding: 'utf8',
     env: {
-      ...process.env, EDGE_OUT_DIR: dir, EDGE_DB_URL: EMU, EDGE_DB_NS: NS,
+      ...process.env, EDGE_OUT_DIR: dir, EDGE_DB_URL: EMU, EDGE_DB_NS: NS, EDGE_LEDGER_KEY: LEDGER_SECRET,
       ...(ledgerFrom ? { EDGE_LEDGER_URL: pathToFileURL(join(ledgerFrom, '_edge', 'ledger.json')).href } : { EDGE_LEDGER: 'none' }),
       ...(now ? { EDGE_NOW: String(now) } : {}),
     },
@@ -102,6 +107,9 @@ const STORY_ENV = { NEXT_PUBLIC_FIREBASE_API_KEY: 'emulator', FIREBASE_CLIENT_EM
 const FUNCTIONS = [
   { match: (p) => p.startsWith('/stories/'), onRequest: storiesGuard },
   { match: (p) => p.startsWith('/reader/'), onRequest: readerGuard },
+  { match: (p) => p.startsWith('/bookstore/'), onRequest: bookstoreGuard },
+  { match: (p) => p.startsWith('/series/'), onRequest: seriesGuard },
+  { match: (p) => p.startsWith('/voices/'), onRequest: voicesGuard },
   { match: (p) => p === '/api/story', onRequest: storyFn, env: STORY_ENV },
   { match: (p) => p === '/api/hit', onRequest: async () => new Response('{"count":1}', { headers: { 'content-type': 'application/json' } }) },
 ];
@@ -165,7 +173,7 @@ test('a removed story stops answering at once; live stories never run a Function
   // Steady state from here: A's guard step reads a live ledger that guards nothing.
   const prior = join(tmp, 'prior');
   mkdirSync(join(prior, '_edge'), { recursive: true });
-  writeFileSync(join(prior, '_edge', 'ledger.json'), JSON.stringify({ v: 1, builtAt: now0, pages: [], guarded: [] }));
+  writeFileSync(join(prior, '_edge', 'ledger.json'), JSON.stringify(await ledgerFor({ pages: new Set(), guarded: [], k: await ledgerKey(LEDGER_SECRET), builtAt: now0 })));
   guard(A, { ledgerFrom: prior });
   const c = colo();
   c.activate(deployment(A, { functions: FUNCTIONS }));
@@ -186,19 +194,22 @@ test('a removed story stops answering at once; live stories never run a Function
     assert.ok(routes.include.length <= 100 && routes.include.every((r) => r.length <= 100 && r.startsWith('/')));
     assert.deepEqual(routes.include.slice(0, 2), ['/api/*', '/og/*']);
     const guardedRules = routes.include.slice(2);
-    assert.ok(guardedRules.includes(`/stories/${GONE}`) && guardedRules.includes(`/stories/${GONE}/*`), 'GONE shares a prefix with a live page, so its exact forms are listed');
+    assert.ok(guardedRules.includes(`/stories/${GONE}`) && guardedRules.includes(`/stories/${GONE}/__next*`), 'GONE shares a prefix with a live page, so its exact forms are listed');
     assert.ok(guardedRules.includes(`/stories/${DELETED}*`) && guardedRules.includes(`/reader/${DELETED}*`));
   });
 
-  await t.test('B\'s ledger names no removed story whose record survives; the deleted one is carried as its address', () => {
-    const text = JSON.stringify(ledger.guarded);
-    assert.doesNotMatch(text, new RegExp(GONE));
-    assert.match(text, new RegExp(`stories/${DELETED}`));
-    assert.ok(ledger.pages.includes(`stories/${SEQUEL}`) && !ledger.pages.includes(`stories/${GONE}`));
+  await t.test('B\'s ledger names neither removed story — the hidden one nor the deleted one — and every entry is sealed', () => {
+    const text = JSON.stringify(ledger);
+    assert.doesNotMatch(text.replaceAll(SEQUEL, ''), new RegExp(GONE), 'only inside the live sequel\'s own slug');
+    assert.doesNotMatch(text, new RegExp(DELETED));
+    assert.doesNotMatch(text, new RegExp(FRESH), 'nor the scheduled one');
+    assert.ok(ledger.guarded.every((g) => Object.keys(g).join() === 'c'));
+    assert.ok(ledger.pages.includes(`stories/${SEQUEL}`), 'live pages are listed in the clear');
   });
 
   await t.test('no address of any page B serves matches a guard rule, so no live view can reach a Function', () => {
-    const files = execFileSync('find', ['stories', 'reader', '-type', 'f'], { cwd: B, encoding: 'utf8' }).split('\n').filter(Boolean).map((f) => `/${f}`);
+    const files = execFileSync('find', ['.', '-type', 'f'], { cwd: B, encoding: 'utf8' }).split('\n').filter(Boolean)
+      .map((f) => f.slice(1)).filter((f) => /^\/(stories|reader|bookstore|series|voices)\//.test(f));
     const urls = files.flatMap((f) => (f.endsWith('.html') ? [f, f.slice(0, -5)] : [f]));
     const guardRules = routes.include.slice(2);
     const hit = urls.filter((u) => guardRules.some((r) => isRoutingRuleMatch(u, r)));
@@ -272,8 +283,8 @@ test('a removed story stops answering at once; live stories never run a Function
     const since = Date.now();
     guard(C, { ledgerFrom: B, now: since + 3 * 864e5 });
     const rules = json(join(C, '_routes.json')).include;
-    assert.ok(rules.includes(`/stories/${GONE}`), 'the hidden one, recovered from its hash');
-    assert.ok(rules.includes(`/stories/${DELETED}*`), 'the deleted one, from its address');
+    assert.ok(rules.includes(`/stories/${GONE}`), 'the hidden one, read back from its sealed entry');
+    assert.ok(rules.includes(`/stories/${DELETED}*`), 'the deleted one, read back from its sealed entry — no database needed');
     const D = join(tmp, 'D');
     cpSync(C, D, { recursive: true });
     guard(D, { ledgerFrom: C, now: since + GUARD_MS + 864e5 });

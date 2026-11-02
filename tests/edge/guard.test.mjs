@@ -11,12 +11,15 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  GUARD_MS, PRESERVATION_MS, MAX_ROUTE_RULES, foldLedger, ledgerFor, routesFor, rulesFor, hashKey, pageKeyOf,
+  GUARD_MS, PRESERVATION_MS, MAX_ROUTE_RULES, foldLedger, ledgerFor, ledgerKey, readLedgerEntries, routesFor, rulesFor, pageKeyOf,
   _resetGuardForTests,
 } from '../../app/lib/edgeGuard.mjs';
 import { functionIncludesOf, assertDeployable } from '../../scripts/generate-edge-guard.mjs';
 import { onRequest as storiesGuard } from '../../functions/stories/[[path]].js';
 import { onRequest as readerGuard } from '../../functions/reader/[[path]].js';
+import { onRequest as bookstoreGuard } from '../../functions/bookstore/[[path]].js';
+import { onRequest as seriesGuard } from '../../functions/series/[[path]].js';
+import { onRequest as voicesGuard } from '../../functions/voices/[[path]].js';
 import { colo, deployment, clock } from './pages-runtime.mjs';
 import { CACHE_CONTROL_PRESERVATION, ASSET_PRESERVATION_CACHE, WRANGLER_VERSION } from './vendor/pages-asset-server.mjs';
 import { isRoutingRuleMatch } from './vendor/pages-dev-util.mjs';
@@ -33,70 +36,84 @@ test('the vendored asset server is wrangler 4.81.0 and its preservation constant
   assert.equal(GUARD_MS, 8 * 864e5);
 });
 
-test('page keys: the page, its .html, its .txt and its segment data all belong to it; nothing else does', () => {
-  for (const p of ['/stories/a-b', '/stories/a-b/', '/stories/a-b.html', '/stories/a-b.txt', '/stories/a-b/__next._full.txt', '/reader/a-b']) {
-    assert.ok(pageKeyOf(p), p);
-  }
-  assert.equal(pageKeyOf('/stories/a-b.txt'), 'stories/a-b');
-  assert.equal(pageKeyOf('/reader/a-b/__next.reader.$d$slug.__PAGE__.txt'), 'reader/a-b');
-  for (const p of ['/stories', '/stories/', '/voices/a', '/api/story', '/stories/a.b.c']) assert.equal(pageKeyOf(p), null, p);
+test('page keys: a page\'s own addresses map to it, at any depth, in all five families; nothing else does', () => {
+  const cases = {
+    '/stories/a-b': 'stories/a-b', '/stories/a-b/': 'stories/a-b', '/stories/a-b.html': 'stories/a-b', '/stories/a-b.txt': 'stories/a-b',
+    '/stories/a-b/__next._full.txt': 'stories/a-b', '/reader/a-b/__next.reader.$d$slug.__PAGE__.txt': 'reader/a-b',
+    '/bookstore/a-book': 'bookstore/a-book', '/bookstore/search.txt': 'bookstore/search',
+    '/series/s-one': 'series/s-one', '/series/s-one/notes': 'series/s-one/notes', '/series/instalment/x1.txt': 'series/instalment/x1',
+    '/voices/an-author': 'voices/an-author',
+  };
+  for (const [p, k] of Object.entries(cases)) assert.equal(pageKeyOf(p), k, p);
+  for (const p of ['/stories', '/stories/', '/api/story', '/og/image', '/bookstore/__next._full.txt', '/stories/../x']) assert.equal(pageKeyOf(p), null, p);
 });
 
+const SECRET = 'fixture-ledger-secret-0123456789abcdef';
+
 test('the ledger: a page the live deployment had and this build lacks is guarded from now, for 8 days', async () => {
+  const k = await ledgerKey(SECRET);
   const pages = new Set(['stories/kept', 'reader/kept']);
-  const prev = { v: 1, pages: ['stories/kept', 'reader/kept', 'stories/gone', 'reader/gone'], guarded: [] };
-  const candidates = new Set([...pages, 'stories/gone', 'reader/gone']);
-  const { guarded } = await foldLedger({ prev, pages, candidates, now: NOW });
+  const guarded = foldLedger({ prevPages: ['stories/kept', 'reader/kept', 'stories/gone', 'reader/gone'], pages, now: NOW });
   assert.deepEqual(guarded.map((g) => g.key).sort(), ['reader/gone', 'stories/gone']);
   assert.ok(guarded.every((g) => g.since === NOW));
 
-  // carried forward by the next build, hashed, and recovered from the catalogue
-  const ledger = await ledgerFor({ pages, guarded, unresolved: [], candidates, builtAt: NOW });
-  assert.ok(ledger.guarded.every((g) => g.h && !g.key), 'a slug the catalogue still names is published only as a hash');
-  assert.doesNotMatch(JSON.stringify(ledger), /gone/);
-  const later = await foldLedger({ prev: ledger, pages, candidates, now: NOW + 3 * 864e5 });
-  assert.deepEqual(later.guarded.map((g) => [g.key, g.since]).sort(), [['reader/gone', NOW], ['stories/gone', NOW]]);
-  const lapsed = await foldLedger({ prev: ledger, pages, candidates, now: NOW + GUARD_MS });
-  assert.deepEqual(lapsed.guarded, [], 'after 8 days every preserved copy has expired');
-
-  // its page comes back: no longer guarded
-  const back = await foldLedger({ prev: ledger, pages: new Set([...pages, 'stories/gone']), candidates, now: NOW + 864e5 });
-  assert.deepEqual(back.guarded.map((g) => g.key), ['reader/gone']);
+  const ledger = await ledgerFor({ pages, guarded, k, builtAt: NOW });
+  const { entries, status } = await readLedgerEntries(ledger, k);
+  assert.equal(status, 'ok');
+  const carry = (now, p = pages) => foldLedger({ prevPages: ledger.pages, carried: entries, pages: p, now });
+  assert.deepEqual(carry(NOW + 3 * 864e5).map((g) => [g.key, g.since]).sort(), [['reader/gone', NOW], ['stories/gone', NOW]]);
+  assert.deepEqual(carry(NOW + GUARD_MS), [], 'after 8 days every preserved copy has expired');
+  assert.deepEqual(carry(NOW + 864e5, new Set([...pages, 'stories/gone'])).map((g) => g.key), ['reader/gone'], 'its page came back');
 });
 
-test('the ledger: a record deleted outright is carried as its address, since no hash of it can be recovered', async () => {
+test('the ledger names no page that is not live, cannot confirm a guess, and reads back only under its own key', async () => {
+  const k = await ledgerKey(SECRET);
   const pages = new Set(['stories/kept']);
-  const prev = { v: 1, pages: ['stories/kept', 'stories/deleted'], guarded: [] };
-  const candidates = new Set(pages);                 // the catalogue no longer names it
-  const { guarded } = await foldLedger({ prev, pages, candidates, now: NOW });
-  const ledger = await ledgerFor({ pages, guarded, unresolved: [], candidates, builtAt: NOW });
-  assert.deepEqual(ledger.guarded, [{ key: 'stories/deleted', since: NOW }]);
-  const next = await foldLedger({ prev: ledger, pages, candidates, now: NOW + 864e5 });
-  assert.deepEqual(next.guarded.map((g) => g.key), ['stories/deleted']);
-
-  // a hash nobody can resolve is carried, not routed, and lapses on time
-  const orphan = { v: 1, pages: [], guarded: [{ h: await hashKey('stories/x'), since: NOW }] };
-  const o = await foldLedger({ prev: orphan, pages, candidates, now: NOW + 864e5 });
-  assert.equal(o.guarded.length, 0);
-  assert.equal(o.unresolved.length, 1);
-  assert.equal((await foldLedger({ prev: orphan, pages, candidates, now: NOW + GUARD_MS })).unresolved.length, 0);
+  const guarded = [{ key: 'stories/unreleased-secret-tale', since: NOW }, { key: 'stories/deleted-tale', since: NOW - 1000 }];
+  const ledger = await ledgerFor({ pages, guarded, k, builtAt: NOW });
+  const text = JSON.stringify(ledger);
+  assert.doesNotMatch(text, /unreleased-secret-tale|deleted-tale/);
+  assert.deepEqual(Object.keys(ledger).sort(), ['builtAt', 'guarded', 'kid', 'pages', 'v']);
+  assert.ok(ledger.guarded.every((g) => Object.keys(g).join() === 'c'), 'each entry is one sealed blob, nothing beside it');
+  assert.equal(ledger.guarded.length, 8, 'padded to a multiple of 8: the count is not exact');
+  // sealing is randomised, so the same page sealed twice gives two different blobs: a guess cannot
+  // be checked by sealing it and comparing, and two ledgers cannot be compared entry by entry.
+  const again = await ledgerFor({ pages, guarded, k, builtAt: NOW });
+  assert.equal(ledger.guarded.filter((g) => again.guarded.some((h) => h.c === g.c)).length, 0);
+  // a SHA-256 of the slug (with or without a prefix) appears nowhere
+  for (const guess of ['stories/unreleased-secret-tale', 'unreleased-secret-tale', 'edge-ledger:stories/unreleased-secret-tale']) {
+    const h = Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(guess))).toString('hex');
+    assert.ok(!text.includes(h.slice(0, 16)));
+  }
+  const back = await readLedgerEntries(ledger, k);
+  assert.deepEqual(back.entries.map((e) => e.key).sort(), ['stories/deleted-tale', 'stories/unreleased-secret-tale'], 'decoys are dropped');
+  const other = await readLedgerEntries(ledger, await ledgerKey('another-secret-entirely-0123456789abcdef'));
+  assert.deepEqual(other, { entries: [], status: 'other-key' });
+  const tampered = { ...ledger, guarded: [{ c: ledger.guarded[0].c.slice(0, -4) + 'AAAA' }] };
+  await assert.rejects(readLedgerEntries(tampered, k), 'an altered entry is an error, not a silent drop');
+  await assert.rejects(ledgerKey('Zq9-too-brief'), (e) => /EDGE_LEDGER_KEY/.test(e.message) && !/Zq9/.test(e.message));
+  await assert.rejects(ledgerKey(undefined), /EDGE_LEDGER_KEY/);
 });
 
-test('bootstrap (no ledger on the live site): the seed, and nothing past its 8 days', async () => {
+test('bootstrap (no ledger on the live site): the seed, and nothing past its 8 days', () => {
   const seed = [{ key: 'stories/s', since: NOW - 2 * 864e5 }, { key: 'stories/old', since: NOW - 9 * 864e5 }];
-  const { guarded } = await foldLedger({ prev: null, pages: new Set(), candidates: new Set(), seed, now: NOW });
-  assert.deepEqual(guarded.map((g) => g.key), ['stories/s']);
+  assert.deepEqual(foldLedger({ prevPages: null, pages: new Set(), seed, now: NOW }).map((g) => g.key), ['stories/s']);
 });
 
 test('rules: one prefix rule per page, unless a live page shares the prefix — then its four exact forms', () => {
   assert.deepEqual(rulesFor('stories/tale', ['/stories/other.html']), ['/stories/tale*']);
   const built = ['/stories/tale-two.html', '/stories/tale-two', '/stories/tale-two.txt'];
   const exact = rulesFor('stories/tale', built);
-  assert.deepEqual(exact, ['/stories/tale', '/stories/tale.html', '/stories/tale.txt', '/stories/tale/*']);
+  assert.deepEqual(exact, ['/stories/tale', '/stories/tale.html', '/stories/tale.txt', '/stories/tale/__next*']);
   for (const b of built) assert.ok(!exact.some((r) => isRoutingRuleMatch(b, r)), `${b} never reaches the Function`);
   for (const own of ['/stories/tale', '/stories/tale/', '/stories/tale.txt', '/stories/tale/__next._full.txt']) {
     assert.ok(exact.some((r) => isRoutingRuleMatch(own, r)), `${own} is guarded`);
   }
+  // a removed series whose notes page is still live: the notes page is another page, not one of its addresses
+  const nested = rulesFor('series/s-one', ['/series/s-one/notes.html', '/series/s-one/notes', '/series/s-one/notes/__next._full.txt']);
+  assert.equal(nested.length, 4);
+  for (const b of ['/series/s-one/notes', '/series/s-one/notes.txt', '/series/s-one/notes/__next._full.txt']) assert.ok(!nested.some((r) => isRoutingRuleMatch(b, r)), b);
+  assert.ok(nested.some((r) => isRoutingRuleMatch('/series/s-one/__next._tree.txt', r)));
   // a slug long enough to break the 100-character rule limit is cut to fit; still one rule
   const long = `reader/${'a'.repeat(120)}`;
   const [r] = rulesFor(long, []);
@@ -139,7 +156,13 @@ const NOT_FOUND = '<!DOCTYPE html><html><body>This page does not exist.</body></
 const guardFns = [
   { match: (p) => p.startsWith('/stories/'), onRequest: storiesGuard },
   { match: (p) => p.startsWith('/reader/'), onRequest: readerGuard },
+  { match: (p) => p.startsWith('/bookstore/'), onRequest: bookstoreGuard },
+  { match: (p) => p.startsWith('/series/'), onRequest: seriesGuard },
+  { match: (p) => p.startsWith('/voices/'), onRequest: voicesGuard },
 ];
+// A withdrawn book, a removed series (its page, its notes, an instalment), a removed author.
+const OTHER_GONE = ['/bookstore/withdrawn-book', '/bookstore/withdrawn-book.txt?_rsc=9', '/series/gone-series', '/series/gone-series/notes',
+  '/series/instalment/i9', '/series/read/i9.txt?_rsc=2', '/voices/gone-author'];
 // Every address a reader's browser fetches for a live page. (/stories/gone/ and /stories/gone.html
 // are 308s to the page while it is live, and a redirect is never preserved; the guard covers them anyway.)
 const ADDRESSES = ['/stories/gone', '/stories/gone.txt?_rsc=abc', '/stories/gone/__next._full.txt', '/reader/gone', '/stories/gone?ref=share'];
@@ -147,29 +170,32 @@ const ADDRESSES = ['/stories/gone', '/stories/gone.txt?_rsc=abc', '/stories/gone
 test('on the asset server: a removed page that was served answers 404 from the next deployment; live pages never touch a Function', async (t) => {
   clock.now = NOW;
   _resetGuardForTests();
-  const pagesA = ['stories/gone', 'reader/gone', 'stories/gone-sequel', 'stories/live'];
+  const pagesA = ['stories/gone', 'reader/gone', 'stories/gone-sequel', 'stories/live',
+    'bookstore/withdrawn-book', 'bookstore/kept-book', 'bookstore/search', 'series/gone-series', 'series/gone-series/notes',
+    'series/kept-series', 'series/kept-series/notes', 'series/instalment/i9', 'series/read/i9', 'series/instalment/i1', 'voices/gone-author', 'voices/kept-author'];
   const filesA = { '404.html': NOT_FOUND, '_edge/ledger.json': { v: 1, pages: pagesA, guarded: [] } };
   for (const k of pagesA) Object.assign(filesA, { [`${k}.html`]: `<html>${k} WORDS</html>`, [`${k}.txt`]: `rsc ${k}`, [`${k}/__next._full.txt`]: `seg ${k}` });
   const A = site(filesA);
 
-  const pagesB = ['stories/gone-sequel', 'stories/live'];
+  const pagesB = ['stories/gone-sequel', 'stories/live', 'bookstore/kept-book', 'bookstore/search', 'series/kept-series',
+    'series/kept-series/notes', 'series/instalment/i1', 'voices/kept-author'];
   const filesB = { '404.html': NOT_FOUND };
   for (const k of pagesB) Object.assign(filesB, { [`${k}.html`]: `<html>${k} WORDS</html>`, [`${k}.txt`]: `rsc ${k}`, [`${k}/__next._full.txt`]: `seg ${k}` });
   const builtB = Object.keys(filesB).map((p) => `/${p}`).flatMap((p) => (p.endsWith('.html') ? [p, p.slice(0, -5)] : [p]));
-  const { guarded } = await foldLedger({ prev: { v: 1, pages: pagesA, guarded: [] }, pages: new Set(pagesB), candidates: new Set(pagesA), now: NOW });
+  const guarded = foldLedger({ prevPages: pagesA, pages: new Set(pagesB), now: NOW });
   const { routes } = routesFor({ functionIncludes: ['/api/*', '/og/*'], guarded, builtPaths: builtB });
-  const ledgerB = await ledgerFor({ pages: new Set(pagesB), guarded, unresolved: [], candidates: new Set(pagesA), builtAt: NOW });
+  const ledgerB = await ledgerFor({ pages: new Set(pagesB), guarded, k: await ledgerKey(SECRET), builtAt: NOW });
   const B = site({ ...filesB, '_edge/ledger.json': ledgerB, '_routes.json': routes });
   const B_unguarded = site({ ...filesB, '_edge/ledger.json': ledgerB, '_routes.json': { version: 1, include: ['/api/*', '/og/*'], exclude: [] } });
 
   try {
     const c = colo();
     c.activate(deployment(A, { functions: guardFns }));
-    for (const a of ADDRESSES) assert.equal((await c.fetch(H + a)).status, 200, `served live: ${a}`);
+    for (const a of [...ADDRESSES, ...OTHER_GONE]) assert.equal((await c.fetch(H + a)).status, 200, `served live: ${a}`);
 
     await t.test('control: without the guard, the asset server answers from the preservation store (EDGE-1)', async () => {
       c.activate(deployment(B_unguarded, { functions: guardFns }));
-      for (const a of ADDRESSES) {
+      for (const a of [...ADDRESSES, ...OTHER_GONE]) {
         const r = await c.fetch(H + a);
         assert.equal(r.status, 200, `preserved: ${a}`);
         assert.equal(r.headers.get('cache-control'), 'public, s-maxage=604800');
@@ -181,7 +207,7 @@ test('on the asset server: a removed page that was served answers 404 from the n
     await t.test('with the guard: every address 404s — the page with the site 404 page, page data bare', async () => {
       c.activate(deployment(B, { functions: guardFns }));
       _resetGuardForTests();
-      for (const a of [...ADDRESSES, '/stories/gone/', '/stories/gone.html']) {
+      for (const a of [...ADDRESSES, ...OTHER_GONE, '/stories/gone/', '/stories/gone.html']) {
         const r = await c.fetch(H + a);
         const body = await r.text();
         assert.equal(r.status, 404, a);
