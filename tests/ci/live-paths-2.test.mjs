@@ -21,7 +21,7 @@ describe('LIVE-PATHS-2 #1 · the admin queue', () => {
     assert.equal(approvalRefusal(live, { authorUid: 'A', revision: true }), null);
     assert.match(approvalRefusal(live, { authorUid: 'B' }), /Another author/);
     assert.match(approvalRefusal(live, { authorUid: 'B', revision: true }), /Another author/);
-    assert.match(approvalRefusal(live, { authorUid: 'A' }), /not an edit/);
+    assert.match(approvalRefusal(live, { authorUid: 'A' }), /isn't an edit of it/);
     assert.match(approvalRefusal(null, { authorUid: 'A', revision: true }), /no longer live/);
     assert.match(approvalRefusal(null, {}), /no author/);
   });

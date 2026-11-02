@@ -31,7 +31,7 @@ const SAFE_KEY = /^[A-Za-z0-9_-]{1,64}$/;
 /** Why `pending` may not be written over `live` (the value now at open_pages/<id>), or null. */
 export function approvalRefusal(live, pending) {
   const author = pending && typeof pending.authorUid === 'string' ? pending.authorUid : '';
-  if (!author) return 'This record has no author, so it cannot be published. Nothing was approved.';
+  if (!author) return "This record has no author, so it can't be published. Nothing was approved.";
   const isRevision = pending.revision === true;
   if (live === null || live === undefined) {
     return isRevision
@@ -42,7 +42,7 @@ export function approvalRefusal(live, pending) {
     return "Another author's piece is live at this address. Nothing was approved.";
   }
   if (!isRevision) {
-    return 'A piece is already live at this address, and this record is not an edit of it. Nothing was approved.';
+    return "A piece is already live at this address, and this record isn't an edit of it. Nothing was approved.";
   }
   return null;
 }

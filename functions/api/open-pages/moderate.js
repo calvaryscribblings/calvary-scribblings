@@ -552,7 +552,7 @@ export async function onRequestPost(context) {
       await writePaths(fbDb, accessToken, { [`${USER_OPEN_PAGES_NODE}/${uid}/${postId}`]: put.record });
     } catch (e) {
       console.error('[open-pages/moderate] unchanged-text edit mirror write failed:', e.message);
-      return json({ error: 'Your changes are live, but your profile list did not update. Save once more to refresh it.' }, 500);
+      return json({ error: 'Your changes are live, but your profile list didn’t update. Save once more to refresh it.' }, 500);
     }
     return json({ status: 'published', postId, edited: true, rescreened: false });
   }
@@ -712,7 +712,7 @@ export async function onRequestPost(context) {
       await writePaths(fbDb, accessToken, paths);
     } catch (e) {
       console.error('[open-pages/moderate] edit mirror write failed:', e.message);
-      return json({ error: 'Your edit is live, but your profile list did not update. Save once more to refresh it.' }, 500);
+      return json({ error: 'Your edit is live, but your profile list didn’t update. Save once more to refresh it.' }, 500);
     }
   } else {
     try {
