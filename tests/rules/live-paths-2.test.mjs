@@ -263,3 +263,82 @@ describe('LIVE-PATHS-2 #4 · approving a quiz writes the three fields it owns an
     assert.equal(got.namingClaimedBy, undefined, 'the claim is wiped');
   });
 });
+
+// ── The shipping app's writes (A56, 2 Nov) ──────────────────────────────────────────────────────
+// The app's source isn't visible from this repo. A56 read it and named these writes; their field
+// shapes follow A56's description and the web's own version of each write (cited). Every one must
+// pass under the new rules. If one fails, the rule is wrong, not the test.
+describe('LIVE-PATHS-2 · the app\'s comment writes still pass', () => {
+  const appComment = () => ({ text: 'From the app.', authorName: 'Reader', authorUid: OWNER, createdAt: 1762000000000 });
+  test('post: set() a new comment', async () => {
+    await assertSucceeds(owner.ref(`comments/${SLUG}/app1`).set(appComment()));
+  });
+  test('STORY-02 retry: set() the same key again, same authorUid, over a record that already landed', async () => {
+    await assertSucceeds(owner.ref(`comments/${SLUG}/app1`).set(appComment()));
+    await assertSucceeds(owner.ref(`comments/${SLUG}/app1`).set(appComment()));
+    assert.deepEqual(await read(`comments/${SLUG}/app1`), appComment());
+  });
+  test('edit: update() of { text, edited }', async () => {
+    await seed(env, { [`comments/${SLUG}/app1`]: appComment() });
+    await assertSucceeds(owner.ref(`comments/${SLUG}/app1`).update({ text: 'Edited in the app.', edited: true }));
+  });
+  test('delete: remove() (app/story/[slug].tsx:1099)', async () => {
+    await seed(env, { [`comments/${SLUG}/app1`]: appComment() });
+    await assertSucceeds(owner.ref(`comments/${SLUG}/app1`).remove());
+    assert.equal(await read(`comments/${SLUG}/app1`), null);
+  });
+});
+
+describe('LIVE-PATHS-2 · the app\'s Square writes still pass, by the author and by a moderator', () => {
+  // A "moderator" holds canPin and canRemovePosts, as the app's moderator does. The author is an
+  // ordinary reader, except for the pin, which the rules have always reserved to canPin.
+  let mod;
+  beforeEach(async () => {
+    await seed(env, { [`users/${OTHER}/canPin`]: true, [`users/${OTHER}/canRemovePosts`]: true });
+    mod = other;
+  });
+  const who = () => [['author', owner], ['moderator', mod]];
+  const root = () => post({ quotedPostId: '-Nquoted00000000001', poll: { options: ['a', 'b'] } });
+  const reply = () => post({ parentId: 'p1', text: 'a reply' });
+
+  test('pin and unpin (canPin; an author who holds it may pin their own)', async () => {
+    await seed(env, { 'square_posts/p1': root(), [`users/${OWNER}/canPin`]: true });
+    for (const [name, db] of who()) {
+      await assertSucceeds(db.ref('square_posts/p1').update({ pinned: true }), `${name} pins`);
+      await assertSucceeds(db.ref('square_posts/p1').update({ pinned: false, unpinnedAt: Date.now() }), `${name} unpins`);
+    }
+  });
+  test('quote-strip: update({ quotedPostId: null }) (web: app/square/page.js handleStripQuote)', async () => {
+    for (const [name, db] of who()) {
+      await seed(env, { 'square_posts/p1': root() });
+      await assertSucceeds(db.ref('square_posts/p1').update({ quotedPostId: null }), name);
+    }
+  });
+  test('poll vote: poll/votes/<own uid>', async () => {
+    await seed(env, { 'square_posts/p1': root() });
+    await assertSucceeds(owner.ref('square_posts/p1/poll/votes').update({ [OWNER]: '0' }));
+    await assertSucceeds(mod.ref('square_posts/p1/poll/votes').update({ [OTHER]: '1' }));
+  });
+  test('tombstone a root with replies: { text: \'\', withdrawn, withdrawnAt, removedBy }', async () => {
+    for (const [name, db] of who()) {
+      await seed(env, { 'square_posts/p1': root(), 'square_posts/r1': reply() });
+      await assertSucceeds(db.ref('square_posts/p1').update({ text: '', withdrawn: true, withdrawnAt: Date.now(), removedBy: name }), name);
+    }
+  });
+  test('tombstone a reply: text and attachments nulled, withdrawn, removedBy', async () => {
+    for (const [name, db] of who()) {
+      await seed(env, { 'square_posts/p1': root(), 'square_posts/r1': reply() });
+      await assertSucceeds(db.ref('square_posts/r1').update({
+        text: null, attachedStory: null, attachedOpenPage: null, quotedPostId: null,
+        withdrawn: true, withdrawnAt: Date.now(), removedBy: name,
+      }), name);
+    }
+  });
+  test('null-removal of a post with no replies: set(null) (lib/squareModeration.ts:199 and :237)', async () => {
+    for (const [name, db] of who()) {
+      await seed(env, { 'square_posts/p1': root() });
+      await assertSucceeds(db.ref('square_posts/p1').set(null), name);
+      assert.equal(await read('square_posts/p1'), null);
+    }
+  });
+});

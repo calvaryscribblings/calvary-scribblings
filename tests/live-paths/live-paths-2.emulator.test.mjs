@@ -175,6 +175,15 @@ describe('LIVE-PATHS-2 #7 · record-attempt counts only an approved quiz on a st
     assert.equal(r.status, 404);
     assert.equal(await get('cms_stories/orphan'), null);
   });
+  test('[hole] ruling 293: an approved quiz on a RETIRED story is not counted', async () => {
+    await put('cms_stories/pulled', { title: 'P', published: false, hiddenAt: 1 });
+    await put('cms_stories_retired/pulled', { retiredAt: 1 });
+    await put('cms_quizzes/pulled', { mcqs: [], approvedAt: 1762000000000 });
+    const r = await attempt('pulled');
+    assert.equal(r.status, 404);
+    assert.equal(await get('cms_stories/pulled/quizMeta'), null);
+    assert.equal(await get(`quizAttemptCounted/${READER}`), null);
+  });
   test('an approved quiz on a live story is counted once', async () => {
     await put('cms_stories/live-one', { title: 'L', quizMeta: { hasQuiz: true, attemptCount: 4 } });
     await put('cms_quizzes/live-one', { mcqs: [], approvedAt: 1762000000000 });

@@ -91,6 +91,9 @@ describe('LIVE-PATHS-2 #7 · record-attempt', () => {
     const check = s.indexOf('cms_quizzes/${slug}/approvedAt.json');
     const write = s.indexOf("[`cms_stories/${slug}/quizMeta/attemptCount`]");
     assert.ok(check > 0 && write > check);
+    // Ruling 293: a retired story's quiz is refused too.
+    assert.ok(s.indexOf('cms_stories_retired/${slug}.json') > 0 && s.indexOf('cms_stories_retired/${slug}.json') < write);
+    assert.match(s, /if \(!approvedAt \|\| story === null \|\| retired !== null\)/);
   });
 });
 
