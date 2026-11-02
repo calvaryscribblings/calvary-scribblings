@@ -30,7 +30,11 @@ diffs it against the repo files:
 ## Auth
 
 Deploys authenticate with the `serviceAccountKey.json` service account via
-`GOOGLE_APPLICATION_CREDENTIALS` (already wired into the `rules:deploy*` scripts).
+`GOOGLE_APPLICATION_CREDENTIALS`. The `rules:deploy*` scripts run `scripts/rules-deploy.mjs`, which
+finds the key from any checkout (EDGE-2): `GOOGLE_APPLICATION_CREDENTIALS`, then this checkout's
+`serviceAccountKey.json`, then the main checkout's (so a worktree deploys without retyping the
+path), then `FIREBASE_SA_KEY` written to a private temporary file that is deleted afterwards. It
+prints only the key's `client_email` and `private_key_id`. `--dry-run` says which key it would use.
 The pull/check scripts mint their own OAuth token from the same key (no
 `firebase-admin` dependency), so the workflow survives `node_modules` churn.
 `serviceAccountKey.json` is gitignored — keep it out of commits. To keep deploy

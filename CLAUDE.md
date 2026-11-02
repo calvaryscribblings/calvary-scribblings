@@ -245,6 +245,28 @@ assert the **values** an editor controls: a word, a title, a count, a slug. If a
 pinned, pin it to a fixture. And a property over live data that has no subject today must say
 SKIPPED, not pass.
 
+## Removed pages and the edge guard: out/_routes.json is OURS now
+
+**EDGE-2 (2 Nov 2026, ruling 265).** Cloudflare Pages' asset server keeps every page it has served
+in an **asset-preservation store** (keyed by exact URL, `s-maxage=604800`) and answers from it when a
+later deployment has no file there. So a page removed from the build kept answering 200 for 7 days,
+and no zone purge reaches it. The guard:
+
+- `npm run build` ends with `scripts/generate-edge-guard.mjs`. It reads the live deployment's
+  `/_edge/ledger.json`, guards every `/stories/<slug>` and `/reader/<slug>` page the live deployment
+  had and this build lacks (for **8 days**), and writes **`out/_routes.json`**: the Functions' own
+  routes plus one rule per guarded page. Only those addresses run a Function
+  (`functions/stories/[[path]].js`, `functions/reader/[[path]].js`), which answers 404.
+- **A custom `_routes.json` replaces the one Pages would generate.** The include list is derived from
+  the top-level entries of `functions/` (`/api/*`, `/og/*`). A new top-level Function directory is
+  picked up automatically. A `functions/_middleware.js` fails the build, because it would route every
+  request (each story view included) through a Function.
+- The ledger is public. It lists live pages in plain text and removed ones as hashes. A removed story
+  whose record was deleted outright is the exception: it is listed by its address, because no later
+  build could recover it from a hash.
+- The design, and the asset-server source it rests on: `app/lib/edgeGuard.mjs`. The proof on the
+  real asset server (wrangler 4.81.0's own code, vendored from git history): `tests/edge/`.
+
 ## Covers: two rules, and they are different rules
 
 **The story library is typographic BY RULE.** Every published `cms_stories` cover is generated

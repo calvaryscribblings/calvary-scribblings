@@ -119,3 +119,9 @@ essays-export*.md
 
 # scripts/clear-test-purchases.mjs writes money-record backups here — never commit them
 /backups/
+
+# EDGE-2 (ruling, 2 Nov 2026): local secrets for `wrangler pages dev`, and the backup/report JSON that
+# ad-hoc scripts drop beside themselves (they can name readers, unreleased slugs or record contents).
+.dev.vars
+scripts/*-backup.json
+scripts/*-report.json

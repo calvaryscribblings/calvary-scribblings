@@ -646,6 +646,14 @@ rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest
 - **279:** A story past its go-live time but held for its cover stays out of Proofs. Proofs shows only stories whose go-live time is still ahead.
 - **280:** A writer is not told when a report's status changes until R3 (writer emails). They see the status in Proofs.
 
+## By 2 Nov 2026 (Ikenna): rulings 263–275, recorded in EDGE-2
+
+The EDGE-2 brief asked for 263–275 to be recorded here. It quoted two of them; the text of the other eleven is not in the brief, this repo or the round notes, so they are listed as owed rather than reconstructed.
+
+- **265:** A story we take down stops answering at its address straight away, and ordinary story views never run a Function. Built in EDGE-2: `app/lib/edgeGuard.mjs`, `scripts/generate-edge-guard.mjs`, `functions/stories/[[path]].js`, `functions/reader/[[path]].js`. Pinned in `tests/edge/guard.test.mjs` and `tests/edge/preservation.proof.mjs`.
+- **266:** `www.calvaryscribblings.co.uk` answers a 301 to the apex. Observed in place on 2 Nov 2026 at 22:20 UTC: `HEAD https://www.calvaryscribblings.co.uk/` answered `301`, `location: https://calvaryscribblings.co.uk/`. At EDGE-1 (31 Oct) it answered 523.
+- **263, 264, 267–275:** owed. Their wording is to be entered from Ikenna's record.
+
 ## 2 Nov 2026 (Ikenna): LIVE-PATHS-2, rulings 293–295
 
 - **295:** The LIVE-PATHS-2 wording is ruled as drafted, with house short forms in four lines: "didn’t update" in both moderate.js mirror lines (curly, as that file uses), "so it can't be published" and "this record isn't an edit of it" in openPagesApprove.js (straight, as that file uses). The lines as ruled:

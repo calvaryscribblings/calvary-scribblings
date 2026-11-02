@@ -48,6 +48,8 @@ on:
       # PL-12 — the build's liveness suite, and R9.1's launch-date guard. Editing either must
       # be able to start the job.
       - 'tests/build/**'
+      # EDGE-2 — the removed-page guard, proven on the real asset server.
+      - 'tests/edge/**'
       # ⭑ R9.1 — THE FOUR SUITES CI HAD NEVER RUN, now that it runs them. Adding the step
       # without adding the path is only half a wiring: `app/**` and `functions/**` catch most
       # real changes, but an edit to a SUITE ALONE would still start no job — which is precisely
@@ -453,6 +455,14 @@ jobs:
       # four generator runs that prove the gate stops a build rather than merely reporting.
       - name: Redirect limits — every rule in _redirects is actually served
         run: npm run test:redirects
+
+      # EDGE-2 — A REMOVED STORY STOPS ANSWERING AT ONCE (ruling 265). Pages' asset-preservation
+      # store kept serving removed pages for 7 days. The guard routes exactly the removed addresses
+      # to a Function through out/_routes.json; this proves it on wrangler's own asset server (its
+      # code vendored from git history), with no build: removed → 404, live → no Function, the
+      # 100-rule limit, the ledger's 8 days. The proof over two real builds is test:edge:proof.
+      - name: Removed pages — the edge guard, on the real asset server
+        run: npm run test:edge
 
       # R9.1 — THE LAUNCH DATE IS WRITTEN IN ONE FILE. R34 inventoried nine launch-date sites by
       # searching for "September" and missed the two that fed a countdown the reader can see,
