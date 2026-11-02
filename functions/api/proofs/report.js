@@ -21,7 +21,7 @@ import { consume } from '../_ratelimit.js';
 import { raiseAlert, alertKey } from '../_alerts.js';
 import { dbBase, FIREBASE_TIMEOUT_MS } from '../bookstore/_lib.js';
 import { identify, readBody, readJson, respond, configured, NOT_FOUND } from './_proofs.js';
-import { isProof, maySee, goLiveMs, londonWhen, reportFault, reportBuckets, limitCode, PROOF_REPORTS_PATH, PROOFS_COPY } from '../../../app/lib/proofs.js';
+import { isProof, maySee, goLiveMs, londonWhen, reportFault, reportBuckets, limitCode, isProofSlug, isReportId, PROOF_REPORTS_PATH, PROOFS_COPY } from '../../../app/lib/proofs.js';
 import { RETIRED_PATH } from '../../../app/lib/retiredStories.js';
 
 const MESSAGES = {
@@ -35,6 +35,8 @@ export async function handleReport(context, { now = Date.now(), founders } = {})
   if (!configured(env)) return respond({ error: 'Reports aren’t configured yet.', code: 'misconfigured' }, 500);
   const body = await readBody(request);
   if (body === null) return respond({ error: MESSAGES.bad_request, code: 'bad_request' }, 400);
+  // LIVE-PATHS-1: the slug is checked before anything leaves this handler (identity included).
+  if (!isProofSlug(body.slug)) return respond({ error: MESSAGES.bad_request, code: 'bad_request' }, 400);
 
   const who = await identify(request, body, env, { founders });
   if (who.error) return who.error;
@@ -93,7 +95,7 @@ export async function handleReport(context, { now = Date.now(), founders } = {})
     });
     if (!res.ok) throw new Error(`write ${res.status}`);
     id = (await res.json())?.name;
-    if (typeof id !== 'string' || !id) throw new Error('no id');
+    if (!isReportId(id)) throw new Error('no report id');
   } catch (e) {
     console.error(`[proofs/report] write failed for ${slug}:`, e?.message || e);
     return respond({ error: PROOFS_COPY.reportFailed, code: 'unavailable' }, 502);

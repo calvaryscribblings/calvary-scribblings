@@ -21,7 +21,7 @@
 //     proof answers 404 here: the story page is where it lives now.
 //   · Get cached. private, no-store on every answer.
 import { identify, readBody, readJson, respond, configured, NOT_FOUND } from './_proofs.js';
-import { isProof, maySee, listEntry, groupByWriter, bySoonest, goLiveMs, SLUG_RE, PROOF_REPORTS_PATH } from '../../../app/lib/proofs.js';
+import { isProof, maySee, listEntry, groupByWriter, bySoonest, goLiveMs, isProofSlug, PROOF_REPORTS_PATH } from '../../../app/lib/proofs.js';
 import { RETIRED_PATH } from '../../../app/lib/retiredStories.js';
 
 const q = (o) => Object.entries(o).map(([k, v]) => `${k}=${encodeURIComponent(JSON.stringify(v))}`).join('&');
@@ -57,11 +57,14 @@ export async function handleProofs(context, { now = Date.now(), founders } = {})
   }
   const body = await readBody(request);
   if (body === null) return respond({ error: 'Invalid request body.', code: 'bad_request' }, 400);
+  const action = body.action || 'list';
+  // LIVE-PATHS-1: the slug is checked before anything leaves this handler (identity included).
+  // The answer depends on the request alone, so it says nothing about the switch or the story.
+  if (action === 'proof' && !isProofSlug(body.slug)) return respond({ error: 'slug required.', code: 'bad_request' }, 400);
 
   const who = await identify(request, body, env, { founders });
   if (who.error) return who.error;
   const { uid, founder, open, token } = who;
-  const action = body.action || 'list';
 
   if (action === 'list') {
     if (!open) return respond({ founder: false, stories: [], reports: [] });
@@ -76,8 +79,7 @@ export async function handleProofs(context, { now = Date.now(), founders } = {})
   }
 
   if (action === 'proof') {
-    const slug = body.slug;
-    if (typeof slug !== 'string' || !SLUG_RE.test(slug)) return respond({ error: 'slug required.', code: 'bad_request' }, 400);
+    const slug = body.slug; // checked above, before identify()
     if (!open) return respond(NOT_FOUND, 404);
     try {
       const [rec, retired] = await Promise.all([

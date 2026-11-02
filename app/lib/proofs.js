@@ -17,13 +17,19 @@
 // writer will see. While Proofs is closed (proofs_access/open !== true), a non-founder gets
 // exactly what a reader with no proofs gets: nothing. The server decides all of this.
 import { storyStatus } from './storyState.js';
+import { isId } from './ids.js';
 
 /** The switch (ruling 258). Founder-read, founder-written; the server reads it on every call. */
 export const PROOFS_ACCESS_PATH = 'proofs_access';
 /** The reports. Server-written; founders may change the status; the report's writer reads it. */
 export const PROOF_REPORTS_PATH = 'story_proof_reports';
 
-export const SLUG_RE = /^[A-Za-z0-9_-]{1,200}$/;
+// LIVE-PATHS-1: every id Proofs takes from a request, a query string or a stored field is checked
+// with app/lib/ids.js before it becomes a database address, like the rest of the site. A slug is
+// the site's one slug rule. A report id is the key the server's POST to story_proof_reports.json
+// minted: an RTDB push id, the same 20-character shape as a newsletter send id (ids.js `sendId`).
+export const isProofSlug = (slug) => isId('slug', slug);
+export const isReportId = (id) => isId('sendId', id);
 
 /** Is this record a proof right now? */
 export const isProof = (rec, now = Date.now()) => !!rec && typeof rec === 'object' && storyStatus(rec, now) === 'scheduled';
@@ -90,7 +96,7 @@ export const REPORT_MAX = 2000;
 
 /** Pure. Why a report may not be filed, as a code, or null. */
 export function reportFault({ slug, message } = {}) {
-  if (typeof slug !== 'string' || !SLUG_RE.test(slug)) return 'bad_request';
+  if (!isProofSlug(slug)) return 'bad_request';
   if (typeof message !== 'string') return 'too_short';
   const m = message.trim();
   if (m.length < REPORT_MIN) return 'too_short';

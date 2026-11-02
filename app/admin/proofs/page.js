@@ -14,7 +14,8 @@ import { useReliableLoad } from '../../lib/useReliable';
 import AdminLoad from '../../components/AdminLoad';
 import { ref, get, update, set, serverTimestamp } from 'firebase/database';
 import { isFounder } from '../../lib/founders';
-import { PROOFS_ACCESS_PATH, PROOF_REPORTS_PATH, PROOFS_COPY as C, REPORT_STATUSES, londonWhen } from '../../lib/proofs';
+import { isId } from '../../lib/ids';
+import { PROOFS_ACCESS_PATH, PROOF_REPORTS_PATH, PROOFS_COPY as C, REPORT_STATUSES, londonWhen, isProofSlug, isReportId } from '../../lib/proofs';
 
 const FF = 'Cormorant Garamond, Georgia, serif';
 const S = {
@@ -34,12 +35,15 @@ const when = (ms) => (ms ? new Date(ms).toLocaleString('en-GB', { timeZone: 'Eur
 async function readAll() {
   const [sw, rs] = await Promise.all([get(ref(db, PROOFS_ACCESS_PATH)), get(ref(db, PROOF_REPORTS_PATH))]);
   const reports = Object.entries(rs.val() || {})
-    .filter(([, r]) => r && typeof r === 'object')
-    .map(([id, r]) => ({ id, ...r }))
+    // LIVE-PATHS-1: the KEY is the id (a stored `id` field never overrides it), and a key that is
+    // not a report id is never shown, so it can never become a write path below.
+    .filter(([id, r]) => isReportId(id) && r && typeof r === 'object')
+    .map(([id, r]) => ({ ...r, id }))
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   // A title and a name are what an editor knows a story and a person by.
-  const slugs = [...new Set(reports.map((r) => r.slug))];
-  const uids = [...new Set(reports.map((r) => r.reporterUid))];
+  // Stored fields, so each is checked before it becomes an address; an unchecked one is shown raw.
+  const slugs = [...new Set(reports.map((r) => r.slug))].filter(isProofSlug);
+  const uids = [...new Set(reports.map((r) => r.reporterUid))].filter((u) => isId('uid', u));
   const [titles, names] = await Promise.all([
     Promise.all(slugs.map(async (s) => { try { return [s, (await get(ref(db, `cms_stories/${s}/title`))).val()]; } catch { return [s, null]; } })),
     Promise.all(uids.map(async (u) => { try { return [u, (await get(ref(db, `users/${u}/displayName`))).val()]; } catch { return [u, null]; } })),
@@ -62,6 +66,7 @@ export default function ProofsAdmin() {
     setBusy('');
   };
   const setStatus = async (id, status) => {
+    if (!isReportId(id)) return;
     setBusy(id); setErr('');
     try { await update(ref(db, `${PROOF_REPORTS_PATH}/${id}`), { status, statusAt: serverTimestamp(), statusBy: user.uid }); await load.reload(); }
     catch (e) { setErr('Could not change the status: ' + (e?.message || e)); }

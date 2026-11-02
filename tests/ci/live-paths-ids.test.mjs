@@ -302,6 +302,49 @@ describe('3 · the other Functions', () => {
   });
 });
 
+describe('3 · Proofs (PROOFS-R2): slugs and report ids go through app/lib/ids.js', () => {
+  test('POST /api/proofs {action:"proof"} with a traversal slug: 400 before identity is even asked', async () => {
+    const { onRequest } = await import('../../functions/api/proofs/index.js');
+    for (const slug of [...SLUG_BAD, 'The-Call', 'the_call', 'a'.repeat(129), 'x/../../users']) {
+      left = []; realFetch = globalThis.fetch;
+      globalThis.fetch = async (input, init = {}) => { left.push(`${init.method || 'GET'} ${typeof input === 'string' ? input : input.url}`); return Response.json({}); };
+      await refused(await onRequest({ request: post('/api/proofs', { action: 'proof', slug }), env: ENV }), `proof ${JSON.stringify(slug)}`);
+    }
+  });
+  test('POST /api/proofs/report with a traversal slug: 400, nothing counted, nothing written, nobody mailed', async () => {
+    const { onRequest } = await import('../../functions/api/proofs/report.js');
+    for (const slug of [...SLUG_BAD, 'The-Call', 'x/../../users']) {
+      left = []; realFetch = globalThis.fetch;
+      globalThis.fetch = async (input, init = {}) => { left.push(`${init.method || 'GET'} ${typeof input === 'string' ? input : input.url}`); return Response.json({}); };
+      await refused(await onRequest({ request: post('/api/proofs/report', { slug, message: 'a long enough message' }), env: ENV }), `report ${JSON.stringify(slug)}`);
+    }
+  });
+  test('a valid slug is not refused by the check (it reaches identity)', async () => {
+    const { onRequest } = await import('../../functions/api/proofs/index.js');
+    stubFetch(READER);
+    const res = await onRequest({ request: post('/api/proofs', { action: 'proof', slug: 'the-call' }), env: ENV });
+    assert.notEqual(res.status, 400);
+  });
+  test('the predicates are the site\'s own: isProofSlug = slug, isReportId = an RTDB push id', async () => {
+    const { isProofSlug, isReportId } = await import('../../app/lib/proofs.js');
+    for (const s of LIVE.slugs) assert.ok(isProofSlug(s), s);
+    for (const v of SLUG_BAD) assert.equal(isProofSlug(v), false, JSON.stringify(v));
+    assert.ok(isReportId('-OAbCdEfGhIjKlMnOp_r'));
+    for (const v of BAD) assert.equal(isReportId(v), false, JSON.stringify(v));
+    assert.ok(!src('app/lib/proofs.js').includes('SLUG_RE'), 'no private slug pattern');
+  });
+  test('/admin/proofs: the key is the id, and every address it builds is checked first', () => {
+    const p = src('app/admin/proofs/page.js');
+    assert.ok(!p.includes('({ id, ...r })'));
+    assert.ok(p.includes('.filter(([id, r]) => isReportId(id) && r && typeof r === \'object\')'));
+    assert.ok(p.includes('.map(([id, r]) => ({ ...r, id }))'));
+    assert.ok(p.includes('.filter(isProofSlug)'));
+    assert.ok(p.includes(".filter((u) => isId('uid', u))"));
+    const body = p.slice(p.indexOf('const setStatus = async (id, status)'));
+    assert.ok(body.indexOf('if (!isReportId(id)) return;') >= 0 && body.indexOf('if (!isReportId(id)) return;') < body.indexOf('await update('));
+  });
+});
+
 describe('4 · the CMS path helpers throw before returning a path (audit #3)', () => {
   const rec = { title: 't', cover: '/covers-typographic/x.jpg', published: true };
   const helpers = {

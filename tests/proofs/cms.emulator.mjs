@@ -40,6 +40,8 @@ import * as storyState from '../../app/lib/storyState.js';
 import * as storyText from '../../app/lib/storyText.js';
 import * as storySlug from '../../app/lib/storySlug.js';
 import * as retiredStories from '../../app/lib/retiredStories.js';
+// LIVE-PATHS-1: the CMS's handlers call assertId() before every path they build from an id.
+import * as ids from '../../app/lib/ids.js';
 import { CATEGORIES } from '../../app/lib/taxonomy.js';
 import { retirePaths } from '../../scripts/stories/retire.mjs';
 
@@ -144,7 +146,7 @@ for (const [version, source] of Object.entries(VERSIONS)) {
       const db = founderDb();
       const scope = {
         __fb: fbFor(db, writes), db,
-        ...storyIndex, ...storyAccess, ...htmlBlocks, ...coverDescriptor, ...storyState, ...storyText, ...storySlug, ...retiredStories, CATEGORIES,
+        ...storyIndex, ...storyAccess, ...htmlBlocks, ...coverDescriptor, ...storyState, ...storyText, ...storySlug, ...retiredStories, ...ids, CATEGORIES,
         editingId, stories, form, retired: {}, roster: [{ uid: WRITER, displayName: 'Invented Writer', username: 'invented' }], guestList: [],
         setMsg: (m) => msgs.push(String(m)), setSaving: () => {}, setForm: () => {}, setEditingId: () => {}, setView: () => {},
         loadStories: () => {}, rebuildAfter: () => {}, emptyForm: FORM, confirm: () => true, user: { uid: FA },
