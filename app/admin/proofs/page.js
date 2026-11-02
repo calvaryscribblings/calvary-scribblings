@@ -22,7 +22,7 @@ import { ref, get, update, serverTimestamp } from 'firebase/database';
 import { isFounder } from '../../lib/founders';
 import { isId } from '../../lib/ids';
 import { PROOFS_ACCESS_PATH, PROOF_REPORTS_PATH, PROOFS_COPY as C, REPORT_STATUSES, londonWhen, isProofSlug, isReportId } from '../../lib/proofs';
-import { PROOF_MAIL_ADMIN_COPY as M } from '../../lib/proofMail';
+import { PROOF_MAIL_ADMIN_COPY as M, failureLine } from '../../lib/proofMail';
 
 const FF = 'Cormorant Garamond, Georgia, serif';
 const S = {
@@ -37,6 +37,7 @@ const S = {
   quiet: { fontSize: '0.85rem', color: 'rgba(240,236,228,0.5)' },
   msg:   { fontSize: '1.05rem', lineHeight: 1.55, margin: '0.5rem 0 0.8rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' },
 };
+const SEND_CALLS = 30;
 const when = (ms) => (ms ? new Date(ms).toLocaleString('en-GB', { timeZone: 'Europe/London', dateStyle: 'medium', timeStyle: 'short' }) : '');
 
 async function readWriters(user) {
@@ -87,9 +88,22 @@ export default function ProofsAdmin() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user.getIdToken()}` },
       body: JSON.stringify(body),
     });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
-    return j;
+    const j = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(failureLine(res.status, (h) => res.headers.get(h), j));
+    return j || {};
+  };
+  // R3.1: Open writes the queue in one atomic step; the emails then go in batches that each fit
+  // Cloudflare's limits. Call `send` until the server says nothing is left (a cap stops a loop that
+  // can't finish; the quarter-hourly job picks up the rest).
+  const sendAll = async () => {
+    const total = { opening: 0, scheduled: 0, changed: 0, reminder: 0, failed: 0 };
+    for (let i = 0; i < SEND_CALLS; i++) {
+      const r = await call({ action: 'send' });
+      for (const k of Object.keys(total)) total[k] += r[k] || 0;
+      setSaid(M.sending(total.opening + total.scheduled + total.changed + total.reminder));
+      if (!r.more) return { ...total, more: false };
+    }
+    return { ...total, more: true };
   };
   const showList = async () => {
     setBusy('switch'); setErr(''); setSaid('');
@@ -104,8 +118,10 @@ export default function ProofsAdmin() {
     setBusy('open'); setErr('');
     try {
       const include = list.filter((w) => ticked[w.uid]).map((w) => w.uid);
-      const r = await call({ action: 'open', include });
-      setSaid(M.opened(r.sent || 0, r.failed || 0)); setList(null); await load.reload();
+      await call({ action: 'open', include });
+      setList(null);
+      const r = await sendAll();
+      setSaid(M.opened(r.opening + r.scheduled + r.changed + r.reminder, r.failed) + (r.more ? ` ${M.moreLater}` : '')); await load.reload();
     } catch (e) { setErr(M.openFailed + (e?.message || e)); }
     setBusy('');
   };
@@ -123,7 +139,12 @@ export default function ProofsAdmin() {
   };
   const include = async (uid) => {
     setBusy(uid); setErr(''); setSaid('');
-    try { const r = await call({ action: 'include', uid }); if (r.result !== 'sent') throw new Error(r.result); setSaid(M.included); await load.reload(); }
+    try {
+      const r = await call({ action: 'include', uid });
+      if (r.result !== 'queued') throw new Error(r.result);
+      const s = await sendAll();
+      setSaid(s.opening ? M.included : M.includeFailed + (s.failed ? 'the email service refused it' : 'it’s still queued')); await load.reload();
+    }
     catch (e) { setErr(M.includeFailed + (e?.message || e)); }
     setBusy('');
   };
@@ -160,18 +181,18 @@ export default function ProofsAdmin() {
                 <div style={{ fontSize: '1.15rem' }}>{M.listHeading}</div>
                 <p style={{ ...S.sub, margin: '6px 0 12px' }}>{M.listIntro}</p>
                 {list.map((w) => {
-                  const can = w.state !== 'opened' && w.hasAddress;
+                  const can = (w.state === 'new' || w.state === 'excluded') && w.hasAddress;
                   return (
                     <label key={w.uid} data-writer={w.uid} style={{ display: 'flex', gap: 10, alignItems: 'center', minHeight: 44, borderTop: '1px solid rgba(240,236,228,0.08)' }}>
                       <input type="checkbox" disabled={!can} checked={can && !!ticked[w.uid]} onChange={(e) => setTicked((t) => ({ ...t, [w.uid]: e.target.checked }))} style={{ width: 20, height: 20 }} />
                       <span style={{ flex: 1 }}>{w.name}</span>
-                      <span style={S.quiet}>{M.scheduledCount(w.scheduled)}{w.state === 'opened' ? ` · ${w.openingSent === false ? M.notDelivered : M.alreadyEmailed}` : !w.hasAddress ? ` · ${M.noAddress}` : ''}</span>
+                      <span style={S.quiet}>{M.scheduledCount(w.scheduled)}{w.state === 'opened' ? ` · ${w.openingSent === false ? M.notDelivered : M.alreadyEmailed}` : w.state === 'queued' ? ` · ${M.queuedState}` : !w.hasAddress ? ` · ${M.noAddress}` : ''}</span>
                     </label>
                   );
                 })}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
                   <button type="button" style={{ ...S.ghost, ...S.on }} disabled={busy === 'open'} onClick={confirmOpen} data-proofs-confirm>
-                    {busy === 'open' ? M.opening : M.confirm(list.filter((w) => w.state !== 'opened' && w.hasAddress && ticked[w.uid]).length)}
+                    {busy === 'open' ? M.opening : M.confirm(list.filter((w) => (w.state === 'new' || w.state === 'excluded') && w.hasAddress && ticked[w.uid]).length)}
                   </button>
                   <button type="button" style={S.ghost} disabled={busy === 'open'} onClick={() => setList(null)}>{M.cancel}</button>
                 </div>
