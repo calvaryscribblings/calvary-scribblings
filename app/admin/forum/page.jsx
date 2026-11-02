@@ -26,6 +26,7 @@ import AdminLoad from '../../components/AdminLoad';
 import { normalizeGenre } from '../../lib/openPages';
 import { stripMarkdown } from '../../lib/openPagesMarkdown';
 import { fireRebuild, HOOKS } from '../../lib/rebuild';
+import { approvePending, rejectPending } from '../../lib/openPagesApprove';
 
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 
@@ -132,7 +133,7 @@ export default function AdminForumPage() {
     const publicPosts = publicSnap.exists() ? publicSnap.val() : {};
 
     const flaggedList = Object.entries(pending)
-      .map(([id, p]) => ({ id, ...p }))
+      .map(([id, p]) => ({ ...p, id })) // LIVE-PATHS-2: the key is the id, never a stored field
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
     const reportedList = Object.entries(reportsRaw)
@@ -158,22 +159,12 @@ export default function AdminForumPage() {
     setActing(item.id);
     setMsg('');
     try {
-      const { ref, update } = await import('firebase/database');
-      const { id, ...record } = item;
-      const wasRevision = record.revision === true;
-      delete record.revision; // a queue marker, not part of the published record
-      record.status = 'live';
-      record.approvedBy = user.uid;
-      record.approvedAt = Date.now();
-      const updates = {
-        [`open_pages/${id}`]: record,
-        [`open_pages_pending/${id}`]: null,
-        // Approving settles any reader reports on the post too — leaving them
-        // would re-surface the post in the Reported tab we just cleared.
-        [`open_pages_reports/${id}`]: null,
-      };
-      if (record.authorUid) updates[`user_open_pages/${record.authorUid}/${id}`] = record;
-      await update(ref(db), updates);
+      const { ref, runTransaction, update } = await import('firebase/database');
+      const { id, ...pending } = item;
+      // LIVE-PATHS-2: checked and written in one transaction on open_pages/<id>. A record keyed at
+      // a live piece is refused unless it is that same author's revision of it. See
+      // app/lib/openPagesApprove.js.
+      const { wasRevision } = await approvePending({ db, fb: { ref, runTransaction, update }, id, pending, approverUid: user.uid });
       drop(id);
 
       // The post is live but /open-pages/[id] is only pre-rendered at build time
@@ -196,6 +187,30 @@ export default function AdminForumPage() {
     } catch (e) {
       console.error('[admin/forum] approve failed:', e);
       setMsg('Approve failed: ' + e.message);
+    }
+    setActing('');
+  }
+
+  // LIVE-PATHS-2: Remove on a FLAGGED item removes the pending record and nothing else. It used to
+  // null open_pages/<id> too, so rejecting a flagged revision deleted the author's live original,
+  // and a pending record keyed at someone else's piece deleted theirs.
+  async function rejectFlagged(item) {
+    const isRevision = item.revision === true;
+    const question = isRevision
+      ? 'Remove this edit? The live piece stays as it is.'
+      : 'Remove this post? It was never published.';
+    if (!window.confirm(question)) return;
+    setActing(item.id);
+    setMsg('');
+    try {
+      const { ref, update } = await import('firebase/database');
+      await rejectPending({ db, fb: { ref, update }, id: item.id });
+      // Only the flagged row goes: a live piece at this id keeps its Reported row.
+      setGone((g) => ({ ...g, flagged: new Set(g.flagged).add(item.id) }));
+      setMsg(isRevision ? 'Edit removed. The live piece is unchanged.' : 'Post removed.');
+    } catch (e) {
+      console.error('[admin/forum] reject failed:', e);
+      setMsg('Remove failed: ' + e.message);
     }
     setActing('');
   }
@@ -300,7 +315,7 @@ export default function AdminForumPage() {
         >
         {() => tab === 'flagged' ? (
           flagged.map((p) => (
-            <FlaggedCard key={p.id} post={p} acting={acting === p.id} onApprove={() => approve(p)} onRemove={() => removePost({ id: p.id, authorUid: p.authorUid })} />
+            <FlaggedCard key={p.id} post={p} acting={acting === p.id} onApprove={() => approve(p)} onRemove={() => rejectFlagged(p)} />
           ))
         ) : (
           reported.map((r) => (

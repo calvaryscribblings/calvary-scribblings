@@ -42,6 +42,7 @@ import * as storySlug from '../../app/lib/storySlug.js';
 import * as retiredStories from '../../app/lib/retiredStories.js';
 // LIVE-PATHS-1: the CMS's handlers call assertId() before every path they build from an id.
 import * as ids from '../../app/lib/ids.js';
+import { quizApprovalMetaPaths } from '../../app/lib/quizApproval.js';
 import { CATEGORIES } from '../../app/lib/taxonomy.js';
 import { retirePaths } from '../../scripts/stories/retire.mjs';
 
@@ -280,6 +281,7 @@ for (const [version, source] of Object.entries(VERSIONS)) {
         selectedSlug: slug, quiz: { questions: [], maxPoints: 50 }, allRows: [{ slug, indexed: false }],
         setError: () => {}, showMsg: () => {}, setQuizSlugs: () => {}, setAdvertisedSlugs: () => {}, LS_KEY: 'k',
         localStorage: { removeItem: () => {} }, buildQuizSummary: storyIndex.buildQuizSummary,
+        quizApprovalMetaPaths, // LIVE-PATHS-2: approve writes quizMeta one field per path
       };
       ok(await run('handleSaveDraft', [], { from: quizzes, scope }), 'quiz draft');
       ok(await run('handleApprove', [], { from: quizzes, scope }), 'quiz approve');

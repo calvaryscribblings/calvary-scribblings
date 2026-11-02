@@ -114,6 +114,23 @@ export function checkObjectName(name) {
   if (/(^|\/)(undefined|null)(\/|$)/.test(name)) throw new GuardRefusal('a Storage object name has an "undefined" or "null" segment.');
   return name;
 }
+// LIVE-PATHS-2 (sweep, guard gap 1) — firebase-admin's ref() and child() DROP empty segments
+// before anything sees the path: db.ref(`users/${''}`) is the ref `users`, so a remove() through
+// it passed checkPath as a write to `users` and took the whole node. The STRING the caller wrote
+// is therefore checked here, before firebase-admin is handed it. Leading slashes are a style
+// (`/users`), so they are allowed; every other empty segment, a trailing slash included, is the
+// signature of a blank id and is refused. ref() with no argument, or '/', is the root: a read
+// through it is fine, and a write is refused by checkPath as before.
+export function checkRefArg(p) {
+  if (p === undefined) return p;
+  if (typeof p !== 'string') throw new GuardRefusal('a database path handed to ref() or child() is not a string.');
+  const rest = p.replace(/^\/+/, '');
+  if (rest === '') return p;
+  if (rest.split('/').some((seg) => seg === '')) {
+    throw new GuardRefusal('a database path has an empty segment (a blank id would widen the path to its whole parent). It was refused before firebase-admin could drop the segment.');
+  }
+  return p;
+}
 const join = (base, rel) => [base, rel].filter((s) => s !== '' && s !== undefined && s !== null).join('/').replace(/^\/+/, '');
 
 const enc = (p) => p.split('/').map(encodeURIComponent).join('/');
@@ -484,7 +501,7 @@ export async function openGuard(name, opts = {}) {
               return Object.assign(p, { key: child.key, ref: wrapped });
             };
           }
-          if (prop === 'child') return (p) => wrapRef(t.child(p));
+          if (prop === 'child') return (p) => { if (p === undefined || p === '' || p === '/') throw new GuardRefusal('child() with an empty path.'); return wrapRef(t.child(checkRefArg(p))); };
           if (prop === 'parent' || prop === 'root') return wrapRef(t[prop]);
           if (REFUSED_REF.has(prop)) return () => { throw new GuardRefusal(`${String(prop)}() is not available through the guard.`); };
           const v = Reflect.get(t, prop, t);
@@ -494,8 +511,8 @@ export async function openGuard(name, opts = {}) {
     };
     return new Proxy(db, {
       get(t, prop) {
-        if (prop === 'ref') return (p) => wrapRef(t.ref(p));
-        if (prop === 'refFromURL') return (u) => wrapRef(t.refFromURL(u));
+        if (prop === 'ref') return (p) => wrapRef(t.ref(checkRefArg(p)));
+        if (prop === 'refFromURL') return (u) => { checkRefArg(decodeURIComponent(new URL(u).pathname)); return wrapRef(t.refFromURL(u)); };
         const v = Reflect.get(t, prop, t);
         return typeof v === 'function' ? v.bind(t) : v;
       },

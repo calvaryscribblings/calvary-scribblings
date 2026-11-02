@@ -147,6 +147,29 @@ describe('SAFETY-1 · the guard (firebase-admin wrappers)', () => {
     assert.throws(() => db.ref('w').setWithPriority(1, 1), /not available through the guard/);
   });
 
+  // LIVE-PATHS-2 (sweep, guard gap 1): firebase-admin drops empty segments, so `users/${''}`
+  // arrives at the wrapper as `users`. The string is now checked before firebase-admin sees it.
+  // On 75cb7710..dc568418 the remove() below took the whole `gap` node.
+  test('adminDb: a path with an empty segment is refused before firebase-admin drops it', async () => {
+    await rput('gap', { keep: { v: 1 }, also: { v: 2 } });
+    const g = await openGuard('t-sdk-gap', { argv: ['--apply'], ...quiet });
+    const db = g.adminDb(getDatabase(app));
+    const blank = '';
+    assert.throws(() => db.ref(`gap/${blank}`), /empty segment/);
+    assert.throws(() => db.ref(`gap//keep`), /empty segment/);
+    assert.throws(() => db.ref('gap').child(`${blank}/`), /empty segment|empty path/);
+    assert.throws(() => db.ref('gap').child(blank), /empty path/);
+    assert.throws(() => db.refFromURL(`${DB}/gap/?ns=${NS}`), /empty segment/);
+    // The attack as a script would have written it, end to end: refused, and nothing changed.
+    await assert.rejects(async () => db.ref(`gap/${blank}`).remove(), /empty segment/);
+    assert.deepEqual(await rget('gap'), { keep: { v: 1 }, also: { v: 2 } });
+    // What stays allowed: a leading slash, the root for a read, an ordinary child.
+    assert.equal((await db.ref('/gap/keep/v').get()).val(), 1);
+    assert.ok(db.ref());
+    await db.ref('gap').child('also').remove();
+    assert.deepEqual(await rget('gap'), { keep: { v: 1 } });
+  });
+
   test('adminDb dry: reads work, writes do not', async () => {
     const g = await openGuard('t-sdk-dry', { argv: [], ...quiet });
     const db = g.adminDb(getDatabase(app));

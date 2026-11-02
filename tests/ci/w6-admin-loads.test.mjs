@@ -12,7 +12,7 @@
 
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
@@ -323,9 +323,9 @@ describe('every admin page: a failed read draws the panel, never the empty list'
     assert.match(s, /\{!loading && visible\.length === 0 && \(/);
   });
 
-  test('migrate has no read to fail — its one request already reports its own error', () => {
-    const s = code('app/admin/migrate/page.js');
-    assert.doesNotMatch(s, /\bget\(/);
-    assert.match(s, /catch \(e\) \{\s*setError\(e\.message\);/);
+  // LIVE-PATHS-2 retired /admin/migrate and its only action, functions/admin/migrate-quiz-meta.js
+  // (tests/ci/live-paths-2.test.mjs holds that). There is no page left to load.
+  test('migrate is retired: no page, so nothing to fail', () => {
+    assert.equal(existsSync(new URL('../../app/admin/migrate/page.js', import.meta.url)), false);
   });
 });

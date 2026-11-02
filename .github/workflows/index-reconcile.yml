@@ -203,15 +203,34 @@ jobs:
       - name: Reconcile
         env:
           RECONCILE_SERVICE_ACCOUNT: ${{ runner.temp }}/serviceAccountKey.json
+          # LIVE-PATHS-2: dispatch inputs reach the shell as environment variables, quoted where
+          # they are used, and never pasted into the script text. Each is also checked for shape:
+          # the script reads its flags from anywhere in argv, so a slug of "--apply" would write.
+          EVENT_NAME: ${{ github.event_name }}
+          IN_APPLY: ${{ inputs.apply }}
+          IN_SLUG: ${{ inputs.slug }}
+          IN_MAX: ${{ inputs.max }}
         shell: bash   # pipefail: the script's own exit status still fails the step (W12)
         run: |
-          ARGS=""
-          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.apply }}" = "true" ]; then
-            ARGS="$ARGS --apply"
+          args=()
+          if [ "$EVENT_NAME" = "schedule" ] || [ "$IN_APPLY" = "true" ]; then
+            args+=(--apply)
           fi
-          if [ -n "${{ inputs.slug }}" ]; then ARGS="$ARGS --slug ${{ inputs.slug }}"; fi
-          if [ -n "${{ inputs.max }}" ]; then ARGS="$ARGS --max ${{ inputs.max }}"; fi
-          node scripts/reconcile-index.mjs $ARGS 2>&1 | node scripts/ops/log-guard.mjs
+          if [ -n "$IN_SLUG" ]; then
+            if ! [[ "$IN_SLUG" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+              echo "::error::slug must be lower-case letters, digits and single hyphens"
+              exit 1
+            fi
+            args+=(--slug "$IN_SLUG")
+          fi
+          if [ -n "$IN_MAX" ]; then
+            if ! [[ "$IN_MAX" =~ ^[0-9]{1,6}$ ]]; then
+              echo "::error::max must be a whole number"
+              exit 1
+            fi
+            args+=(--max "$IN_MAX")
+          fi
+          node scripts/reconcile-index.mjs "${args[@]}" 2>&1 | node scripts/ops/log-guard.mjs
 
       - name: Remove the service account
         if: always()

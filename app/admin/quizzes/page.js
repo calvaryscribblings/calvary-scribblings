@@ -4,6 +4,7 @@ import { db, DB_URL } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { buildQuizSummary, INDEX_PATH } from '../../lib/storyIndex';
 import { toRow, tokenize, quizState, selectRows } from '../../lib/quizPicker';
+import { quizApprovalMetaPaths } from '../../lib/quizApproval';
 import { readWithDeadline } from '../../lib/reliableRead';
 import { reconnectDatabase } from '../../lib/useReliable';
 import Unavailable from '../../components/Unavailable';
@@ -387,28 +388,25 @@ export default function QuizzesPage() {
     if (!selectedSlug || !quiz || !user) return;
     setSaving(true); setError(''); setMsg('');
     try {
-      const { ref, get, update } = await import('firebase/database');
+      const { ref, update } = await import('firebase/database');
       const approvedAt = Date.now();
 
-      // Read existing quizMeta to preserve attempt count and naming state on re-approval
-      const metaSnap = await get(ref(db, `cms_stories/${selectedSlug}/quizMeta`));
-      const existing = metaSnap.exists() ? metaSnap.val() : null;
-
-      // Atomic multi-location write: quiz node + story quizMeta cache + the index's
-      // slim quiz badge (R1). buildQuizSummary keeps the index sub-object in lockstep
-      // with the stories-admin projection. Guard on `indexed`: only published stories
-      // have an index entry to patch (a hidden story's is rebuilt on unhide).
+      // LIVE-PATHS-2 (audit #4): approval changes the three quizMeta fields it owns, one path
+      // each, and nothing else. It used to read quizMeta and write the whole block back, so an
+      // attempt that record-attempt counted ({'.sv': increment}) between the read and the write
+      // was reversed, and so was a naming claim. attemptCount and the naming fields are never
+      // read or written here; on a first approval they are simply absent, which every reader of
+      // them already treats as 0 / unclaimed. (The story editor's save works the same way:
+      // app/admin/page.js, "Why this is a per-field write".)
+      //
+      // One atomic multi-location write: the quiz node, the three quizMeta leaves, and the
+      // index's slim quiz badge (R1). buildQuizSummary keeps the index sub-object in lockstep
+      // with the stories-admin projection. Guard on `indexed`: only published stories have an
+      // index entry to patch (a hidden story's is rebuilt on unhide).
       const indexed = allRows.find(st => st.slug === selectedSlug)?.indexed;
       await update(ref(db), {
         [`cms_quizzes/${selectedSlug}`]: { ...quiz, approvedAt, approvedBy: user.uid },
-        [`cms_stories/${selectedSlug}/quizMeta`]: {
-          hasQuiz: true,
-          scribblesReward: quiz.maxPoints ?? 50,
-          publishedAt: approvedAt,
-          attemptCount: existing?.attemptCount ?? 0,
-          namingClaimedBy: existing?.namingClaimedBy ?? null,
-          namingClaimedAt: existing?.namingClaimedAt ?? null,
-        },
+        ...quizApprovalMetaPaths(selectedSlug, { scribblesReward: quiz.maxPoints ?? 50, approvedAt }),
         ...(indexed ? { [`cms_stories_index/${selectedSlug}/quiz`]: buildQuizSummary({ hasQuiz: true, scribblesReward: quiz.maxPoints ?? 50 }) } : {}),
       });
       try { localStorage.removeItem(LS_KEY); } catch {}

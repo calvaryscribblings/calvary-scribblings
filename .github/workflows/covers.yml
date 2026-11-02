@@ -143,17 +143,28 @@ jobs:
           # run summons one. The stories hook, the same value as the Pages project's
           # CMS_DEPLOY_HOOK_URL. Read server-side only; never printed (scripts/deploy-hook.mjs).
           CMS_DEPLOY_HOOK_URL: ${{ secrets.CMS_DEPLOY_HOOK_URL }}
+          # LIVE-PATHS-2: dispatch inputs reach the shell as environment variables, quoted where
+          # they are used, and never pasted into the script text (a slug of `x; <command>` used to
+          # run the command). The slug must also be a slug: the script looks for --apply anywhere
+          # in its arguments, so a slug of "--apply" would turn a dry run into a write.
+          EVENT_NAME: ${{ github.event_name }}
+          IN_SLUG: ${{ github.event.inputs.slug }}
+          IN_APPLY: ${{ github.event.inputs.apply }}
         shell: bash   # pipefail: the script's own exit status still fails the step (W12)
         run: |
-          ARGS=""
-          if [ -n "${{ github.event.inputs.slug }}" ]; then
-            ARGS="--slug ${{ github.event.inputs.slug }}"
+          args=()
+          if [ -n "$IN_SLUG" ]; then
+            if ! [[ "$IN_SLUG" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+              echo "::error::slug must be lower-case letters, digits and single hyphens"
+              exit 1
+            fi
+            args+=(--slug "$IN_SLUG")
           fi
-          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event.inputs.apply }}" = "true" ]; then
-            ARGS="$ARGS --apply"
+          if [ "$EVENT_NAME" = "schedule" ] || [ "$IN_APPLY" = "true" ]; then
+            args+=(--apply)
           fi
-          echo "node scripts/covers/on-publish.mjs $ARGS"
-          node scripts/covers/on-publish.mjs $ARGS 2>&1 | node scripts/ops/log-guard.mjs
+          echo "node scripts/covers/on-publish.mjs ${args[*]}"
+          node scripts/covers/on-publish.mjs "${args[@]}" 2>&1 | node scripts/ops/log-guard.mjs
 
       - name: Shred the key
         if: always()

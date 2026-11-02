@@ -137,6 +137,27 @@ export async function onRequestPost(context) {
     return json({ ok: true, counted: false });
   }
 
+  // LIVE-PATHS-2 (audit #7): only an APPROVED quiz on a story that EXISTS is counted. The slug
+  // check above stops a slash; this stops a well-formed slug with no quiz behind it, which used to
+  // create cms_stories/<slug>/quizMeta/attemptCount out of nothing (a junk story node), and an
+  // attempt on a draft quiz from counting. Two of the 160 approved quizzes have no story, which
+  // is why the story is checked as well as the quiz.
+  const [approvedRes, storyRes] = await Promise.all([
+    fetch(`${fbDb}/cms_quizzes/${slug}/approvedAt.json`, { headers: bearer }),
+    fetch(`${fbDb}/cms_stories/${slug}.json?shallow=true`, { headers: bearer }),
+  ]);
+  if (!approvedRes.ok || !storyRes.ok) {
+    console.error('[record-attempt] quiz/story read failed:', approvedRes.status, storyRes.status);
+    return json({ error: 'Failed to check the quiz.' }, 500);
+  }
+  const approvedAt = await approvedRes.json();
+  const story = await storyRes.json();
+  // Truthiness, exactly as QuizCard decides a quiz is open (`data.approvedAt`): a quiz a reader
+  // can take is never one this refuses to count.
+  if (!approvedAt || story === null) {
+    return json({ error: 'No approved quiz for this story.' }, 404);
+  }
+
   // Mark counted + server-side increment in one atomic PATCH
   const updates = {
     [`quizAttemptCounted/${uid}/${slug}`]: true,

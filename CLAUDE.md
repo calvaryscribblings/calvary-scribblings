@@ -158,6 +158,16 @@ Four rules, each of which would have prevented it on its own:
    `tests/live/test-reader.mjs` (custom token, no password, uid only at `ops/live_test_reader`,
    never printed). `tests/ci/w17-live-safety.test.mjs` fails if a harness signs in any other way.
 
+6. **NO ATTACK-SHAPED REQUESTS TO PRODUCTION, NOT EVEN TO CHECK THEY'RE REFUSED.** (LIVE-PATHS-1/2,
+   Nov 2026.) A fix for a hole is proven on the emulator, red on the old code and green on the new,
+   and its going live is proven by what was deployed: the commit, a Worker's exact read-back, the
+   rules diff. It is never proven by firing the attack at the live site. **If the fix isn't live yet,
+   the check is the attack**: a deploy that hasn't finished, a rules release still propagating, a
+   Worker upload that didn't take, and the "proof" deletes every draft or rewrites someone's piece.
+   That covers a traversal (`/draft/.`, an id of `../subscribers`), a forged or blank id, a write
+   under someone else's uid, and an injected workflow input. Rules 1–4 cover *legitimate* probes of
+   a grant; this one has no safe version.
+
 And before concluding anything is unrecoverable: **check
 `calvary-scribblings-default-rtdb-backups`.** Daily archives, 30-day retention. See
 `scripts/backup/RESTORE.md`.

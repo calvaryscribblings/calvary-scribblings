@@ -309,6 +309,66 @@ async function writePaths(fbDb, accessToken, paths) {
 }
 
 // ---------------------------------------------------------------------------
+// LIVE-PATHS-2 (audit #8) — AN EDIT WRITES THE WHOLE RECORD, SO IT WRITES ONLY OVER WHAT IT READ.
+//
+// An edit is {...stored record, new fields}, written whole. Between the read and the write sits
+// the model call (seconds), and before this the write was an unconditional PATCH: a founder's
+// Remove in that window was undone (the piece came back), an approval of a queued revision was
+// overwritten, and every read counted meanwhile was lost. Now the read takes the record's ETag
+// and the write is a PUT with if-match, so it lands only on the record it was built from.
+//
+// One change is let through: readCount. Readers bump it on every visit, so a strict ETag would
+// refuse most edits to a piece anyone is reading. On a 412 the record is read again; if
+// everything except readCount is as it was, the write is rebuilt with the current count and
+// tried again. Anything else is a conflict, and nothing is written.
+// ---------------------------------------------------------------------------
+
+function canonical(v) {
+  if (Array.isArray(v)) return `[${v.map(canonical).join(',')}]`;
+  if (v && typeof v === 'object') return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canonical(v[k])}`).join(',')}}`;
+  return JSON.stringify(v ?? null);
+}
+export function sameApartFromReads(a, b) {
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+  const { readCount: _a, ...ra } = a;
+  const { readCount: _b, ...rb } = b;
+  return canonical(ra) === canonical(rb);
+}
+
+async function readWithEtag(fbDb, accessToken, path) {
+  const res = await fetch(`${fbDb}/${path}.json`, {
+    headers: { Authorization: `Bearer ${accessToken}`, 'X-Firebase-ETag': 'true' },
+  });
+  if (!res.ok) throw new Error(`read failed (${res.status})`);
+  return { etag: res.headers.get('ETag'), value: await res.json() };
+}
+
+// Returns { ok: true, record } (what was written) or { ok: false } (the record changed). Throws on
+// any other failure. `read` is the { etag, value } the edit was built from.
+async function putOverRead(fbDb, accessToken, path, read, record) {
+  let current = read;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (!current.etag) throw new Error('no ETag on the stored record');
+    const next = { ...record };
+    if (current.value && typeof current.value.readCount === 'number') next.readCount = current.value.readCount;
+    else delete next.readCount;
+    const res = await fetch(`${fbDb}/${path}.json`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'if-match': current.etag },
+      body: JSON.stringify(next),
+    });
+    if (res.ok) return { ok: true, record: next };
+    if (res.status !== 412) throw new Error(`conditional write failed (${res.status})`);
+    const fresh = await readWithEtag(fbDb, accessToken, path);
+    if (!sameApartFromReads(fresh.value, read.value)) return { ok: false };
+    current = fresh;
+  }
+  return { ok: false };
+}
+
+const EDIT_CONFLICT = 'This piece changed while your edit was being saved. Nothing was saved. Open it again and redo the edit.';
+
+// ---------------------------------------------------------------------------
 // Handler.
 // ---------------------------------------------------------------------------
 
@@ -429,18 +489,15 @@ export async function onRequestPost(context) {
   const isEdit = typeof editId === 'string' && editId.length > 0;
 
   let existing = null;
+  let existingRead = null; // LIVE-PATHS-2: { etag, value }, the version every edit write is built on
   if (isEdit) {
     if (editId.length > 64 || /[.#$\[\]/]/.test(editId)) {
       return json({ error: 'Invalid postId.' }, 400);
     }
     try {
-      const exRes = await fetch(`${fbDb}/${OPEN_PAGES_NODE}/${editId}.json`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (exRes.ok) {
-        const v = await exRes.json();
-        if (v && typeof v === 'object') existing = v;
-      }
+      existingRead = await readWithEtag(fbDb, accessToken, `${OPEN_PAGES_NODE}/${editId}`);
+      const v = existingRead.value;
+      if (v && typeof v === 'object') existing = v;
     } catch (e) {
       console.error('[open-pages/moderate] edit: existing read failed:', e.message);
       return json({ error: 'Couldn’t load the post to edit.' }, 500);
@@ -483,14 +540,19 @@ export async function onRequestPost(context) {
   // -------------------------------------------------------------------------
   if (isEdit && existing.title === cleanTitle && existing.body === cleanBody) {
     const record = { ...base, status: OPEN_PAGE_STATUS.LIVE };
+    let put;
     try {
-      await writePaths(fbDb, accessToken, {
-        [`${OPEN_PAGES_NODE}/${postId}`]: record,
-        [`${USER_OPEN_PAGES_NODE}/${uid}/${postId}`]: record,
-      });
+      put = await putOverRead(fbDb, accessToken, `${OPEN_PAGES_NODE}/${postId}`, existingRead, record);
     } catch (e) {
       console.error('[open-pages/moderate] unchanged-text edit write failed:', e.message);
       return json({ error: 'Failed to save your changes.' }, 500);
+    }
+    if (!put.ok) return json({ error: EDIT_CONFLICT, status: 'conflict' }, 409);
+    try {
+      await writePaths(fbDb, accessToken, { [`${USER_OPEN_PAGES_NODE}/${uid}/${postId}`]: put.record });
+    } catch (e) {
+      console.error('[open-pages/moderate] unchanged-text edit mirror write failed:', e.message);
+      return json({ error: 'Your changes are live, but your profile list did not update. Save once more to refresh it.' }, 500);
     }
     return json({ status: 'published', postId, edited: true, rescreened: false });
   }
@@ -632,12 +694,33 @@ export async function onRequestPost(context) {
   // A passing edit supersedes any revision of the same post still sitting in the
   // queue. Left behind, an admin could later approve the stale one and silently
   // revert the piece to an older body.
-  if (isEdit) paths[`${OPEN_PAGES_PENDING_NODE}/${postId}`] = null;
-  try {
-    await writePaths(fbDb, accessToken, paths);
-  } catch (e) {
-    console.error('[open-pages/moderate] publish write failed:', e.message);
-    return json({ error: 'Failed to publish post.' }, 500);
+  if (isEdit) {
+    paths[`${OPEN_PAGES_PENDING_NODE}/${postId}`] = null;
+    // LIVE-PATHS-2: the piece itself goes first, as a conditional PUT over the version this edit
+    // was built from; the mirror and the queue tidy follow only once it has landed.
+    delete paths[`${OPEN_PAGES_NODE}/${postId}`];
+    let put;
+    try {
+      put = await putOverRead(fbDb, accessToken, `${OPEN_PAGES_NODE}/${postId}`, existingRead, record);
+    } catch (e) {
+      console.error('[open-pages/moderate] edit write failed:', e.message);
+      return json({ error: 'Failed to publish post.' }, 500);
+    }
+    if (!put.ok) return json({ error: EDIT_CONFLICT, status: 'conflict' }, 409);
+    paths[`${USER_OPEN_PAGES_NODE}/${uid}/${postId}`] = put.record;
+    try {
+      await writePaths(fbDb, accessToken, paths);
+    } catch (e) {
+      console.error('[open-pages/moderate] edit mirror write failed:', e.message);
+      return json({ error: 'Your edit is live, but your profile list did not update. Save once more to refresh it.' }, 500);
+    }
+  } else {
+    try {
+      await writePaths(fbDb, accessToken, paths);
+    } catch (e) {
+      console.error('[open-pages/moderate] publish write failed:', e.message);
+      return json({ error: 'Failed to publish post.' }, 500);
+    }
   }
 
   // A new post is now live — kick the Cloudflare deploy hook so the static export
