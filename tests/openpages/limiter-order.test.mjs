@@ -69,7 +69,13 @@ function router() {
       return new Response(JSON.stringify({ displayName: 'A Writer', username: 'awriter' }), { status: 200 });
     }
     if (u.startsWith(`${FB}/open_pages/`)) {                 // edit-mode read of the stored post
-      return new Response(JSON.stringify(state.existing), { status: 200 });
+      // LIVE-PATHS-2: the read carries an ETag and the edit lands as a PUT with if-match; it is
+      // recorded in `patches` under its path, as the PATCH it replaced was.
+      if (method === 'PUT') {
+        state.patches.push({ [decodeURIComponent(u.slice(FB.length + 1).replace(/\.json$/, ''))]: JSON.parse(opts.body) });
+        return new Response('{}', { status: 200 });
+      }
+      return new Response(JSON.stringify(state.existing), { status: 200, headers: { ETag: 'p1' } });
     }
     if (u === `${FB}/.json` && method === 'PATCH') {
       state.patches.push(JSON.parse(opts.body));

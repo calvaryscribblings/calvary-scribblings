@@ -240,7 +240,11 @@ describe('R38 · ⭐ NOTHING UNSCREENED IS EVER DISTRIBUTED', () => {
         return new Response('{}', { status: 200 });
       }
       if (u.startsWith(`${FB}/users/`)) return new Response(JSON.stringify({ displayName: 'A Writer', username: 'aw', readCount: 7 }), { status: 200 });
-      if (u.startsWith(`${FB}/open_pages/`)) return new Response(JSON.stringify(state.existing), { status: 200 });
+      if (u.startsWith(`${FB}/open_pages/`)) {
+        // LIVE-PATHS-2: ETag on the read, the edit lands as a conditional PUT (recorded like a PATCH).
+        if (method === 'PUT') { state.patches.push({ [u.slice(FB.length + 1).replace(/\.json$/, '')]: JSON.parse(opts.body) }); return new Response('{}', { status: 200 }); }
+        return new Response(JSON.stringify(state.existing), { status: 200, headers: { ETag: 'p1' } });
+      }
       if (u === `${FB}/.json` && method === 'PATCH') { state.patches.push(JSON.parse(opts.body)); return new Response('{}', { status: 200 }); }
       throw new Error(`unrouted: ${method} ${u}`);
     };
