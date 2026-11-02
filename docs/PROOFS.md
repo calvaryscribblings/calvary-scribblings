@@ -67,11 +67,47 @@ because they all place text through `placementPaths`, and their tests prove it:
   every other admin-key script;
 - Pages Functions using an admin token.
 
+## Writer emails (PROOFS-R3, rulings 254, 290–292)
+
+| piece | where |
+|---|---|
+| what is due, the ledger shape, the words, the samples | `app/lib/proofMail.js` (pure) |
+| the engine: open, close, "Email them", the tick, the samples | `functions/api/proofs/_mail.js` |
+| the founders' endpoint | `functions/api/proofs/writers.js`, POST `{ action: 'list' \| 'open' \| 'close' \| 'include' \| 'sample' }` |
+| the tick endpoint | `functions/api/proofs/mail-tick.js` (ops service token, or a founder) |
+| the clock | `.github/workflows/proofs-mail.yml` → `scripts/proofs/mail-tick.mjs`, every 15 minutes |
+| rules | `proofs_mail` server-only; `proofs_access` server-written; `users` indexed on `isAuthor` |
+
+**Opening.** "Open Proofs to writers" shows every account with the writer badge (`users/{uid}/isAuthor`),
+each with its number of scheduled stories, ticked. Confirming marks the unticked writers `excluded`,
+claims each ticked writer's opening and seeds their scheduled stories as told, opens the switch, and
+then sends. A writer already emailed is shown "Already emailed" and is never sent the opening again.
+
+**Afterwards** the tick compares what is scheduled now against the ledger, so a change made by any
+path is caught: a story first scheduled ("scheduled"), a go-live time that isn't the one the writer
+was last told ("changed"), and 48 hours before ("reminder", skipped if the writer was told that time
+inside the 48 hours). While Proofs is closed the tick does nothing.
+
+**Once.** Every ledger change is a create-only or compare-and-swap PUT made before the email. A failed
+send is recorded with its reason and not retried. The ledger:
+`proofs_mail/writers/{uid}/{opening | excluded | stories/{slug}}`, each story record carrying the
+go-live time last told, and a log (`e1`, `e2`, …) of every email and its outcome.
+
+**Edge cases.** No email address (or not verified, or the account disabled): nothing is claimed;
+once they have one, the next tick sends what is due (the opening email, if they never had it). A
+writer unticked at opening gets nothing until a founder presses "Email them". A writer badged after
+opening gets the opening email at their first scheduled story. A story unscheduled or hidden after
+its email: nothing is sent; if it comes back at a new time, "changed".
+
+**Samples.** "Send me a sample" mails all five emails, filled with invented stories, to the
+signed-in founder's own verified Auth address, and writes nothing.
+
 ## Tests
 
 | command | what |
 |---|---|
-| `npm run test:proofs` | the pure rules: what a proof is, who sees it, London time, report limits, the email |
+| `npm run test:proofs` | the pure rules: what a proof is, who sees it, London time, report limits, the email; and (mail.test.mjs) what is due, the writer-email words, the tick's log line |
+| (emulator) `tests/proofs/mail.emulator.mjs` | the writer emails end to end: the opening list and unticking, once only (toggle, rerun, concurrent ticks), the seeding, scheduled / changed / 48 hours, every edge case, the samples |
 | `npm run test:proofs:emulator` | the Functions against the RTDB emulator (port 9410), and the rules both ways round |
 | (same) `tests/proofs/cms.emulator.mjs` | **the CMS under the new rules**: every `/admin` write to `cms_stories` (save in each state, hide, unhide, delete, Extract Text, quizzes), cut from the source of origin/main AND this branch and run as a stand-in founder; the Worker's go-live PATCH and `retire.mjs` replayed under the rules; the forbidden shape still refused |
 | `npm run test:proofs:browser` | two real builds (live-page parity by hash) and a browser: list, proof, report, closed switch, alignment at 390 and 1280 |

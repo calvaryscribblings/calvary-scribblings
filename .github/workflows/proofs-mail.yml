@@ -1,0 +1,52 @@
+# PROOFS-R3 (ruling 291) — the writer emails: scheduled, date changed, 48 hours before.
+#
+# Every 15 minutes this POSTs /api/proofs/mail-tick with the ops service token. The Function compares
+# what is scheduled now against the ledger of what each writer was told (proofs_mail/writers), so a
+# schedule change made by ANY path is caught: the CMS, the scheduled-publish Worker, a script, a
+# restore. While Proofs is closed it does nothing. Each email is claimed by compare-and-swap before
+# it goes, so overlapping runs or a re-run can never send one twice.
+#
+# A 48-hour email lands within one tick of its moment, later if GitHub's scheduler is busy.
+# The log is public (W12): the script prints counts only, through log-guard.
+
+name: proofs mail
+
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proofs-mail
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    name: writer emails
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Write the service account
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is not set — the writer-email tick cannot sign its token."
+            exit 1
+          fi
+          printf '%s' "$KEY" > "${RUNNER_TEMP}/serviceAccountKey.json"
+      - name: Send what is due
+        env:
+          PROOFS_SERVICE_ACCOUNT: ${{ runner.temp }}/serviceAccountKey.json
+        shell: bash   # pipefail: the script's own exit status still fails the step (W12)
+        run: |
+          node scripts/proofs/mail-tick.mjs 2>&1 | node scripts/ops/log-guard.mjs

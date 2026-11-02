@@ -74,19 +74,31 @@ describe('story_proof_reports', () => {
 });
 
 describe('proofs_access (the switch)', () => {
-  test('a founder opens and closes it; the shape is exact', async () => {
-    await assertSucceeds(db(FA).ref('proofs_access').set({ open: true, changedAt: Date.now(), changedBy: FA }));
-    await assertSucceeds(db(FB).ref('proofs_access').set({ open: false, changedAt: Date.now(), changedBy: FB }));
+  // PROOFS-R3 (ruling 290): opening sends the opening emails, so the switch is written by the
+  // server only (/api/proofs/writers). A founder reads it; nobody writes it from a client.
+  test('a founder reads it but can no longer write it: Open goes through the server', async () => {
     await assertSucceeds(db(FA).ref('proofs_access').get());
-    await assertFails(db(FA).ref('proofs_access').set({ open: 'yes', changedAt: Date.now(), changedBy: FA }));
-    await assertFails(db(FA).ref('proofs_access').set({ open: true, changedAt: Date.now(), changedBy: FB }));
-    await assertFails(db(FA).ref('proofs_access').set({ open: true }));
-    await assertFails(db(FA).ref('proofs_access').set({ open: true, changedAt: Date.now(), changedBy: FA, note: 'x' }));
+    await assertFails(db(FA).ref('proofs_access').set({ open: true, changedAt: Date.now(), changedBy: FA }));
+    await assertFails(db(FB).ref('proofs_access').set({ open: false, changedAt: Date.now(), changedBy: FB }));
+    await assertFails(db(FA).ref('proofs_access/open').set(true));
   });
   test('nobody else reads or writes it', async () => {
     await assertFails(db(WRITER).ref('proofs_access').set({ open: true, changedAt: Date.now(), changedBy: WRITER }));
     await assertFails(db(WRITER).ref('proofs_access').get());
     await assertFails(db(null).ref('proofs_access').get());
+  });
+});
+
+describe('proofs_mail (the writer-email ledger, PROOFS-R3)', () => {
+  test('server-only: no client reads or writes it, founders included', async () => {
+    for (const who of [FA, FB, WRITER, null]) {
+      await assertFails(db(who).ref('proofs_mail').get());
+      await assertFails(db(who).ref(`proofs_mail/writers/${WRITER}`).get());
+      await assertFails(db(who).ref(`proofs_mail/writers/${WRITER}/opening`).set({ at: 1 }));
+    }
+  });
+  test('users is indexed on isAuthor (the opening list is one indexed query)', () => {
+    assert.ok(JSON.parse(RAW).rules.users['.indexOn'].includes('isAuthor'));
   });
 });
 
