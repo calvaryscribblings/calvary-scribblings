@@ -99,3 +99,26 @@ export const context = (req, env = ENV) => {
   const pending = [];
   return { ctx: { request: req, env, waitUntil: (p) => pending.push(p) }, settle: () => Promise.allSettled(pending) };
 };
+
+// ── R3.1: CLOUDFLARE'S LIMITS, ENFORCED ON EVERY OUTBOUND CALL ─────────────────────────────
+// A Pages Function may make 50 subrequests per request (the plan we build for), and holds at most
+// 6 connections open at once (more wait). Install after install(). Call `begin()` at the start of
+// each simulated request; the 51st fetch in it throws exactly as workerd does. `calls` records
+// each request's count, so a test can assert every one stayed within the limit.
+export function installLimits({ limit = 50, connections = 6, killAt = null } = {}) {
+  const inner = globalThis.fetch;
+  const stats = { used: 0, peak: 0, open: 0, calls: [], refused: 0, killAt };
+  const waiting = [];
+  stats.begin = () => { if (stats.used) stats.calls.push(stats.used); stats.used = 0; };
+  stats.end = () => { stats.calls.push(stats.used); stats.used = 0; };
+  globalThis.fetch = async (input, init = {}) => {
+    stats.used++;
+    if (stats.used > limit) { stats.refused++; throw new Error('Too many subrequests.'); }
+    if (typeof stats.killAt === 'function') { const k = stats.killAt(String(input instanceof Request ? input.url : input), stats.used); if (k) throw k; }
+    while (stats.open >= connections) await new Promise((r) => waiting.push(r));
+    stats.open++; stats.peak = Math.max(stats.peak, stats.open);
+    try { return await inner(input, init); } finally { stats.open--; waiting.shift()?.(); }
+  };
+  stats.uninstall = () => { globalThis.fetch = inner; };
+  return stats;
+}

@@ -57,7 +57,22 @@ async function tick(now = NOW) {
 }
 const to = (u) => sent.filter((m) => m.to?.[0] === addr(u));
 const OPEN_ALL_BUT_W5 = [W1, W2, W3, W4];
-const openNow = (include = OPEN_ALL_BUT_W5, now = NOW) => writers(STAND_IN_FOUNDER, { action: 'open', include }, { now });
+/** R3.1: what /admin/proofs does: Open (one atomic write), then Send until nothing is left. */
+async function sendAll(now = NOW) {
+  const total = { opening: 0, failed: 0, noAddress: 0, calls: 0 };
+  for (let i = 0; i < 30; i++) {
+    const r = await writers(STAND_IN_FOUNDER, { action: 'send' }, { now });
+    assert.equal(r.status, 200, r.error);
+    total.calls++; total.opening += r.opening; total.failed += r.failed; total.noAddress = r.noAddress;
+    if (!r.more) return total;
+  }
+  throw new Error('send never finished');
+}
+async function openNow(include = OPEN_ALL_BUT_W5, now = NOW) {
+  const o = await writers(STAND_IN_FOUNDER, { action: 'open', include }, { now });
+  assert.equal(o.status, 200, o.error);
+  return { ...o, ...(await sendAll(now)) };
+}
 const ledger = (u, slug) => get(`proofs_mail/writers/${u}${slug ? `/stories/${slug}` : ''}`);
 
 /** Console output during fn, for the "counts only" check. */
@@ -105,7 +120,7 @@ describe('the opening list, and unticking', () => {
   test('confirming opens Proofs and emails each ticked writer once; the unticked writer gets nothing', async () => {
     const r = await openNow();
     assert.equal(r.status, 200);
-    assert.deepEqual({ sent: r.sent, failed: r.failed, excluded: r.excluded, noAddress: r.noAddress }, { sent: 3, failed: 0, excluded: 1, noAddress: 1 });
+    assert.deepEqual({ queued: r.queued, sent: r.opening, failed: r.failed, excluded: r.excluded, noAddress: r.noAddress }, { queued: 4, sent: 3, failed: 0, excluded: 1, noAddress: 1 });
     assert.equal((await get('proofs_access')).open, true);
     assert.equal((await get('proofs_access')).changedBy, STAND_IN_FOUNDER);
     assert.equal(sent.length, 3);
@@ -131,11 +146,12 @@ describe('the opening list, and unticking', () => {
     assert.equal((await ledger(W1)).opening.sent, true);
     assert.ok((await ledger(W5)).excluded, 'unticked is recorded');
     assert.equal(await ledger(W4), null, 'no address: nothing claimed');
+    assert.ok(await get(`proofs_mail/queue/${W4}`), 'still queued, for when they have an address');
   });
 
   test('the founder can untick everyone: Proofs opens and nobody is emailed', async () => {
     const r = await openNow([]);
-    assert.equal(r.sent, 0);
+    assert.equal(r.opening, 0);
     assert.equal(sent.length, 0);
     assert.equal((await get('proofs_access')).open, true);
   });
@@ -305,7 +321,8 @@ describe('the edge cases', () => {
     assert.equal(t.excluded, 1);
     assert.equal(to(W5).length, 0);
     const r = await writers(STAND_IN_FOUNDER, { action: 'include', uid: W5 });
-    assert.equal(r.result, 'sent');
+    assert.equal(r.result, 'queued');
+    assert.equal((await sendAll()).opening, 1);
     assert.equal(to(W5).length, 1);
     assert.ok(to(W5)[0].text.includes(proofUrl('pm-five-b')), 'the opening lists their stories');
     assert.equal((await ledger(W5)).excluded, undefined);
@@ -331,11 +348,12 @@ describe('the edge cases', () => {
     const t = await tick();
     assert.equal(t.open, false);
     assert.equal(sent.length, 0);
-    await openNow([]);
-    assert.equal(sent.length, 0, 'reopening sends no opening email again');
-    assert.equal((await tick()).scheduled, 1);
+    const r = await openNow([]);
+    assert.equal(r.opening, 0, 'reopening sends no opening email again');
+    assert.equal(to(W1).length, 1, 'the page’s send loop sends what is due on reopening (R3.1)');
+    assert.match(to(W1)[0].subject, /is scheduled$/);
     await tick();
-    assert.equal(to(W1).length, 1);
+    assert.equal(to(W1).length, 1, 'and the tick sends it no second time');
   });
 
   test('a retired story is never mailed about', async () => {
