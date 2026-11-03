@@ -72,7 +72,11 @@ test('a story that is not live has no page, no link and no metadata in the expor
   assert.ok(bres.ok, `bookstore_titles read failed: HTTP ${bres.status}`);
   const books = new Set(Object.values((await bres.json()) || {}).filter((b) => b?.status === 'published' && b.slug).map((b) => b.slug));
 
-  const files = walk(OUT).filter((f) => /\.(html|txt|xml|rsc|json)$/.test(f) && !relative(OUT, f).startsWith('dict/'));
+  // out/_routes.json is skipped, and only it. It is Cloudflare's routing config, not a page: Pages
+  // reads it at deploy time and never serves it (production answers 404 for /_routes.json, as for
+  // /_headers and /_redirects). Its EDGE-2 guard rules name removed and not-yet-live story
+  // addresses on purpose, so the guard can 404 their preserved copies (app/lib/edgeGuard.mjs).
+  const files = walk(OUT).filter((f) => /\.(html|txt|xml|rsc|json)$/.test(f) && !relative(OUT, f).startsWith('dict/') && relative(OUT, f) !== '_routes.json');
   const texts = files.map((f) => [relative(OUT, f), readFileSync(f, 'utf8')]);
   const html = texts.filter(([f]) => f.endsWith('.html'));
 
