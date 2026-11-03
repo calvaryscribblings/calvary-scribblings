@@ -106,10 +106,36 @@ describe('(c) · GitHub Actions runtimes', () => {
 
   test('the asymmetry is written down where someone will change it', () => {
     // upload-artifact@v6 next to checkout@v5 looks like a mistake unless the reason is beside
-    // it. If the note goes, the next person "tidies" them to the same number.
+    // it. If the note goes, the next person "tidies" them to the same number. (LIMITS-1 removed
+    // the only upload step; the note stays because the floor in FLOORS still rests on it.)
     const reader = readFileSync(join(WORKFLOW_DIR, 'reader-tests.yml'), 'utf8');
     assert.match(reader, /node20/, 'reader-tests.yml must record why these majors differ');
     assert.match(reader, /upload-artifact@v5\s+runs:\s+node20/,
       'the note must state the specific fact that forces upload-artifact one major higher');
+  });
+});
+
+// LIMITS-1 — THE REPO IS PUBLIC, SO NO RUN UPLOADS AN ARTIFACT.
+//
+// reader-tests.yml uploaded playwright-report/ and test-results/ on failure. Playwright 1.62
+// writes test-results/**/error-context.md on every failed test: the error with its received
+// values, and an accessibility snapshot of the failing page, built from live data. Anyone signed
+// in to GitHub can download a public repo's artifacts. Failures are reproduced locally instead.
+/** True when a workflow's uncommented text uses an artifact-upload action. */
+function uploadsArtifact(src) {
+  const live = src.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
+  return /uses:\s*[\w-]+\/[\w-]*upload[\w-]*artifact/i.test(live);
+}
+
+describe('LIMITS-1 · no workflow uploads an artifact', () => {
+  test('no upload-artifact step, in any workflow', () => {
+    const found = workflows().filter(({ src }) => uploadsArtifact(src)).map(({ file }) => file);
+    assert.deepEqual(found, [], `artifact uploads in a public repo: ${found.join(', ')}`);
+  });
+
+  test('the check can see an upload, and ignores a comment (mutation)', () => {
+    assert.equal(uploadsArtifact('      - uses: actions/upload-artifact@v6\n        with:\n'), true);
+    assert.equal(uploadsArtifact('      - uses: actions/upload-pages-artifact@v4\n'), true);
+    assert.equal(uploadsArtifact('      #   actions/upload-artifact@v5  runs: node20\n'), false);
   });
 });

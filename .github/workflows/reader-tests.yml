@@ -202,8 +202,8 @@ jobs:
       #                                                  support but still DEFAULTS to node20.
       #                                                  v6 is the one that actually moves.
       #
-      # So upload-artifact is on @v6 and everything else on @v5, and that asymmetry is
-      # deliberate. Check `runs.using` in each action's action.yml before changing any of them;
+      # So upload-artifact was on @v6 and everything else on @v5, and that asymmetry was
+      # deliberate. (LIMITS-1 removed the only upload step; see the end of this job.) Check `runs.using` in each action's action.yml before changing any of them;
       # the release notes are not a reliable proxy for it.
       - uses: actions/checkout@v5
 
@@ -625,13 +625,10 @@ jobs:
         run: npm run test:unreleased
         if: ${{ !cancelled() }}
 
-      - name: Upload traces and reports
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: reader-test-results
-          path: |
-            playwright-report/
-            test-results/
-          retention-days: 7
-          if-no-files-found: ignore
+      # LIMITS-1 — NO ARTIFACTS. This repo is public, and anything uploaded from a run can be
+      # downloaded by anyone signed in to GitHub. No config here records a trace, a video or an
+      # HTML report, but Playwright 1.62 still writes test-results/**/error-context.md on every
+      # failure: the error, with its received values, and an accessibility snapshot of the failing
+      # page. Those pages are built from live data and show readers' public names. A failure is
+      # reproduced locally instead (the step's command, the same build). tests/ci/workflows.test.mjs
+      # fails if any workflow uploads an artifact again.

@@ -425,6 +425,47 @@ function buildIndexRecordMirror(slug, story) {
   return rec;
 }
 
+// LIMITS-1 — THE COMPLETE RECORD AT GO-LIVE. buildIndexRecordMirror() above has no `opening`:
+// carrying it would mean transcribing parseBlocks + walkToProse, the predicate the drop cap uses,
+// and two copies of one predicate is how they stop agreeing (R49). So a scheduled story went live
+// without its opening line, and search showed it bare until the quarter-hourly reconciler filled it
+// in. Now the flip asks the site's own builder first: POST /api/story-index/build runs the REAL
+// app/lib/storyIndex.js buildIndexRecord on the record we send and returns the result, which goes
+// into the same atomic PATCH as before. The endpoint is pure (it reads and writes nothing).
+//
+// Any failure (an error, a timeout, an answer that is not a plausible record) falls back to the
+// mirror's record, exactly as before LIMITS-1, and the reconciler completes it within the quarter
+// hour. The builder is asked for at most INDEX_BUILDER_PER_TICK stories a tick, so a backlog of due
+// stories adds at most that many subrequests to this invocation; the rest fall back.
+const INDEX_BUILDER_URL = "https://calvaryscribblings.co.uk/api/story-index/build";
+const INDEX_BUILDER_PER_TICK = 8;
+const INDEX_BUILDER_TIMEOUT_MS = 8000;
+function plausibleIndexRecord(rec) {
+  return !!rec && typeof rec === "object" && !Array.isArray(rec)
+    && typeof rec.title === "string" && typeof rec.opening === "string"
+    && rec.published === true && typeof rec.url === "string" && rec.url.startsWith("/");
+}
+async function indexRecordFor(env, slug, projected, allowance) {
+  const mirror = buildIndexRecordMirror(slug, projected);
+  if (allowance.left <= 0) return mirror;
+  allowance.left -= 1;
+  try {
+    const res = await fetch(env.INDEX_BUILDER_URL || INDEX_BUILDER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug, story: projected }),
+      signal: AbortSignal.timeout(INDEX_BUILDER_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const { record } = await res.json();
+    if (!plausibleIndexRecord(record)) throw new Error("implausible record");
+    return record;
+  } catch (err) {
+    console.error(`Index builder did not answer (${err?.name === "TimeoutError" ? "timeout" : err?.message || "error"}); the mirror's record is written and the reconciler completes it.`);
+    return mirror;
+  }
+}
+
 // One cron tick, TWO independent jobs. They used to share a single try and a
 // single early `return`: an empty cms_stories read — or a throwing one, since a
 // Firebase 5xx answers with HTML and res.json() throws — skipped every due
@@ -564,6 +605,7 @@ async function publishDueStories(env, now) {
   if (!res.ok) throw new Error(`cms_stories read failed: HTTP ${res.status}`);
   const stories = await res.json();
   let published = false;
+  const builder = { left: INDEX_BUILDER_PER_TICK };
   if (stories && typeof stories === "object") {
     for (const [slug, story] of Object.entries(stories)) {
       const decision = publishDecision(story, now);
@@ -587,7 +629,8 @@ async function publishDueStories(env, now) {
         // the story object read here is still pre-flip, so project { ...story, ...body,
         // published: true } to get published:true, the opening and the read time into the
         // index record.
-        const indexRecord = buildIndexRecordMirror(slug, { ...story, ...body, published: true });
+        // LIMITS-1: the real builder's record (opening included), or the mirror's if it can't answer.
+        const indexRecord = await indexRecordFor(env, slug, { ...story, ...body, published: true }, builder);
         const flip = await fetch(`${env.FIREBASE_DATABASE_URL}/.json?auth=${env.FIREBASE_SECRET}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },

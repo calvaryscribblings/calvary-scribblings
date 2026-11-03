@@ -5,6 +5,7 @@ import { useAuth } from '../../lib/AuthContext';
 import { useReliableLoad } from '../../lib/useReliable';
 import { readWithDeadline } from '../../lib/reliableRead';
 import AdminLoad from '../../components/AdminLoad';
+import { runBulkReset } from '../../lib/quizResetLoop';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 const ADMIN_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
@@ -222,26 +223,35 @@ export default function QuizResetsPage() {
     setExecutingReset(null);
   }
 
+  // LIMITS-1: the server resets one batch per call (each batch one atomic write, within
+  // Cloudflare's 50 subrequests); runBulkReset calls again until nothing is left, as /admin/proofs
+  // does. See app/lib/quizResetLoop.js.
   async function executeBulkReset() {
     if (!selectedSlug || !user || bulkConfirmSlug !== selectedSlug) return;
     setBulkResetting(true); setResetMsg(''); setResetError('');
-    try {
+    const call = async (body) => {
       const idToken = await user.getIdToken();
       const res = await fetch('/api/admin/reset-attempt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ slug: selectedSlug, action: 'bulk', reason: bulkReason || null }),
+        body: JSON.stringify(body),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Bulk reset failed');
-      const n = data.resetCount ?? 0;
+      return { ok: res.ok, status: res.status, data: await res.json().catch(() => ({})) };
+    };
+    const r = await runBulkReset(call, {
+      slug: selectedSlug, reason: bulkReason,
+      onProgress: (n) => setResetMsg(`Resetting… ${n} cleared so far.`),
+    });
+    if (r.ok) {
       setResetMsg(
-        n === 0
+        r.count === 0
           ? 'No submissions found to reset.'
-          : `Bulk reset complete — ${n} submission${n !== 1 ? 's' : ''} cleared for "${selectedSlug}".`
+          : `Bulk reset complete — ${r.count} submission${r.count !== 1 ? 's' : ''} cleared for "${selectedSlug}".`
       );
       setBulkConfirmSlug(''); setBulkReason(''); setSubmissions(null);
-    } catch (e) { setResetError(e.message); }
+    } else {
+      setResetError(`${r.error}${r.count ? ` (${r.count} cleared before it stopped. Press Reset again to finish.)` : ''}`);
+    }
     setBulkResetting(false);
   }
 

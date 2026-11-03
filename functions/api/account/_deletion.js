@@ -44,6 +44,7 @@
 import { STRIPE_VERSION } from '../_stripe.js';
 import { json, dbBase, lookupUser, mintAccessToken, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS, STORAGE_BUCKET } from '../bookstore/_lib.js';
 import { assertId } from '../../../app/lib/ids.js';
+import { Budget } from '../_budget.js';
 
 export const DELETION_PATH = (uid) => `deletions/${uid}`;
 
@@ -193,7 +194,7 @@ export function handlesOf(user) {
 // The sequence. `io` is every outside call:
 //   io.get(path) → value|null          io.patch(rootUpdate)
 //   io.stripeCancel(subId)             io.paystackDisable(code)
-//   io.storageList(prefix) → [names]   io.storageDelete(name)
+//   io.storageList(prefix, { beforePage, onPage }) → [names]   io.storageDelete(name)
 //   io.authDelete(uid)                 io.now() → ms
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
@@ -205,13 +206,45 @@ export class StepError extends Error {
   }
 }
 
-export async function runDeletion(uid, email, io, log = console) {
+// ── LIMITS-1: PACED WITHIN CLOUDFLARE'S 50 SUBREQUESTS ─────────────────────────────────────
+// What a deletion costs grows with the reader: one subrequest per Storage object they hold, and
+// one or two per subscription to cancel. At 50 per request a reader with more than about fifteen
+// Storage objects ran the request out mid-step: the Function died, the reader saw a failure, and
+// only calling again (which resumes) got any further. Now every outside call is charged to a
+// Budget (realIo does it), and a step starts only when what it needs still fits. When it doesn't,
+// the run stops cleanly with MoreToDo and the endpoint answers 202 { more: true }; the page calls
+// again, and each call is a new request with a new 50. Nothing about WHAT is deleted changes.
+//
+// The costs, counted from realIo (each includes the step's own `mark` write):
+//   membership  6 to start: the billing record, the Stripe search, the Paystack customer and its
+//               transactions, the outcome write and the mark. Then 2 more per cancellation, checked
+//               before each one (a cancel is idempotent at both providers, so a pause mid-step is
+//               safe: the next call finds what is left).
+//   owned      14: the profile, five reads, up to six handle reads, the one update, the mark.
+//   storage     1 per list page and 1 per object, each checked with the mark's 1 kept back. Deletes
+//               are idempotent (404 is done), so a paused step resumes by listing again.
+//   auth        2: the delete and the mark.
+export const STEP_COST = { membership: 6, owned: 14, auth: 2 };
+export const CANCEL_COST = 2;
+
+/** Thrown when the next piece of work would not fit the budget. Not a failure: call again. */
+export class MoreToDo extends Error {
+  constructor(step) { super(`more to do at ${step}`); this.name = 'MoreToDo'; this.step = step; }
+}
+
+/**
+ * @param opts.budget  a Budget the io charges (realIo(env, token, budget)); the default never runs out
+ * @param opts.record  the deletions/{uid} record, if the caller has already read it (undefined: read it)
+ * @returns {{uid, steps}}  every step done. Throws MoreToDo (call again) or StepError (a step failed).
+ */
+export async function runDeletion(uid, email, io, log = console, { budget = new Budget(Infinity), record: known } = {}) {
   assertId('uid', uid);
   const now = io.now();
   const path = DELETION_PATH(uid);
+  const need = (n, step) => { if (!budget.fits(n)) throw new MoreToDo(step); };
   let record;
   try {
-    record = await io.get(path);
+    record = known === undefined ? await io.get(path) : known;
     if (!record) {
       record = { uid, requestedAt: now, updatedAt: now, steps: {} };
       await io.patch({ [path]: record });
@@ -233,6 +266,7 @@ export async function runDeletion(uid, email, io, log = console) {
       // and appears nowhere in memberships/. So the providers are asked too, by the uid we put
       // on every subscription (Stripe metadata; Paystack's `ms.<uid>.` reference), and every
       // live one is cancelled. Cancelling is idempotent at both providers.
+      need(STEP_COST.membership, 'membership');
       const detail = await io.get(`memberships/${uid}`);
       const targets = new Map();
       const action = membershipAction(detail);
@@ -240,6 +274,7 @@ export async function runDeletion(uid, email, io, log = console) {
       for (const id of await io.stripeFindSubscriptions(uid)) targets.set(id, { rail: 'stripe', id });
       for (const code of await io.paystackFindSubscriptions(uid, email)) targets.set(code, { rail: 'paystack', code });
       for (const t of targets.values()) {
+        need(CANCEL_COST + 2, 'membership');   // this cancel, then the outcome write and the mark
         if (t.rail === 'stripe') await io.stripeCancel(t.id);
         else await io.paystackDisable(t.code);
         log.log(`[account/delete] cancelled ${t.rail} subscription ${t.id || t.code} for ${uid} — NO refund (ruling, 24 Sep 2026)`);
@@ -261,6 +296,7 @@ export async function runDeletion(uid, email, io, log = console) {
       }
     },
     async owned() {
+      need(STEP_COST.owned, 'owned');
       const user = await io.get(`users/${uid}`);
       const [following, followers, subscribers, waitlist, instalments] = await Promise.all([
         io.get(`following/${uid}`), io.get(`followers/${uid}`),
@@ -272,17 +308,29 @@ export async function runDeletion(uid, email, io, log = console) {
       await io.patch(planOwned(uid, { user, following, followers, handles, subscribers, waitlist, instalments }, email));
     },
     async storage() {
+      // LIMITS-1: deleted page by page AS it is listed, so a call that pauses has made progress
+      // and the next call's listing starts with what is left. (Listing everything first would let
+      // a reader with thousands of objects spend every call's budget on the listing alone.)
       for (const prefix of STORAGE_PREFIXES(uid)) {
-        const names = await io.storageList(prefix);
         // avatars/{uid} is an exact object name; a prefix list also returns avatars/{uid}xyz
         // for a different uid that happens to extend this one. Keep only exact or folder matches.
-        for (const name of names.filter((n) => n === prefix || prefix.endsWith('/') || n.startsWith(`${prefix}/`))) {
-          await io.storageDelete(name);
-        }
+        const mine = (n) => n === prefix || prefix.endsWith('/') || n.startsWith(`${prefix}/`);
+        const handled = new Set();
+        const remove = async (names) => {
+          for (const name of names.filter(mine)) {
+            if (handled.has(name)) continue;
+            handled.add(name);
+            need(2, 'storage');                   // this delete, with the mark kept back
+            await io.storageDelete(name);
+          }
+        };
+        need(2, 'storage');                       // the first list page, with the mark kept back
+        const names = await io.storageList(prefix, { beforePage: () => need(2, 'storage'), onPage: remove });
+        await remove(names);                      // anything an io without onPage returned
       }
     },
     // 3. LAST: after this the reader cannot authenticate, so nothing after it may need them.
-    async auth() { await io.authDelete(uid); },
+    async auth() { need(STEP_COST.auth, 'auth'); await io.authDelete(uid); },
   };
 
   for (const step of STEPS) {
@@ -291,6 +339,7 @@ export async function runDeletion(uid, email, io, log = console) {
       await steps[step]();
       await mark(step);
     } catch (e) {
+      if (e instanceof MoreToDo) throw e;
       throw new StepError(step, e);
     }
   }
@@ -315,7 +364,9 @@ async function ok(res, what) {
   throw new Error(`${what} → ${res.status} ${(await res.text().catch(() => '')).slice(0, 300)}`);
 }
 
-export function realIo(env, token) {
+export function realIo(env, token, budget = new Budget(Infinity)) {
+  // LIMITS-1: every outside call below is charged to the budget before it is made.
+  const fetch = (url, init) => budget.fetch(url, init);
   const db = dbBase(env);
   const auth = { Authorization: `Bearer ${token}` };
   const bucket = env.STORAGE_BUCKET || STORAGE_BUCKET;
@@ -398,14 +449,19 @@ export function realIo(env, token) {
       }
       await ok(res, `Paystack disable ${code}`);
     },
-    async storageList(prefix) {
+    // LIMITS-1: `beforePage` runs before every page after the first, so a long listing can stop
+    // for the budget; `onPage` is handed each page as it arrives (the deletion removes it there).
+    async storageList(prefix, { beforePage = () => {}, onPage = async () => {} } = {}) {
       const names = [];
       let pageToken = '';
       do {
+        if (pageToken) beforePage();
         const url = `https://storage.googleapis.com/storage/v1/b/${bucket}/o?prefix=${encodeURIComponent(prefix)}&fields=items(name),nextPageToken${pageToken ? `&pageToken=${pageToken}` : ''}`;
         const res = await ok(await fetch(url, { headers: auth, signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS) }), `list ${prefix}`);
         const body = await res.json();
-        for (const it of body.items || []) names.push(it.name);
+        const page = (body.items || []).map((it) => it.name);
+        names.push(...page);
+        await onPage(page);
         pageToken = body.nextPageToken || '';
       } while (pageToken);
       return names;

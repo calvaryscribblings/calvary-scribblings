@@ -6,12 +6,13 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  runDeleteFlow, conditionalLines, hasPaidMembership, CONDITIONAL_LINES, COPY, DELETE_ENDPOINT,
+  runDeleteFlow, DELETE_RETRIES, DELETE_MAX_CALLS, conditionalLines, hasPaidMembership, CONDITIONAL_LINES, COPY, DELETE_ENDPOINT,
 } from '../../app/lib/accountDeletion.js';
 import { describeMembership } from '../../app/lib/membership.js';
 
 const OK = { status: 200, body: { deleted: true, uid: 'u1', scrub: 'queued' } };
 const STALE = { status: 401, body: { error: 'Sign in again.', code: 'requires_recent_login', maxAgeSeconds: 300 } };
+const MORE = { status: 202, body: { deleted: false, more: true, step: 'storage', code: 'more' } };
 const BOOM = { status: 500, body: { error: 'Account deletion is unavailable right now.', code: 'delete_failed', step: 'auth' } };
 
 /** A scripted browser: each call() answers with the next response; every call is logged. */
@@ -23,6 +24,7 @@ function harness(responses, { reauth = 'ok' } = {}) {
     call: async () => { log.push('call'); const r = responses.shift(); if (r instanceof Error) throw r; return r; },
     reauthenticate: async () => { log.push('reauth'); if (reauth !== 'ok') throw new Error(reauth); },
     signOut: async () => { log.push('signOut'); signedIn = false; },
+    wait: async (ms) => { log.push(`wait ${ms}`); },
   };
   return { deps, log, signedIn: () => signedIn };
 }
@@ -60,19 +62,67 @@ describe('runDeleteFlow', () => {
     assert.equal(h.signedIn(), true);
   });
 
-  test('an endpoint error → message shown, still signed in', async () => {
-    const h = harness([BOOM]);
+  test('an endpoint error that persists → tried again, then the message, still signed in', async () => {
+    const h = harness(Array(1 + DELETE_RETRIES).fill(BOOM));
     const r = await runDeleteFlow(h.deps);
     assert.deepEqual(r, { ok: false, stage: 'endpoint', message: COPY.failed });
+    assert.equal(h.log.filter((x) => x === 'call').length, 1 + DELETE_RETRIES);
     assert.ok(!h.log.includes('signOut'));
     assert.equal(h.signedIn(), true);
   });
 
-  test('a network failure → message shown, still signed in', async () => {
-    const h = harness([new TypeError('Failed to fetch')]);
+  test('a network failure that persists → message shown, still signed in', async () => {
+    const h = harness(Array(1 + DELETE_RETRIES).fill(new TypeError('Failed to fetch')));
     const r = await runDeleteFlow(h.deps);
     assert.equal(r.ok, false);
     assert.equal(h.signedIn(), true);
+  });
+
+  // LIMITS-1 — paced: the server answers 202 { more: true } while there is more to do.
+  test('202 more → called again until the 200 → signed out', async () => {
+    const h = harness([MORE, MORE, MORE, OK]);
+    const r = await runDeleteFlow(h.deps);
+    assert.deepEqual(r, { ok: true });
+    assert.deepEqual(h.log, ['token', 'call', 'token', 'call', 'token', 'call', 'token', 'call', 'signOut']);
+  });
+
+  test('a failure between batches is tried again and the reader never sees it', async () => {
+    const h = harness([MORE, BOOM, new TypeError('Failed to fetch'), MORE, BOOM, OK]);
+    const r = await runDeleteFlow(h.deps);
+    assert.deepEqual(r, { ok: true });
+    assert.equal(h.signedIn(), false);
+    assert.deepEqual(h.log.filter((x) => x.startsWith('wait')), ['wait 1000', 'wait 2000', 'wait 1000'], 'the misses reset after progress');
+  });
+
+  test('requires_recent_login in the middle of a paced run → one sign-in, then it carries on', async () => {
+    const h = harness([MORE, STALE, MORE, OK]);
+    const r = await runDeleteFlow(h.deps);
+    assert.deepEqual(r, { ok: true });
+    assert.deepEqual(h.log, ['token', 'call', 'token', 'call', 'reauth', 'token:forced', 'call', 'token', 'call', 'signOut']);
+  });
+
+  test('a 202 that is not { more: true, deleted: false } is not progress, and never success', async () => {
+    const h = harness([{ status: 202, body: { deleted: true } }]);
+    assert.equal((await runDeleteFlow(h.deps)).ok, false);
+    assert.equal(h.signedIn(), true);
+  });
+
+  test('a run that never finishes stops at the cap, still signed in', async () => {
+    const h = harness(Array(DELETE_MAX_CALLS + 5).fill(MORE));
+    const r = await runDeleteFlow(h.deps);
+    assert.equal(r.ok, false);
+    assert.equal(h.log.filter((x) => x === 'call').length, DELETE_MAX_CALLS);
+    assert.equal(h.signedIn(), true);
+  });
+
+  test('the limiter is never retried: its sentence is the answer', async () => {
+    for (const res of [{ status: 429, body: { error: 'Too many attempts. Try again in an hour.', code: 'rate_limited' } },
+      { status: 503, body: { error: 'We could not check just now.', code: 'limiter_unavailable' } }]) {
+      const h = harness([res]);
+      const r = await runDeleteFlow(h.deps);
+      assert.equal(h.log.filter((x) => x === 'call').length, 1);
+      assert.match(r.message, /You’re still signed in\.$/);
+    }
   });
 
   test('a 200 that does not say deleted:true is NOT success', async () => {

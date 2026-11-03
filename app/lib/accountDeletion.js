@@ -72,35 +72,70 @@ export const hasPaidMembership = (membership) => !!membership && (
   || membership.status === 'active' || membership.status === 'past_due'
 );
 
+// LIMITS-1 — PACED. The server works inside Cloudflare's 50 subrequests a request. When a reader
+// holds more than one request's worth (many Storage objects, several subscriptions) it answers
+// 202 { more: true } and this flow calls again, until the 200. A call that fails is tried again
+// a few times before the reader hears about it: every step is recorded as it finishes, so a call
+// always resumes where the last one stopped and nothing is done twice.
+export const DELETE_MAX_CALLS = 60;   // a call clears ~38 objects at worst: 60 calls is ~2,000
+export const DELETE_RETRIES = 3;      // in a row, with no progress between them
+const RETRY_MS = 1000;
+
 /**
- * The flow. Confirm → call → (sign in again → call ONCE more) → sign out.
+ * The flow. Confirm → call (again while the server says there is more) → (sign in again → carry
+ * on, ONCE) → sign out.
  *
  * @param deps.getIdToken(force)  → string          the current user's ID token
  * @param deps.call(token)        → {status, body}  POST to the endpoint
  * @param deps.reauthenticate()   → Promise         resolves when the reader has signed in again;
  *                                                   rejects if they could not, or cancelled
  * @param deps.signOut()          → Promise
+ * @param deps.wait(ms)           → Promise         optional; the pause before a retry
  * @returns {Promise<{ok:true} | {ok:false, stage:'reauth'|'endpoint', message}>}
  *
  * The one rule: a failed deletion never looks like success. signOut runs on a 200 with
  * deleted:true and on nothing else.
  */
 export async function runDeleteFlow(deps) {
-  let res = await attempt(deps, false);
-  if (needsRecentLogin(res)) {
-    try {
-      await deps.reauthenticate();
-    } catch {
-      return { ok: false, stage: 'reauth', message: COPY.reauthFailed };
+  const wait = deps.wait || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  let reauthed = false;
+  let force = false;
+  let misses = 0;
+  let res = { status: 0, body: null };
+  for (let i = 0; i < DELETE_MAX_CALLS; i++) {
+    res = await attempt(deps, force);
+    force = false;
+    if (needsRecentLogin(res)) {
+      if (reauthed) break;
+      try {
+        await deps.reauthenticate();
+      } catch {
+        return { ok: false, stage: 'reauth', message: COPY.reauthFailed };
+      }
+      reauthed = true;
+      force = true;
+      continue;
     }
-    res = await attempt(deps, true);
-  }
-  if (res.status === 200 && res.body?.deleted === true) {
-    await deps.signOut();
-    return { ok: true };
+    if (res.status === 200 && res.body?.deleted === true) {
+      await deps.signOut();
+      return { ok: true };
+    }
+    if (isMore(res)) { misses = 0; continue; }
+    if (isTransient(res) && misses < DELETE_RETRIES) {
+      misses += 1;
+      await wait(RETRY_MS * misses);
+      continue;
+    }
+    break;
   }
   return { ok: false, stage: 'endpoint', message: messageFor(res) };
 }
+
+const isMore = (res) => res.status === 202 && res.body?.more === true && res.body?.deleted === false;
+// No answer, or a server failure the next call resumes from. Never a refusal: not a 4xx (the
+// limiter's 429 says when to come back; a 401/403 will not change by asking again), and not the
+// limiter's 503 'limiter_unavailable', which carries its own sentence for the reader.
+const isTransient = (res) => res.status === 0 || (res.status >= 500 && res.body?.code !== 'limiter_unavailable');
 
 async function attempt(deps, force) {
   try {

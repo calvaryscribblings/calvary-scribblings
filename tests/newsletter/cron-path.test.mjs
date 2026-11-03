@@ -23,6 +23,9 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { onRequestPost as buildIndexEndpoint } from '../../functions/api/story-index/build.js';
+import { buildIndexRecord } from '../../app/lib/storyIndex.js';
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const WORKER = resolve(ROOT, 'workers-external/calvary-newsletter.worker.js');
 
@@ -144,13 +147,22 @@ function makeDb() {
 
 // Intercepts every fetch the Worker makes, serves the fixture DB, and records
 // the calls. Resend and the Cloudflare deploy hook are answered, never called.
-function stubFetch(db, { resendOk = true } = {}) {
+// LIMITS-1: the site's index builder (POST /api/story-index/build) is answered by the REAL Pages
+// Function, unless `builder` says otherwise: 'down' (500), 'odd' (an implausible 200), 'throw'.
+function stubFetch(db, { resendOk = true, builder = 'real' } = {}) {
   const calls = [];
   const fetchStub = async (url, init = {}) => {
     const u = String(url);
     const method = (init.method || 'GET').toUpperCase();
     const body = init.body ? JSON.parse(init.body) : null;
     calls.push({ url: u, method, body });
+
+    if (u === 'https://calvaryscribblings.co.uk/api/story-index/build') {
+      if (builder === 'down') return new Response('{"code":"x"}', { status: 500 });
+      if (builder === 'odd') return new Response('{"record":{"title":"x"}}', { status: 200 });
+      if (builder === 'throw') throw new TypeError('network');
+      return buildIndexEndpoint({ request: new Request(u, { method, headers: init.headers, body: init.body }) });
+    }
 
     if (u.startsWith('https://api.resend.com/')) {
       return new Response(JSON.stringify({ data: [] }), { status: resendOk ? 200 : 422 });
@@ -346,6 +358,51 @@ test('a due story flips published and its index record in ONE atomic patch', asy
   assert.equal(rec.authorHandle, 'awriter');
   assert.equal(rec.url, '/stories/due-story');
   assert.equal(rec.readTime, 1);
+});
+
+// ── LIMITS-1: the complete record at go-live ─────────────────────────────────
+
+const flipOf = (calls, slug) => calls.find((c) => c.method === 'PATCH' && c.body[`cms_stories/${slug}/published`] !== undefined);
+
+test('LIMITS-1: the flip carries the REAL builder\'s record, opening line included, in the same patch', async () => {
+  const db = makeDb();
+  const calls = await runCron(db);
+  const due = flipOf(calls, 'due-story');
+  const rec = due.body['cms_stories_index/due-story'];
+  const story = db.cms_stories['due-story'];
+  assert.equal(rec.opening, 'one two three four five');
+  assert.deepEqual(rec, buildIndexRecord('due-story', { ...story, published: true }), 'the record is exactly what the app\'s builder makes');
+  assert.ok(calls.some((c) => c.url.endsWith('/api/story-index/build')), 'the builder was asked');
+  const asked = calls.findIndex((c) => c.url.endsWith('/api/story-index/build'));
+  assert.ok(asked < calls.indexOf(due), 'asked BEFORE the flip, so the flip can carry it');
+});
+
+for (const mode of ['down', 'odd', 'throw']) {
+  test(`LIMITS-1: builder ${mode} → the story still goes live, with the mirror's record (the reconciler completes it)`, async () => {
+    const realErr = console.error; console.error = () => {};
+    try {
+      const calls = await runCron(makeDb(), { builder: mode });
+      const due = flipOf(calls, 'due-story');
+      assert.ok(due, 'the story did not go live');
+      const rec = due.body['cms_stories_index/due-story'];
+      assert.equal(rec.title, 'The Due One');
+      assert.equal(rec.published, true);
+      assert.equal(rec.opening, undefined, 'the mirror has no opening; the reconciler adds it');
+    } finally { console.error = realErr; }
+  });
+}
+
+test('LIMITS-1: at most 8 stories a tick ask the builder; the rest go live on the mirror\'s record', async () => {
+  const db = makeDb();
+  for (let i = 0; i < 11; i++) {
+    db.cms_stories[`batch-${i}`] = { title: `Batch ${i}`, published: false, publishAt: PAST, cover: 'https://cdn.test/covers-typographic/b.webp', content: `<p>Batch ${i} opens here.</p>` };
+  }
+  const calls = await runCron(db);
+  const flips = calls.filter((c) => c.method === 'PATCH' && Object.keys(c.body).some((k) => k.startsWith('cms_stories_index/')));
+  assert.equal(flips.length, 13, 'every due story went live');
+  assert.equal(calls.filter((c) => c.url.endsWith('/api/story-index/build')).length, 8);
+  const withOpening = flips.filter((c) => Object.entries(c.body).some(([k, v]) => k.startsWith('cms_stories_index/') && typeof v.opening === 'string'));
+  assert.equal(withOpening.length, 8);
 });
 
 test('a story whose publishAt is still ahead does not flip', async () => {

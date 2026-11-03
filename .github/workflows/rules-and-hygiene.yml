@@ -78,6 +78,7 @@ on:
       - 'tests/reconcile/**'
       # W49 — the read counters, the seeder and the read credit (test:reads, test:reads:emulator).
       - 'tests/reads/**'
+      - 'tests/limits/**'
       - 'workers-external/**'
       # W5 — the safety browser suite (test:safety, in the rules job).
       - 'tests/safety/**'
@@ -162,6 +163,13 @@ jobs:
       # (wait for sign-in, never "null") and the shared read credit are pure node.
       - name: Reads — the counters, the seeder, the credit
         run: npm run test:reads && npm run test:reads:emulator
+
+      # LIMITS-1 — CLOUDFLARE'S 50 SUBREQUESTS. The bulk quiz reset and account deletion, run for
+      # real against the database emulator with every outbound call counted (50 a request, 6
+      # connections), at today's size and ten times it, each loop interrupted and resumed. The
+      # index builder the scheduled publish asks is in test:ci and test:newsletter.
+      - name: LIMITS-1 — bulk reset and deletion within 50 subrequests
+        run: npm run test:limits:emulator
 
       # R33.2 — the horizon's decision, asserted without a database. Hermetic and
       # fast, and it sits beside the rules suite because both answer the same
