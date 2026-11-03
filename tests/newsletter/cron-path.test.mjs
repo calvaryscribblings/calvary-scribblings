@@ -16,7 +16,7 @@
 //
 // It writes nothing and touches no network: every fetch is intercepted.
 
-import { test, before, after } from 'node:test';
+import { test, before, after, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, writeFile, rm, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -38,6 +38,31 @@ before(async () => {
   worker = (await import(`file://${copy}`)).default;
 });
 after(async () => { if (tmpDir) await rm(tmpDir, { recursive: true, force: true }); });
+
+// ── EVERY TEST ON A PINNED CLOCK, AND NO TEST SEES ANOTHER'S CALLS ────────────────────────
+// The Worker reads the wall clock: on the first tick after London midnight (00:00–00:14) it
+// fires the deploy hook whether or not anything was published (the free-week / archive rebuild,
+// isFirstTickAfterLondonMidnight). This file used to run on the real clock, so a CI run that
+// started between 00:00 and 00:14 London failed "the deploy hook does not fire when nothing was
+// published" (3 Nov 2026, 00:12, on 7a266023): the Worker was right and the test was not
+// time-proof. Every test now runs with Date pinned to a midday instant, and the midnight rule has
+// its own test below, on its own pinned time.
+//
+// Between tests, fetch is a TRAP, not the real fetch: a call a test started but didn't finish
+// (a promise not awaited, a waitUntil not drained) lands in the trap after its test returns,
+// fails that test in afterEach, and can never reach the next test's stub or the network.
+export const MIDDAY_LONDON = Date.parse('2026-11-03T12:00:00Z');
+const realFetch = globalThis.fetch;
+let strays = 0;
+const trap = async (url) => { strays++; throw new Error(`stray fetch after its test finished: ${new URL(String(url)).host}`); };
+before(() => { globalThis.fetch = trap; });
+after(() => { globalThis.fetch = realFetch; });
+beforeEach(() => { strays = 0; mock.timers.enable({ apis: ['Date'], now: MIDDAY_LONDON }); });
+afterEach(async () => {
+  await new Promise((r) => setImmediate(r));   // let anything still queued surface before checking
+  mock.timers.reset();
+  assert.equal(strays, 0, `${strays} call(s) made after the test had finished`);
+});
 
 const DB = 'https://calvary.firebaseio.test';
 const ENV = {
@@ -364,6 +389,16 @@ test('the deploy hook does not fire when nothing was published', async () => {
   db.cms_stories = { 'already-live': { title: 'Live', published: true, content: 'x' } };
   const calls = await runCron(db);
   assert.equal(calls.filter((c) => c.url.startsWith('https://api.cloudflare.com/')).length, 0);
+});
+
+test('…except on the first tick after London midnight, when it fires anyway (the free-week rebuild)', async () => {
+  const db = makeDb();
+  db.cms_stories = { 'already-live': { title: 'Live', published: true, content: 'x' } };
+  for (const [iso, fires] of [['2026-11-03T00:05:00Z', 1], ['2026-11-03T00:14:59Z', 1], ['2026-11-03T00:15:00Z', 0], ['2026-07-30T23:05:00Z', 1], ['2026-07-30T00:05:00Z', 0]]) {
+    mock.timers.setTime(Date.parse(iso));   // GMT in November, BST in July: 23:05 UTC is 00:05 London
+    const calls = await runCron(db);
+    assert.equal(calls.filter((c) => c.url.startsWith('https://api.cloudflare.com/')).length, fires, iso);
+  }
 });
 
 // ── failure behaviour ────────────────────────────────────────────────────────
