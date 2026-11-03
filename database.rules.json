@@ -466,7 +466,7 @@
       ".read": true,
       "$uid": {
         "$followerUid": {
-          ".write": "auth != null && auth.uid === $followerUid",
+          ".write": "auth != null && auth.uid === $followerUid && (!newData.exists() || (!root.child('blocked_users').child($uid).child(auth.uid).exists() && !root.child('blocked_users').child(auth.uid).child($uid).exists()))",
           ".validate": "newData.isBoolean()"
         }
       }
@@ -674,10 +674,10 @@
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
         "$notifId": {
-          ".write": "auth != null && !data.exists() && newData.exists() && (newData.child('fromUid').val() === auth.uid || $uid === auth.uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1') && ($uid === auth.uid || !root.child('blocked_users').child($uid).child(auth.uid).exists())",
+          ".write": "auth != null && (($uid === auth.uid && data.exists() && !newData.exists()) || (!data.exists() && newData.exists() && ($uid === auth.uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (newData.child('fromUid').val() === auth.uid && newData.child('type').val() !== 'reward' && newData.child('type').val() !== 'new_story')) && ($uid === auth.uid || !newData.child('fromUid').isString() || (!root.child('blocked_users').child($uid).child(newData.child('fromUid').val()).exists() && !root.child('blocked_users').child(newData.child('fromUid').val()).child($uid).exists()))))",
           ".validate": "newData.hasChildren(['type', 'createdAt'])",
           "type": {
-            ".validate": "newData.isString() && newData.val().length <= 32"
+            ".validate": "newData.isString() && newData.val().matches(/^(like|clap|fire|heart|reply|mention|square_post|square_quote|square_reply|square_reply_to_you|open_pages_reply|follow|new_story|reward)$/)"
           },
           "createdAt": {
             ".validate": "newData.isNumber()"
@@ -702,10 +702,10 @@
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
         "$notifId": {
-          ".write": "auth != null && !data.exists() && newData.exists() && (newData.child('fromUid').val() === auth.uid || $uid === auth.uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+          ".write": "auth != null && (($uid === auth.uid && data.exists() && !newData.exists()) || (!data.exists() && newData.exists() && ($uid === auth.uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (newData.child('fromUid').val() === auth.uid && newData.child('type').val() !== 'reward' && newData.child('type').val() !== 'new_story')) && ($uid === auth.uid || !newData.child('fromUid').isString() || (!root.child('blocked_users').child($uid).child(newData.child('fromUid').val()).exists() && !root.child('blocked_users').child(newData.child('fromUid').val()).child($uid).exists()))))",
           ".validate": "newData.hasChildren(['type', 'createdAt'])",
           "type": {
-            ".validate": "newData.isString() && newData.val().length <= 32"
+            ".validate": "newData.isString() && newData.val().matches(/^(heart|fire|clap|quill|reply|mention|follow|new_story|reward)$/)"
           },
           "createdAt": {
             ".validate": "newData.isNumber()"
@@ -726,16 +726,66 @@
         }
       }
     },
+    "inbox": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid"
+      }
+    },
+    "inbox_state": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "seenAt": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= now + 600000"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "notify_prefs": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "stories": {
+          ".validate": "newData.isBoolean()"
+        },
+        "replies_mentions": {
+          ".validate": "newData.isBoolean()"
+        },
+        "messages": {
+          ".validate": "newData.isBoolean()"
+        },
+        "followers": {
+          ".validate": "newData.isBoolean()"
+        },
+        "reactions": {
+          ".validate": "newData.isBoolean()"
+        },
+        "responses": {
+          ".validate": "newData.isBoolean()"
+        },
+        "open_pages": {
+          ".validate": "newData.isBoolean()"
+        },
+        "square_opens": {
+          ".validate": "newData.isBoolean()"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
     "dm_conversations": {
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
         "$convId": {
-          ".write": "auth != null && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid)) && ($uid === auth.uid || (!root.child('blocked_users').child(auth.uid).child($uid).exists() && !root.child('blocked_users').child($uid).child(auth.uid).exists()))",
+          ".write": "auth != null && (($uid === auth.uid && ($convId.beginsWith($uid + '_') || $convId.endsWith('_' + $uid))) || (($convId === $uid + '_' + auth.uid || $convId === auth.uid + '_' + $uid) && !root.child('blocked_users').child(auth.uid).child($uid).exists() && !root.child('blocked_users').child($uid).child(auth.uid).exists() && newData.exists() && ((!newData.child('unread').exists() && !data.child('unread').exists()) || newData.child('unread').val() === (data.child('unread').isNumber() ? data.child('unread').val() : 0) || newData.child('unread').val() === (data.child('unread').isNumber() ? data.child('unread').val() : 0) + 1)))",
           "unread": {
             ".validate": "newData.isNumber() && newData.val() >= 0"
           },
           "lastAt": {
-            ".validate": "newData.isNumber()"
+            ".validate": "newData.isNumber() && (newData.val() === data.val() || (newData.val() >= now - 600000 && newData.val() <= now + 600000))"
           },
           "$other": {
             ".validate": false

@@ -326,12 +326,16 @@ function CommentsSection({ slug, onSignIn }) {
       } catch (e) {}
       if (parentId) {
         const parentComment = comments.find(c => c.id === parentId);
+        // NOTIF-B1: on its own. The rules refuse a notification across a block, and the reply is
+        // already saved; a refusal here used to skip clearing the box below (the W53 trap).
         if (parentComment && parentComment.authorUid !== user.uid) {
-          await push(ref(db, `library_notifications/${parentComment.authorUid}`), {
-            type: 'reply', fromUid: user.uid,
-            fromName: user.displayName || 'Reader',
-            slug, read: false, createdAt: Date.now(),
-          });
+          try {
+            await push(ref(db, `library_notifications/${parentComment.authorUid}`), {
+              type: 'reply', fromUid: user.uid,
+              fromName: user.displayName || 'Reader',
+              slug, read: false, createdAt: Date.now(),
+            });
+          } catch (e) {}
         }
         setReplyText(''); setReplyTo(null);
       } else setText('');

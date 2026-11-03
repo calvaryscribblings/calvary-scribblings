@@ -28,7 +28,7 @@
 // W51's find-by-handle (user_search, never the founder-only users root) is kept as it was.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ref, get, push, set, update, remove, onValue } from 'firebase/database';
+import { ref, get, push, set, update, remove, onValue, increment } from 'firebase/database';
 import { db } from '../../lib/firebaseCore';
 import { Avatar, UserBadge } from '../conversation/ConversationKit';
 import PostBody from '../conversation/PostBody';
@@ -235,7 +235,9 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
       else { setDmText(''); setDmImageFile(null); }
       // The message is written; the two counts after it are best effort and never unsend it.
       update(ref(db, `dm_conversations/${user.uid}/${convId}`), { unread: 0, lastAt: Date.now() }).catch(() => {});
-      update(ref(db, `dm_conversations/${otherUid}/${convId}`), { unread: 1, lastAt: Date.now() }).catch(() => {});
+      // NOTIF-B1 (P0): the rules let a participant add exactly one to the other reader's unread
+      // count, never set it, so it goes up by the server's increment. It used to be set to 1.
+      update(ref(db, `dm_conversations/${otherUid}/${convId}`), { unread: increment(1), lastAt: Date.now() }).catch(() => {});
     } catch (e) {
       // Refused because of a block (ruling 208): the Function says so for an image; for words, the
       // rules refuse the record. An image that was stored and then refused is the grant, not a block.

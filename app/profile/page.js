@@ -19,6 +19,7 @@ import PostBody from '../components/conversation/PostBody';
 import HandleField, { readHandleOwner, useHandleCheck } from '../components/HandleField';
 import { checkHandle, renameHandle, normaliseHandle, handleStatusLine, HandleRefused, HANDLE_COPY } from '../lib/handle';
 import { postHref, squareNotificationHref, NOTIFICATION_WORDS } from '../lib/squareThreads';
+import { identityOf } from '../lib/squareIdentity';
 import { reactionsOf, withReactionCounts } from '../lib/squareReactions';
 
 const FB = {
@@ -1169,6 +1170,8 @@ export default function ProfilePage() {
                 : libNotifs.map(n => {
                   const href = notifHref(n);
                   const isReward = n.type === 'reward';
+                  const w = n.fromUid ? identityOf({ authorUid: n.fromUid }, notifUsers[n.fromUid]) : null;
+                  const senderName = w ? w.displayName : 'Calvary Scribblings';
                   return (
                     <a
                       key={n.id}
@@ -1176,18 +1179,17 @@ export default function ProfilePage() {
                       className={`lib-notif-item${n.read ? '' : ' unread'}`}
                       onClick={!href ? e => e.preventDefault() : undefined}
                     >
-                      {(() => {
-                        const actor = n.fromUid ? notifUsers[n.fromUid] : null;
-                        const ini = (n.fromName || 'C').split(' ').map(x => x[0]).join('').slice(0,2).toUpperCase();
-                        return (
-                          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(107,47,173,0.17)', border: '1px solid rgba(107,47,173,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#a78bfa', flexShrink: 0, fontFamily: 'Cormorant Garamond, Georgia, serif', overflow: 'hidden' }}>
-                            {(actor?.avatarUrl || n.fromAvatarUrl) ? <img src={actor?.avatarUrl || n.fromAvatarUrl} alt={ini} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : ini}
-                          </div>
-                        );
-                      })()}
+                      {/* NOTIF-B1 (P0): the sender is drawn from their LIVE record, as the Square panel does,
+                          and never from the copy stored on the notification (fromName, fromAvatarUrl,
+                          fromHandle), which the sender wrote and could make say anything. A record
+                          with no sender is the house's own (a reward, which only the reader or a
+                          founder can write). */}
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(107,47,173,0.17)', border: '1px solid rgba(107,47,173,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#a78bfa', flexShrink: 0, fontFamily: 'Cormorant Garamond, Georgia, serif', overflow: 'hidden' }}>
+                        {w?.avatarUrl ? <img src={w.avatarUrl} alt={senderName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (w ? w.initials : 'CS')}
+                      </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginBottom: 2 }}>
-                          <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{n.fromName}</span>
+                          <span data-notif-sender style={{ fontSize: '0.88rem', fontWeight: 600, color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{senderName}</span>
                           {(() => {
                             const actor = n.fromUid ? notifUsers[n.fromUid] : null;
                             if (!actor) return null;
@@ -1196,9 +1198,9 @@ export default function ProfilePage() {
                             return b ? <BadgeIcon color={b.color} size={12} isFounder={b.isFounder} /> : null;
                           })()}
                         </div>
-                        {(notifUsers[n.fromUid]?.username || n.fromUsername) && (
+                        {n.fromUid && notifUsers[n.fromUid]?.username && (
                           <div style={{ fontSize: '0.68rem', color: 'rgba(167,139,250,0.42)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 3 }}>
-                            @{notifUsers[n.fromUid]?.username || n.fromUsername}
+                            @{notifUsers[n.fromUid].username}
                           </div>
                         )}
                         <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.48)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.4, marginBottom: '0.18rem' }}>

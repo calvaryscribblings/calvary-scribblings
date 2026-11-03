@@ -413,12 +413,14 @@ export default function UserPage() {
     setFollowLoading(true);
     try {
       const db = await getDB();
-      const { ref, set, remove, push } = await import('firebase/database');
+      const { ref, update, remove, push } = await import('firebase/database');
       if (isFollowing) {
         await Promise.all([remove(ref(db, `followers/${uid}/${currentUser.uid}`)), remove(ref(db, `following/${currentUser.uid}/${uid}`))]);
         setIsFollowing(false); setFollowerCount(c => Math.max(0, c - 1));
       } else {
-        await Promise.all([set(ref(db, `followers/${uid}/${currentUser.uid}`), true), set(ref(db, `following/${currentUser.uid}/${uid}`), true)]);
+        // NOTIF-B1: both halves in one update, so a follow the rules refuse across a block leaves
+        // no stray `following` entry behind.
+        await update(ref(db), { [`followers/${uid}/${currentUser.uid}`]: true, [`following/${currentUser.uid}/${uid}`]: true });
         setIsFollowing(true); setFollowerCount(c => c + 1);
         await push(ref(db, `library_notifications/${uid}`), {
           type: 'follow', fromUid: currentUser.uid, fromName: currentUser.displayName || 'Reader',

@@ -56,12 +56,30 @@ export const SCAN_NODES = [
   'open_pages', 'open_pages_reactions', 'open_pages_pending', 'open_pages_reports',
   'dm_messages', 'dm_muted', 'blocked_users', 'muted_users', 'followers', 'following', 'usernames', 'cms_voices',
   'user_comments', 'user_square_posts',
+  // NOTIF-B1 — the server-written inbox, its watermark and the push switches
+  'inbox', 'inbox_state', 'notify_prefs',
   // W46 — Readers' Notes
   'series_notes', 'series_notes_held', 'series_note_replies', 'series_sides', 'series_room_members',
   'series_note_underlines', 'series_instalments', 'series_notes_summary',
 ];
 
 const authoredBy = (rec, uid) => isObj(rec) && (rec.authorUid === uid || rec.uid === uid);
+
+/**
+ * NOTIF-B1: a grouped inbox record with one actor's share taken out, or null when nobody is left.
+ * `actors` maps uid → how many of the group's events were theirs (functions/api/_notify.js).
+ */
+export function inboxWithoutActor(rec, uid) {
+  const actors = { ...(isObj(rec.actors) ? rec.actors : {}) };
+  const theirs = actors[uid] !== undefined ? (Number(actors[uid]) || 1) : 0;
+  delete actors[uid];
+  const events = { ...(isObj(rec.events) ? rec.events : {}) };
+  delete events[uid];   // reactions and follows are keyed by the actor
+  const actorCount = Math.max(0, (Number(rec.actorCount) || 0) - (theirs ? 1 : 0));
+  if (actorCount === 0) return null;
+  const recent = (Array.isArray(rec.recent) ? rec.recent : []).filter((u) => u !== uid);
+  return { ...rec, actors, events, actorCount, recent, count: Math.max(actorCount, (Number(rec.count) || 0) - theirs) };
+}
 
 /** A comment of theirs that still has someone else's reply beneath it (ruling 30). */
 export function commentTombstone(orig, keptReplies, now) {
@@ -102,7 +120,7 @@ export function planScrub(uid, snap, { now = Date.now() } = {}) {
     squarePosts: 0, squareArchived: 0, squareTombstones: 0, squareRepliesByOthersKept: 0, squareReactions: 0,
     openPages: 0, openPagesCommentsByOthers: 0, openPagesReactions: 0,
     storyReads: 0, seriesReads: 0, storyReactions: 0, leaderboardRows: 0,
-    notificationsInOthersInboxes: 0, dmMessagesSent: 0, voicesRemoved: 0, backstop: 0,
+    notificationsInOthersInboxes: 0, inboxRecordsInOthers: 0, inboxGroupsStripped: 0, dmMessagesSent: 0, voicesRemoved: 0, backstop: 0,
   };
   const del = (p) => nulls.add(p);
   const voices = [];
@@ -252,6 +270,25 @@ export function planScrub(uid, snap, { now = Date.now() } = {}) {
     for (const [owner, inbox] of entries(snap[node])) {
       if (owner === uid) { del(`${node}/${uid}`); continue; }
       for (const [id, n] of entries(inbox)) if (isObj(n) && n.fromUid === uid) { del(`${node}/${owner}/${id}`); counts.notificationsInOthersInboxes++; }
+    }
+  }
+
+  // ── NOTIF-B1: the server-written inbox, both ways ──────────────────────────────────────
+  // Their own inbox goes whole. In everyone else's: a record they caused goes, a conversation
+  // with them goes, and a grouped record they are part of loses their share (and goes when
+  // nobody else is left in it). Records hold uids, never names (functions/api/_notify.js).
+  for (const [owner, box] of entries(snap.inbox)) {
+    if (owner === uid) { del(`inbox/${uid}`); continue; }
+    for (const [id, n] of entries(box)) {
+      if (!isObj(n)) continue;
+      const conv = typeof n.subject?.convId === 'string' ? n.subject.convId.split('_') : [];
+      if (n.actor === uid || conv.includes(uid) || n.subject?.uid === uid) {
+        del(`inbox/${owner}/${id}`); counts.inboxRecordsInOthers++; continue;
+      }
+      if (n.actors?.[uid] === undefined && !(Array.isArray(n.recent) && n.recent.includes(uid))) continue;
+      const next = inboxWithoutActor(n, uid);
+      if (next) sets[`inbox/${owner}/${id}`] = next; else del(`inbox/${owner}/${id}`);
+      counts.inboxGroupsStripped++;
     }
   }
 
@@ -414,6 +451,7 @@ export function planScrub(uid, snap, { now = Date.now() } = {}) {
   // W55.1 — the conversations they muted go whole. Another reader's mute of a conversation with
   // them stays, like that reader's half of it (ruling 32).
   if (snap.dm_muted?.[uid] !== undefined && snap.dm_muted?.[uid] !== null) backstop(`dm_muted/${uid}`);
+  for (const node of ['inbox_state', 'notify_prefs']) if (snap[node]?.[uid] !== undefined && snap[node]?.[uid] !== null) backstop(`${node}/${uid}`);
   if (snap.userNode !== null && snap.userNode !== undefined) backstop(`users/${uid}`);
 
   // A tombstone is written whole: nothing may be removed beneath it separately, and nothing

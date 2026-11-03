@@ -82,6 +82,9 @@ export const OWNED_NODES = [
   'muted_users',       // W53: the reader's Square mute list — theirs alone, nothing to keep
   'square_rate',       // W54: the Square's pace counter (5 posts / 30 replies in 10 min) — nothing to keep
   'dm_muted',          // W55.1: the conversations the reader muted — theirs alone, nothing to keep
+  'inbox',             // NOTIF-B1: their notifications list (server-written) — theirs alone
+  'inbox_state',       // NOTIF-B1: when they last opened the list (ruling 326) — nothing to keep
+  'notify_prefs',      // NOTIF-B1: their push switches (ruling 312) — nothing to keep
 ].filter((v, i, a) => a.indexOf(v) === i);
 
 // Kept on purpose, keyed by the same uid. Listed so the test can prove every uid-keyed node in

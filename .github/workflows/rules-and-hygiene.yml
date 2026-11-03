@@ -79,6 +79,8 @@ on:
       # W49 — the read counters, the seeder and the read credit (test:reads, test:reads:emulator).
       - 'tests/reads/**'
       - 'tests/limits/**'
+      # NOTIF-B1 — the server writer's emulator suite (test:notify:emulator, in the rules job).
+      - 'tests/notify/**'
       - 'workers-external/**'
       # W5 — the safety browser suite (test:safety, in the rules job).
       - 'tests/safety/**'
@@ -161,6 +163,8 @@ jobs:
       # instalment counter (functions/api/series/read.js) run for real against the database emulator,
       # races included, and so does the one-off seeder with live reads racing it. The client half
       # (wait for sign-in, never "null") and the shared read credit are pure node.
+      - name: NOTIF-B1 — the server writer under the 50-subrequest shim
+        run: npm run test:notify:emulator
       - name: Reads — the counters, the seeder, the credit
         run: npm run test:reads && npm run test:reads:emulator
 

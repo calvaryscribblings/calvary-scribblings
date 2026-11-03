@@ -757,3 +757,31 @@ The rest is the same as the "scheduled" email.
 - Writers with no address: "These writers have no verified email address on their account, so nothing has been sent. Once they have one, they’ll get the opening email with their first scheduled story."
 
 Pinned in `tests/proofs/mail.test.mjs` (single quotes, the date-change line, the greeting, Reply-To, HTML and text identical in words and links) and `tests/proofs/mail.emulator.mjs`.
+
+## 3 Nov 2026 (Ikenna): the notification system, rulings 305–326 (NOTIF-B1)
+
+Recorded in NOTIF-B1, which builds stage one: the security stopgap on the two old inboxes (P0) and the server writer (P1). The catalogue of kinds, each one's push behaviour and its Settings switch live in `app/lib/notificationKinds.js`. The writer is `functions/api/_notify.js` with `POST /api/notify`.
+
+- **305:** One notifications list, opened from a bell on the web and in the app. The bell shows the unread count.
+- **306:** Reactions, replies, @mentions, new followers and messages all notify.
+- **307:** Writers are told about every response and reaction on their own stories.
+- **308:** Every new story and instalment appears in every reader's list. Its push keeps the rules in `docs/PUSH-GO-LIVE.md`.
+- **309:** Badges and tier-ups go to the list only. An Open Pages piece going live also pushes.
+- **310:** Reactions push as one grouped line ("Ada and 4 others liked your response"), at most once an hour per post.
+- **311:** Replies, mentions, messages and follows push at once, except between 00:00 and 08:00 London. Those wait and arrive together at 08:00.
+- **312:** Settings has a push switch per kind. The list always shows everything.
+- **313:** The app icon shows the unread count.
+- **314:** No new emails.
+- **315:** A responses line sits under the story's byline, date and read time, on the web and in the app, and tapping it goes to the responses.
+- **316:** With no responses, the line reads "Be the first to respond" and opens the response box.
+- **317:** Nothing in the faded story cover hides behind the Dynamic Island. It is placed from the safe area.
+- **318:** Writers get a push for new responses on their stories, grouped per story, at most once an hour.
+- **319:** Muting someone also stops their notifications reaching you, silently.
+- **320:** Following someone no longer notifies you each time they post in the Square.
+- **321:** When an Open Pages piece is declined, its writer is told kindly in the list, with no push.
+- **322:** Old notifications move across if they are unread or from the last 90 days. The rest stay in the backup only.
+- **323:** A new story from a writer you follow carries "from a writer you follow" in the list.
+- **324:** Wherever text lies over a cover, nothing of the cover (frame, emblem, author line, category) shows through it or touches it.
+- **325:** The unread count is a small violet badge with the number.
+- **326:** Opening the list clears the count, and dots show what's new since the last look.
+- **267–275, 289 and 304:** still open with Ikenna; owed here.
