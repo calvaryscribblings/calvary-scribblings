@@ -18,8 +18,9 @@
 //                                          that are not live.
 //   EDGE_LEDGER_URL                        default https://calvaryscribblings.co.uk/_edge/ledger.json;
 //                                          file:// is accepted (tests)
-//   EDGE_LEDGER=none                       treat the live ledger as absent (bootstrap) — the escape
-//                                          hatch if the live site cannot be read at all
+//   EDGE_LEDGER=none                       treat the live ledger as absent (bootstrap). For builds that
+//                                          are never deployed (CI). REFUSED when CF_PAGES is set: a
+//                                          production build never skips the live ledger.
 //   cms_stories (public REST)              read ONLY when there is no readable live ledger, for the
 //                                          bootstrap seed
 //   EDGE_OUT_DIR, EDGE_DB_URL, EDGE_DB_NS,  tests only: another out/, the database emulator, and a
@@ -142,7 +143,21 @@ function bootstrapSeed(cms, now) {
   return seed;
 }
 
+/**
+ * EDGE_LEDGER=none is for builds that are never deployed (CI: scripts/ci/edge-ledger-throwaway.mjs).
+ * On Cloudflare's own build (CF_PAGES is set) it would publish a deployment whose guard forgot every
+ * page the live ledger carries, so there it refuses. Returns the reason, or null.
+ */
+export function refusalOnPages(env = process.env) {
+  if (env.CF_PAGES && env.EDGE_LEDGER === 'none') {
+    return '[edge-guard] EDGE_LEDGER=none on a Cloudflare Pages build (CF_PAGES is set): a production build must read the live ledger. Unset EDGE_LEDGER in the Pages project.';
+  }
+  return null;
+}
+
 export async function main({ now = Number(process.env.EDGE_NOW) || Date.now() } = {}) {
+  const refusal = refusalOnPages();                                 // before anything is read or written
+  if (refusal) throw new Error(refusal);
   if (!existsSync(join(OUT, '404.html'))) throw new Error(`[edge-guard] ${OUT}/404.html is missing — run after next build`);
   const k = await ledgerKey(process.env.EDGE_LEDGER_KEY);           // fails first, before any read
   const [pages, builtPaths, functionIncludes, { ledger: prev, how }] = await Promise.all([

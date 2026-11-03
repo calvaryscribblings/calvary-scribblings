@@ -148,6 +148,11 @@ jobs:
           distribution: temurin
           java-version: '21'
       - run: npm ci
+      # EDGE-2 — `npm run build` ends with the edge guard, which needs EDGE_LEDGER_KEY. This job's
+      # builds are never deployed, so it makes its own throwaway key (never printed, never the Pages
+      # key) and sets EDGE_LEDGER=none. See scripts/ci/edge-ledger-throwaway.mjs.
+      - name: Throwaway edge-ledger key (this job's builds only)
+        run: node scripts/ci/edge-ledger-throwaway.mjs
       - name: Rules assertions — database.rules.json + storage.rules
         run: npm run test:rules
 
@@ -329,6 +334,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # EDGE-2 — `npm run build` ends with the edge guard, which needs EDGE_LEDGER_KEY. This job's
+      # builds are never deployed, so it makes its own throwaway key (never printed, never the Pages
+      # key) and sets EDGE_LEDGER=none. See scripts/ci/edge-ledger-throwaway.mjs.
+      - name: Throwaway edge-ledger key (this job's builds only)
+        run: node scripts/ci/edge-ledger-throwaway.mjs
 
       # Five suites have existed under tests/newsletter/ and CI has never run one.
       - name: Newsletter suites

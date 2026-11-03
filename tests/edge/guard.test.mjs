@@ -6,7 +6,8 @@
 // (npm run test:edge:proof). This file is the part CI runs on every push.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +15,7 @@ import {
   GUARD_MS, PRESERVATION_MS, MAX_ROUTE_RULES, foldLedger, ledgerFor, ledgerKey, readLedgerEntries, routesFor, rulesFor, pageKeyOf,
   _resetGuardForTests,
 } from '../../app/lib/edgeGuard.mjs';
-import { functionIncludesOf, assertDeployable } from '../../scripts/generate-edge-guard.mjs';
+import { functionIncludesOf, assertDeployable, refusalOnPages } from '../../scripts/generate-edge-guard.mjs';
 import { onRequest as storiesGuard } from '../../functions/stories/[[path]].js';
 import { onRequest as readerGuard } from '../../functions/reader/[[path]].js';
 import { onRequest as bookstoreGuard } from '../../functions/bookstore/[[path]].js';
@@ -139,6 +140,68 @@ test('functions/_middleware.js would route every request through a Function, so 
   try {
     writeFileSync(join(d, '_middleware.js'), '');
     await assert.rejects(functionIncludesOf(d), /EVERY request/);
+  } finally { rmSync(d, { recursive: true, force: true }); }
+});
+
+// ── A production build never skips the guard; CI builds use a throwaway key ──────────────────
+
+// The child's environment: this one, minus everything the guard or the CI script reads, plus `extra`.
+// Assertion messages never carry a key.
+function childEnv(extra) {
+  const env = { ...process.env };
+  for (const k of Object.keys(env)) if (k.startsWith('EDGE_') || k === 'CF_PAGES' || k === 'GITHUB_ENV') delete env[k];
+  return { ...env, ...extra };
+}
+const THROWAWAY_TEST_KEY = 'x'.repeat(16) + 'edge-guard-refusal-test-only';   // not a key anywhere
+
+test('EDGE_LEDGER=none is refused on Cloudflare\'s build (CF_PAGES), and only there', () => {
+  assert.match(refusalOnPages({ CF_PAGES: '1', EDGE_LEDGER: 'none' }), /CF_PAGES/);
+  assert.equal(refusalOnPages({ CF_PAGES: '1' }), null, 'a Pages build reading the live ledger goes ahead');
+  assert.equal(refusalOnPages({ EDGE_LEDGER: 'none' }), null, 'a build that is never deployed may bootstrap');
+  assert.equal(refusalOnPages({}), null);
+});
+
+test('the build step itself: with CF_PAGES and EDGE_LEDGER=none it exits 1 and writes nothing', () => {
+  const out = site({ '404.html': NOT_FOUND, 'stories/kept.html': '<p>kept</p>' });
+  try {
+    const r = spawnSync(process.execPath, [join(ROOT, 'scripts/generate-edge-guard.mjs')], {
+      env: childEnv({ CF_PAGES: '1', EDGE_LEDGER: 'none', EDGE_LEDGER_KEY: THROWAWAY_TEST_KEY, EDGE_OUT_DIR: out }),
+      encoding: 'utf8', timeout: 60000,
+    });
+    assert.equal(r.status, 1, 'the build fails');
+    assert.match(r.stderr, /EDGE_LEDGER=none on a Cloudflare Pages build/);
+    assert.ok(!existsSync(join(out, '_routes.json')), 'no _routes.json');
+    assert.ok(!existsSync(join(out, '_edge')), 'no ledger');
+  } finally { rmSync(out, { recursive: true, force: true }); }
+});
+
+test('the CI step: a fresh 32-byte key and EDGE_LEDGER=none go to GITHUB_ENV, masked, and never to the log', () => {
+  const d = mkdtempSync(join(tmpdir(), 'edge-ci-'));
+  try {
+    const envFile = join(d, 'github_env');
+    writeFileSync(envFile, '');
+    const run = () => spawnSync(process.execPath, [join(ROOT, 'scripts/ci/edge-ledger-throwaway.mjs')], {
+      env: childEnv({ GITHUB_ENV: envFile }), encoding: 'utf8', timeout: 30000,
+    });
+    const a = run();
+    assert.equal(a.status, 0);
+    const lines = readFileSync(envFile, 'utf8').trim().split('\n');
+    const key = lines.find((l) => l.startsWith('EDGE_LEDGER_KEY='))?.slice('EDGE_LEDGER_KEY='.length) ?? '';
+    assert.ok(/^[A-Za-z0-9_-]{43}$/.test(key), 'a 32-byte base64url key');
+    assert.ok(lines.includes('EDGE_LEDGER=none'), 'EDGE_LEDGER=none beside it');
+    const printed = a.stdout + a.stderr;
+    const maskAt = printed.indexOf('::add-mask::');
+    assert.ok(maskAt === 0, 'the mask command comes first');
+    assert.ok(printed.split(key).length === 2, 'the key appears only inside the mask command');
+    run();
+    const keys = readFileSync(envFile, 'utf8').split('\n').filter((l) => l.startsWith('EDGE_LEDGER_KEY='));
+    assert.ok(keys.length === 2 && keys[0] !== keys[1], 'every run makes its own key');
+    const cf = spawnSync(process.execPath, [join(ROOT, 'scripts/ci/edge-ledger-throwaway.mjs')], {
+      env: childEnv({ GITHUB_ENV: envFile, CF_PAGES: '1' }), encoding: 'utf8', timeout: 30000,
+    });
+    assert.equal(cf.status, 1, 'refuses on a Cloudflare build');
+    const none = spawnSync(process.execPath, [join(ROOT, 'scripts/ci/edge-ledger-throwaway.mjs')], { env: childEnv({}), encoding: 'utf8', timeout: 30000 });
+    assert.equal(none.status, 1, 'refuses outside Actions');
   } finally { rmSync(d, { recursive: true, force: true }); }
 });
 
