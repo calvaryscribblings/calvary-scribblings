@@ -15,9 +15,7 @@
 //              hours before it (the email they got already said when).
 //
 // ── THE LEDGER (server-only; no client reads or writes it) ─────────────────────────────
-//   proofs_mail/queue/{uid}                    { at, by }   R3.1: waiting for the opening email
-//   proofs_mail/writers/{uid}/opening          { status, at, by, stories, sent, why?, sentAt?, emailId? }
-//                                                status: sending → sent | failed | interrupted
+//   proofs_mail/writers/{uid}/opening          { at, by, stories, sent, why?, sentAt?, emailId? }
 //   proofs_mail/writers/{uid}/excluded         { at, by }   unticked at opening: no emails at all
 //   proofs_mail/writers/{uid}/stories/{slug}   { goLiveMs, toldAt, kind, seq, sent, why?,
 //                                                remindedFor?, remindedAt?, log: { e<seq>: { kind,
@@ -41,10 +39,7 @@
 import { isProof, goLiveMs, londonWhen, isProofSlug, bySoonest } from './proofs.js';
 import { isId } from './ids.js';
 
-export const PROOF_MAIL_ROOT = 'proofs_mail';
 export const PROOF_MAIL_PATH = 'proofs_mail/writers';
-/** R3.1: writers waiting for their opening email ({ at, by }); Open writes it, the sender empties it. */
-export const PROOF_MAIL_QUEUE_PATH = 'proofs_mail/queue';
 export const REMINDER_LEAD_MS = 48 * 3_600_000;
 export const SITE = 'https://calvaryscribblings.co.uk';
 export const proofUrl = (slug) => `${SITE}/proofs?story=${encodeURIComponent(slug)}`;
@@ -109,10 +104,9 @@ export function seedRecord(story, now) {
   };
 }
 
-/** A writer's state: 'opened' (an opening was claimed) | 'queued' (waiting for it) | 'excluded' | 'new'. */
-export function writerState(w, queued = false) {
+/** A writer's state in the ledger: 'opened' | 'excluded' | 'new'. */
+export function writerState(w) {
   if (w?.opening) return 'opened';
-  if (queued) return 'queued';
   if (w?.excluded) return 'excluded';
   return 'new';
 }
@@ -348,18 +342,6 @@ export function sampleMails(now) {
   ];
 }
 
-/**
- * R3.1: the line /admin/proofs shows for a failed call. Every failure shows the server's code and
- * message. A body that isn't the Proofs server's JSON says so, with the status, its content type
- * and Cloudflare's ray id: what a log search needs (the 2 Nov Open showed a bare "HTTP 502").
- */
-export function failureLine(status, header, body) {
-  if (body && typeof body.error === 'string') return `${body.error} (${body.code || 'no code'}, HTTP ${status})`;
-  const type = String(header('content-type') || 'no type').split(';')[0];
-  const ray = header('cf-ray');
-  return `HTTP ${status}, not from the Proofs server (${type}${ray ? `, ray ${ray}` : ''})`;
-}
-
 // /admin/proofs — the opening list, the sample control, the not-emailed list.
 const n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
 export const PROOF_MAIL_ADMIN_COPY = Object.freeze({
@@ -374,9 +356,6 @@ export const PROOF_MAIL_ADMIN_COPY = Object.freeze({
   opening: 'Opening…',
   opened: (sent, failed) => `Proofs is open. ${n(sent, 'email', 'emails')} sent.${failed ? ` ${n(failed, 'email', 'emails')} couldn’t be sent.` : ''}`,
   openFailed: 'Proofs couldn’t be opened: ',
-  sending: (k) => `Sending… ${n(k, 'email', 'emails')} sent so far.`,
-  moreLater: 'The rest will go out within the next quarter of an hour.',
-  queuedState: 'Queued',
   sampleButton: 'Send me a sample',
   sampleHelp: 'Sends each writer email, filled in with invented stories, to your own address only.',
   sampleSending: 'Sending…',

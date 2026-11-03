@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import yaml from 'js-yaml';
 import {
   dueFor, seedRecord, writerState, proofsByWriter, mailable, composeWriterMail, sampleMails, writerPath, storyLedgerPath,
-  REMINDER_LEAD_MS, PROOF_MAIL_COPY, PROOF_MAIL_ADMIN_COPY, SAMPLE_PREFIX, logKey, mailHtml, mailText, MAIL_REPLY_TO, failureLine,
+  REMINDER_LEAD_MS, PROOF_MAIL_COPY, PROOF_MAIL_ADMIN_COPY, SAMPLE_PREFIX, logKey, mailHtml, mailText, MAIL_REPLY_TO,
 } from '../../app/lib/proofMail.js';
 import { countsLine } from '../../scripts/proofs/mail-tick.mjs';
 import { findIdentifiers } from '../../scripts/ops/redact.mjs';
@@ -168,19 +168,4 @@ test('the designed part escapes what it is given', () => {
   const html = mailHtml(m);
   assert.ok(html.includes('‘A &lt;b&gt;bold&lt;/b&gt; &amp; &quot;odd&quot; title’'));
   assert.ok(!html.includes('<b>bold</b>'));
-});
-
-test('R3.1: a failure in /admin/proofs always shows the code and the message, or says the body was not ours', () => {
-  const h = (m) => (k) => m[k] ?? null;
-  assert.equal(failureLine(500, h({}), { error: 'Too many subrequests.', code: 'unavailable' }), 'Too many subrequests. (unavailable, HTTP 500)');
-  assert.equal(failureLine(400, h({}), { error: 'Unknown action.' }), 'Unknown action. (no code, HTTP 400)');
-  assert.equal(failureLine(502, h({ 'content-type': 'text/html; charset=UTF-8', 'cf-ray': '8a1b2c3d4e5f-LHR' }), null), 'HTTP 502, not from the Proofs server (text/html, ray 8a1b2c3d4e5f-LHR)');
-  assert.equal(failureLine(502, h({}), null), 'HTTP 502, not from the Proofs server (no type)');
-});
-
-test('R3.1: the server never answers its own failures with 502', () => {
-  for (const f of ['functions/api/proofs/writers.js', 'functions/api/proofs/mail-tick.js']) {
-    const src = readFileSync(new URL(`../../${f}`, import.meta.url), 'utf8');
-    assert.ok(!/,\s*502\)/.test(src), `${f} still answers 502`);
-  }
 });

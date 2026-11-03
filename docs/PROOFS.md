@@ -111,38 +111,6 @@ schemes with a dark palette of its own. There are no images, no SVG and no emoji
 email, samples included, carries Reply-To admin@calvaryscribblings.co.uk. The words are ruled
 (296–298) and recorded in docs/COPY-RULINGS.md.
 
-## R3.1: inside Cloudflare's limits
-
-On 2 Nov 2026 at 21:58 UTC the first Open failed with HTTP 502. A Pages Function may make **50
-subrequests per request** (every outbound fetch: database, token, account lookup, Resend), and the
-R3 Open did all its work in one request: 9 + 4 per writer + 2 per story, which is 119 at
-production size. It died on the 51st, after claiming 4 openings and 17 stories. It had sent
-nothing, and it never opened the switch. `scripts/proofs/repair-failed-open.mjs` undoes exactly
-those 21 records (see the ship steps in the round's report).
-
-The design since then:
-
-- **Open is one atomic write.** A single multi-path PATCH at the root does three things at once:
-  queues every ticked writer (`proofs_mail/queue/{uid}`), marks every unticked writer `excluded`,
-  and opens the switch. Its cost is constant: 5 subrequests, whatever the size.
-- **Sending is batched under a budget** (`Budget` in `_mail.js`, 50 per call):
-  - Every outbound call is charged before it is made.
-  - An opening costs 4: read the writer's record, one conditional write that claims the opening
-    and carries its stories, the send, and one write recording the outcome and dequeuing.
-  - A story email costs the same 4.
-  - A call takes only what fits, then answers `more: true`.
-  - /admin/proofs calls `send` until `more` is false; the quarter-hourly job does the same, up to
-    40 calls.
-- **Nothing is claimed that isn't sent in the same call.** If a call dies between the claim and the
-  outcome anyway, the next call records it as `interrupted` and does not send (ruling 302).
-- **Failures answer JSON `{ error, code }` with HTTP 500, never 502.** The page shows both. A body
-  that isn't ours is shown as "HTTP n, not from the Proofs server (type, ray …)".
-- **The shim.** `tests/proofs/limits.emulator.mjs` runs everything with 50 subrequests per request
-  and 6 simultaneous connections enforced on every fetch (`installLimits` in the harness), at
-  production size (10 writers, 6 with stories, 35 stories) and at ten times that.
-  - At production size: the list takes 8, Open 5, and all 10 openings go in one send call of 47.
-  - At ten times that: Open is still 5, and the openings take 10 send calls of at most 47 each.
-
 ## Tests
 
 | command | what |
