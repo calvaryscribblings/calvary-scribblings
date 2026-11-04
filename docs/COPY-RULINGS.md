@@ -785,3 +785,5 @@ Recorded in NOTIF-B1, which builds stage one: the security stopgap on the two ol
 - **325:** The unread count is a small violet badge with the number.
 - **326:** Opening the list clears the count, and dots show what's new since the last look.
 - **267–275, 289 and 304:** still open with Ikenna; owed here.
+
+At ship (4 Nov 2026, the app session's A57): the app's kinds are confirmed, and every one was already on the list. Each app notification is its own write after its event has landed, so a refusal never sinks the event. A note with no sender (the app's read-milestone reward) shows the house name, fixed in code. The `dm_conversations` tightening (the id check, the unread rule, the `lastAt` window) is **held back** for the app's next round, because the app's message writes weren't part of A57. It is kept unwired as `DM_CONVERSATIONS_HELD` in `scripts/notify/write-rules.mjs`.

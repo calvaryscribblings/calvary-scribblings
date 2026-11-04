@@ -26,22 +26,18 @@
 // conversation. The grouped record is updated under its ETag, so simultaneous reactions each land
 // exactly once (tests/notify/notify.emulator.mjs fires them together).
 //
-// THE BUDGET: every outbound call is charged before it is made, against NOTIFY_BUDGET (45), which
-// leaves headroom under Cloudflare's 50. A recipient is admitted only when its checks and one write
+// THE BUDGET: every outbound call is charged before it is made, against the shared SUBREQUEST_BUDGET
+// (45, functions/api/_budget.js), which leaves headroom under Cloudflare's 50. A recipient is admitted only when its checks and one write
 // still fit; one that doesn't is dropped and counted, never half-written.
 //
 // Push is P4. `pushAllowed` and each kind's push behaviour live in app/lib/notificationKinds.js.
 //
 // LOGGING: codes and counts only. Never a uid, a name, a handle or any text.
 
-// LIMITS-1 moves Budget to functions/api/_budget.js with its shared constant. Until that is on main,
-// the PROOFS-R3.1 Budget (same class, same contract) is the one in the tree.
-import { Budget } from './proofs/_mail.js';
+import { Budget, pooled, SUBREQUEST_BUDGET } from './_budget.js';
 import { dbBase, FIREBASE_TIMEOUT_MS } from './bookstore/_lib.js';
 import { INBOX_KINDS, RECENT_ACTORS, ACTOR_SET_CAP } from '../../app/lib/notificationKinds.js';
 
-/** Subrequests one notify call may spend: Cloudflare allows 50; 5 are headroom. */
-export const NOTIFY_BUDGET = 45;
 // Tries at a grouped record's ETag. Each round of a race lands at least one writer, so N readers
 // reacting at once need up to N rounds; the budget, not this number, is the real bound (a retry is
 // only made from budget no other recipient needs). Measured in tests/notify/notify.emulator.mjs.
@@ -148,12 +144,6 @@ export function recipientCost(r) {
 }
 const writeCost = (r) => (r.group ? 2 : 1);
 
-async function pooled(items, width, fn) {
-  let next = 0;
-  const lane = async () => { while (next < items.length) { const i = next++; await fn(items[i], i); } };
-  await Promise.all(Array.from({ length: Math.min(width, items.length) }, lane));
-}
-
 // ── delivery ──────────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -234,4 +224,4 @@ export async function deliver(db, { actor, recipients, now }) {
   return stats;
 }
 
-export function newBudget(limit = NOTIFY_BUDGET) { return new Budget(limit); }
+export function newBudget(limit = SUBREQUEST_BUDGET) { return new Budget(limit); }

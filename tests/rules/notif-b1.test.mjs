@@ -7,9 +7,9 @@
 //   · `reward` and `new_story` only from a founder or the inbox's owner;
 //   · the block barrier, both ways, on the sender the record names;
 //   · the owner may delete a record of their own (and still never edit one).
-// P0, elsewhere: the block barrier on followers (an unfollow is always allowed), and a
-// dm_conversations entry must name its owner; the other participant may only add one to its unread
-// count, never delete it; lastAt must be close to now.
+// P0, elsewhere: the block barrier on followers (an unfollow is always allowed). The
+// dm_conversations tightening is HELD BACK (A57) until the app's next round; its rules stay as main
+// has them, and the web's increment is proved to pass under them.
 // P1: inbox is read by its owner and written by no client at all; inbox_state/seenAt and
 // notify_prefs are the owner's, closed shapes.
 //
@@ -142,40 +142,73 @@ describe('NOTIF-B1 P0 · followers', () => {
   });
 });
 
-describe('NOTIF-B1 P0 · dm_conversations', () => {
+describe('NOTIF-B1 · dm_conversations is HELD BACK (A57): the rules main has today, unchanged', () => {
   const CONV = convIdFor(OWNER, STRANGER);
-  test('a phantom entry — an id that does not name the owner — is refused', async () => {
-    // STRANGER plants "STRANGER_OTHER" in OWNER's list: the id names the writer but not the owner.
-    await assertFails(stranger.ref(`dm_conversations/${OWNER}/${convIdFor(STRANGER, OTHER)}`).set({ unread: 1, lastAt: now() }));
-    // …or an id that names the owner and someone who isn't the writer.
-    await assertFails(stranger.ref(`dm_conversations/${OWNER}/${convIdFor(OWNER, OTHER)}`).set({ unread: 1, lastAt: now() }));
-    // Your own list must name you too.
-    await assertFails(stranger.ref(`dm_conversations/${STRANGER}/${convIdFor(OWNER, OTHER)}`).set({ unread: 0, lastAt: now() }));
+  test('the generator leaves dm_conversations exactly as it finds it', async () => {
+    const { build } = await import('../../scripts/notify/write-rules.mjs');
+    const rules = JSON.parse(readFileSync(DB_RULES_PATH, 'utf8'));
+    assert.deepEqual(build(rules).rules.dm_conversations, rules.rules.dm_conversations);
+    assert.equal(JSON.stringify(rules.rules.dm_conversations).includes('now'), false, 'no lastAt window shipped');
   });
-  test('the other participant adds exactly one, never sets a number', async () => {
+  test('the web\'s increment, and the old set-to-1 the app still sends, both pass today', async () => {
     await assertSucceeds(stranger.ref(`dm_conversations/${OWNER}/${CONV}`).update({ unread: INC, lastAt: now() }));
     await assertSucceeds(stranger.ref(`dm_conversations/${OWNER}/${CONV}`).update({ unread: INC, lastAt: now() }));
     let v;
     await env.withSecurityRulesDisabled(async (c) => { v = (await c.database().ref(`dm_conversations/${OWNER}/${CONV}/unread`).get()).val(); });
     assert.equal(v, 2);
-    await assertFails(stranger.ref(`dm_conversations/${OWNER}/${CONV}`).update({ unread: 9 }));
-    await assertFails(stranger.ref(`dm_conversations/${OWNER}/${CONV}`).update({ unread: 0 }));
-    await assertFails(stranger.ref(`dm_conversations/${OWNER}/${CONV}`).update({ unread: 4 }));
-  });
-  test('the other participant cannot delete the entry', async () => {
-    await seed(env, { [`dm_conversations/${OWNER}/${CONV}`]: { unread: 1, lastAt: now() } });
-    await assertFails(stranger.ref(`dm_conversations/${OWNER}/${CONV}`).remove());
-  });
-  test('lastAt must be close to now, for either participant', async () => {
-    await assertFails(stranger.ref(`dm_conversations/${OWNER}/${CONV}`).update({ unread: INC, lastAt: now() + 86400000 }));
-    await assertFails(stranger.ref(`dm_conversations/${OWNER}/${CONV}`).update({ lastAt: 1 }));
-    await assertFails(owner.ref(`dm_conversations/${OWNER}/${CONV}`).update({ lastAt: now() + 7 * 86400000 }));
-    await assertSucceeds(stranger.ref(`dm_conversations/${OWNER}/${CONV}`).update({ unread: INC, lastAt: now() }));
-  });
-  test('the owner still sets their own count and deletes their own entry', async () => {
-    await seed(env, { [`dm_conversations/${OWNER}/${CONV}`]: { unread: 5, lastAt: now() } });
+    await assertSucceeds(stranger.ref(`dm_conversations/${OWNER}/${CONV}`).update({ unread: 1, lastAt: now() }));
     await assertSucceeds(owner.ref(`dm_conversations/${OWNER}/${CONV}`).update({ unread: 0 }));
-    await assertSucceeds(owner.ref(`dm_conversations/${OWNER}/${CONV}`).remove());
+  });
+});
+
+// A57 (4 Nov 2026): the app session confirmed what the app writes. Each is its own write after the
+// event has landed, so a refusal never sinks the event; these prove none is refused. Field sets are
+// the ones production holds for app-written records (fromHandle and storyTitle are app-only).
+describe('NOTIF-B1 · every write the app makes (A57) passes, with its exact fields', () => {
+  const S = 'a-story', C = '-Ncomment00000000001', P = '-Npost00000000000001';
+  const who = { fromUid: STRANGER, fromName: 'R', fromHandle: 'r', fromAvatarUrl: 'https://x/a.jpg' };
+  const base = () => ({ ...who, read: false, createdAt: now() });
+  const lib = {
+    follow: () => ({ type: 'follow', ...base() }),
+    heart: () => ({ type: 'heart', ...base(), slug: S, storyTitle: 'T', commentId: C, commentText: 'words' }),
+    fire: () => ({ type: 'fire', ...base(), slug: S, storyTitle: 'T', commentId: C, commentText: 'words' }),
+    quill: () => ({ type: 'quill', ...base(), slug: S, storyTitle: 'T' }),
+    reply: () => ({ type: 'reply', ...base(), slug: S, storyTitle: 'T', commentId: C, commentText: 'words' }),
+    mention: () => ({ type: 'mention', ...base(), slug: S, storyTitle: 'T', commentText: 'hi @o' }),
+  };
+  const sq = (type, extra = {}) => () => ({ type, ...base(), fromUsername: 'r', postId: P, ...extra });
+  const square = {
+    mention: sq('mention'),
+    square_quote: sq('square_quote', { quotedPostId: P }),
+    square_post: sq('square_post'),
+    square_reply: sq('square_reply', { threadId: P }),
+    square_reply_to_you: sq('square_reply_to_you', { threadId: P }),
+    like: sq('like', { threadId: P }),
+    clap: sq('clap', { slug: S }),
+    fire: sq('fire', { slug: S }),
+  };
+  for (const [kind, make] of Object.entries(lib)) {
+    test(`app → library_notifications · ${kind}`, async () => {
+      await assertSucceeds(stranger.ref(`library_notifications/${OWNER}`).push(make()));
+    });
+  }
+  for (const [kind, make] of Object.entries(square)) {
+    test(`app → notifications · ${kind}`, async () => {
+      await assertSucceeds(stranger.ref(`notifications/${OWNER}`).push(make()));
+    });
+  }
+  test('app → library_notifications · the read-milestone reward to your own inbox (no fromUid)', async () => {
+    await assertSucceeds(owner.ref(`library_notifications/${OWNER}`).push({
+      type: 'reward', fromName: 'Calvary Scribblings', message: 'You earned 5 Scribbles — 10 stories read milestone!', read: false, createdAt: now(),
+    }));
+    // …and the same shape into anyone else's inbox is still refused.
+    await assertFails(stranger.ref(`library_notifications/${OWNER}`).push({
+      type: 'reward', fromName: 'Calvary Scribblings', message: 'x', read: false, createdAt: now(),
+    }));
+  });
+  test('the app\'s kinds are all on the list (A57)', () => {
+    for (const k of Object.keys(lib).concat('reward')) assert.ok(LEGACY_KINDS.library_notifications[k], k);
+    for (const k of Object.keys(square)) assert.ok(LEGACY_KINDS.notifications[k], k);
   });
 });
 
@@ -260,7 +293,7 @@ describe('NOTIF-B1 P0 · every legitimate web write still passes', () => {
     await assertSucceeds(stranger.ref(`dm_conversations/${STRANGER}/${CONV}`).update({ unread: 0, lastAt: now() }));
     await assertSucceeds(stranger.ref(`dm_conversations/${OWNER}/${CONV}`).update({ unread: INC, lastAt: now() }));
     await assertSucceeds(owner.ref(`dm_conversations/${OWNER}/${CONV}`).update({ unread: 0 }));
-    // The web before NOTIF-B1 set the count to 1; that still passes whenever 1 is old + 1 or old.
+    // The web before NOTIF-B1 set the count to 1 (the app still does); today's rules accept it.
     await assertSucceeds(stranger.ref(`dm_conversations/${OWNER}/${CONV}`).update({ unread: 1, lastAt: now() }));
     await assertSucceeds(stranger.ref(`dm_conversations/${OWNER}/${CONV}`).update({ unread: 1, lastAt: now() }));
   });

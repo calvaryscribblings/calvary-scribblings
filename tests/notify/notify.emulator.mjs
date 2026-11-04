@@ -1,6 +1,6 @@
 // NOTIF-B1 (P1) — POST /api/notify and functions/api/_notify.js, run unmodified against the RTDB
 // emulator under Cloudflare's limits (the PROOFS-R3.1 shim: 50 subrequests and 6 connections per
-// request, the 51st fetch throws as workerd does). Every call must also stay inside NOTIFY_BUDGET (45).
+// request, the 51st fetch throws as workerd does). Every call must also stay inside SUBREQUEST_BUDGET (45).
 //
 //   npm run test:notify:emulator
 //
@@ -10,7 +10,7 @@ import { test, describe, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { install, uninstall, installLimits, loadRules, wipe, get, set, request, context, tokenFor } from '../proofs/harness.mjs';
 import { handleNotify } from '../../functions/api/notify.js';
-import { NOTIFY_BUDGET } from '../../functions/api/_notify.js';
+import { SUBREQUEST_BUDGET as NOTIFY_BUDGET } from '../../functions/api/_budget.js';
 import { MENTION_CAP } from '../../app/lib/notificationKinds.js';
 import { planScrub, SCAN_NODES } from '../../scripts/account/scrub-plan.mjs';
 import { planOwned, OWNED_NODES } from '../../functions/api/account/_deletion.js';

@@ -45,8 +45,12 @@ function legacyInbox(node) {
   } };
 }
 
+// HELD BACK (A57, 4 Nov 2026). The dm_conversations tightening below is NOT written into the rules:
+// the app's message writes weren't part of A57, and messages must not break. build() leaves the
+// node exactly as it is. It ships with the app's next round: wire it back into build() then, and
+// re-enable the dm_conversations tests in tests/rules/notif-b1.test.mjs.
 const OLD_UNREAD = "(data.child('unread').isNumber() ? data.child('unread').val() : 0)";
-const dmConversations = {
+export const DM_CONVERSATIONS_HELD = {
   $uid: {
     '.read': 'auth != null && auth.uid == $uid',
     $convId: {
@@ -107,7 +111,6 @@ export function build(rules) {
   for (const [k, v] of Object.entries(r)) {
     if (['inbox', 'inbox_state', 'notify_prefs'].includes(k)) continue;
     if (k === 'library_notifications' || k === 'notifications') out[k] = legacyInbox(k);
-    else if (k === 'dm_conversations') out[k] = dmConversations;
     else if (k === 'followers') out[k] = followers;
     else out[k] = v;
     if (k === 'library_notifications') Object.assign(out, { inbox, inbox_state: inboxState, notify_prefs: notifyPrefs });

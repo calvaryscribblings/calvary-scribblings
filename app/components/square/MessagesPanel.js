@@ -235,8 +235,9 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
       else { setDmText(''); setDmImageFile(null); }
       // The message is written; the two counts after it are best effort and never unsend it.
       update(ref(db, `dm_conversations/${user.uid}/${convId}`), { unread: 0, lastAt: Date.now() }).catch(() => {});
-      // NOTIF-B1 (P0): the rules let a participant add exactly one to the other reader's unread
-      // count, never set it, so it goes up by the server's increment. It used to be set to 1.
+      // NOTIF-B1: the other reader's unread count goes up by the server's increment (it used to be
+      // set to 1), so it counts messages. Today's rules accept it; the rule that allows only +1 is
+      // held back for the app's next round (A57).
       update(ref(db, `dm_conversations/${otherUid}/${convId}`), { unread: increment(1), lastAt: Date.now() }).catch(() => {});
     } catch (e) {
       // Refused because of a block (ruling 208): the Function says so for an image; for words, the

@@ -18,13 +18,14 @@
 // date) and from every writer in this repo. `source` says where each kind is known from:
 //   web   a writer in this repo writes it today
 //   prod  present in production
-//   app   present in production with fields only the app writes (fromHandle, storyTitle,
-//         fromAvatarUrl on a story notification), or never written by the web at all
+//   app   the app writes it (CONFIRMED by the app session, A57, 4 Nov 2026)
 //
-// ⚠ THE APP'S HALF IS UNCONFIRMED. The app repo cannot be seen from this one. The app session is
-// answering which kinds it writes, and whether a refused notification would sink the write it
-// rides with. Until it answers, every kind production holds is on the list, so no kind the app
-// has ever written is refused. A kind the app writes that production has never seen would be.
+// THE APP'S HALF (A57). To library_notifications the app writes follow, heart, fire, quill, reply,
+// mention and reward (its read-milestone note: own inbox, no fromUid, fromName "Calvary
+// Scribblings"). To notifications it writes mention, square_quote, square_post, square_reply,
+// square_reply_to_you, like, clap and fire. Each is its own write after the event has landed, so a
+// refusal never sinks the event. tests/rules/notif-b1.test.mjs replays each with its exact fields.
+// Every kind production holds stays on the list as well.
 export const LEGACY_KINDS = {
   library_notifications: {
     heart: 'web+prod+app — a reaction on your response',
@@ -35,21 +36,21 @@ export const LEGACY_KINDS = {
     mention: 'web+prod+app — an @mention in a response',
     follow: 'web+prod+app — a new follower',
     new_story: 'web (CMS) + reconciler + prod — FOUNDERS OR THE OWNER ONLY',
-    reward: 'web+prod — your own milestone (Scribbles) — FOUNDERS OR THE OWNER ONLY',
+    reward: 'web+prod+app — your own milestone (Scribbles) — FOUNDERS OR THE OWNER ONLY',
   },
   notifications: {
-    like: 'web+prod — a reaction on your Square post',
-    clap: 'web+prod — a reaction on your Square post',
-    fire: 'web+prod — a reaction on your Square post',
+    like: 'web+prod+app — a reaction on your Square post',
+    clap: 'web+prod+app — a reaction on your Square post',
+    fire: 'web+prod+app — a reaction on your Square post',
     heart: 'prod — a reaction on your Square post (none since Apr 2026)',
     reply: 'prod — an older Square reply (none since 17 Oct 2026)',
-    mention: 'web+prod — an @mention in the Square',
-    square_post: 'web+prod — follower fan-out (ruling 320 retires it in a later stage)',
-    square_quote: 'web+prod — your post was quoted',
-    square_reply: 'web+prod — a reply to your post',
-    square_reply_to_you: 'web — a reply to your reply (none in production yet)',
+    mention: 'web+prod+app — an @mention in the Square',
+    square_post: 'web+prod+app — follower fan-out (ruling 320 retires it in a later stage)',
+    square_quote: 'web+prod+app — your post was quoted',
+    square_reply: 'web+prod+app — a reply to your post',
+    square_reply_to_you: 'web+app — a reply to your reply (none in production yet)',
     open_pages_reply: 'web+prod — a reply to your Open Pages comment',
-    follow: 'drawn by the Square panel; no writer seen — kept for the app (unconfirmed)',
+    follow: 'drawn by the Square panel; no writer, web or app (A57) — kept, harmless',
     new_story: 'drawn by the Square panel; no writer seen — FOUNDERS OR THE OWNER ONLY',
     reward: 'drawn by the Square panel; no writer seen — FOUNDERS OR THE OWNER ONLY',
   },

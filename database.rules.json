@@ -780,12 +780,12 @@
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
         "$convId": {
-          ".write": "auth != null && (($uid === auth.uid && ($convId.beginsWith($uid + '_') || $convId.endsWith('_' + $uid))) || (($convId === $uid + '_' + auth.uid || $convId === auth.uid + '_' + $uid) && !root.child('blocked_users').child(auth.uid).child($uid).exists() && !root.child('blocked_users').child($uid).child(auth.uid).exists() && newData.exists() && ((!newData.child('unread').exists() && !data.child('unread').exists()) || newData.child('unread').val() === (data.child('unread').isNumber() ? data.child('unread').val() : 0) || newData.child('unread').val() === (data.child('unread').isNumber() ? data.child('unread').val() : 0) + 1)))",
+          ".write": "auth != null && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid)) && ($uid === auth.uid || (!root.child('blocked_users').child(auth.uid).child($uid).exists() && !root.child('blocked_users').child($uid).child(auth.uid).exists()))",
           "unread": {
             ".validate": "newData.isNumber() && newData.val() >= 0"
           },
           "lastAt": {
-            ".validate": "newData.isNumber() && (newData.val() === data.val() || (newData.val() >= now - 600000 && newData.val() <= now + 600000))"
+            ".validate": "newData.isNumber()"
           },
           "$other": {
             ".validate": false

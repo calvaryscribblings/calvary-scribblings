@@ -28,7 +28,8 @@
 // LOGGING: codes and counts only.
 
 import { lookupUser, mintAccessToken, SCOPES } from './bookstore/_lib.js';
-import { deliver, notifyDb, newBudget, recordId, NOTIFY_BUDGET } from './_notify.js';
+import { deliver, notifyDb, newBudget, recordId } from './_notify.js';
+import { SUBREQUEST_BUDGET } from './_budget.js';
 import { isId } from '../../app/lib/ids.js';
 import { INDEX_PATH } from '../../app/lib/storyIndex.js';
 import { mentionHandles } from '../../app/lib/squareHandles.js';
@@ -188,10 +189,10 @@ export const EVENT_NAMES = Object.freeze(Object.keys(EVENTS));
 
 /**
  * @param opts.now     the clock (tests pin it)
- * @param opts.limit   the budget (NOTIFY_BUDGET)
+ * @param opts.limit   the budget (SUBREQUEST_BUDGET, 45)
  * @param opts.stats   an object the call fills with what happened, for tests: never sent to the client
  */
-export async function handleNotify(context, { now = Date.now(), limit = NOTIFY_BUDGET, stats = null } = {}) {
+export async function handleNotify(context, { now = Date.now(), limit = SUBREQUEST_BUDGET, stats = null } = {}) {
   const { request, env } = context;
   let body;
   try {
