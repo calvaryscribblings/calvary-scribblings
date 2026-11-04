@@ -652,7 +652,7 @@ rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest
 - **264:** The duplicate-payment email keeps the wording it went live with (`duplicateAlertMessage`, app/lib/bookstore/duplicates.js; see 261 above).
 - **265:** A story we take down stops answering at its address straight away, and ordinary story views never run a Function. Built in EDGE-2: `app/lib/edgeGuard.mjs`, `scripts/generate-edge-guard.mjs`, `functions/{stories,reader,bookstore,series,voices}/[[path]].js`. Pinned in `tests/edge/guard.test.mjs` and `tests/edge/preservation.proof.mjs`.
 - **266:** `www.calvaryscribblings.co.uk` answers a 301 to the apex. Observed in place on 2 Nov 2026 at 22:20 UTC: `HEAD https://www.calvaryscribblings.co.uk/` answered `301`, `location: https://calvaryscribblings.co.uk/`. At EDGE-1 (31 Oct) it answered 523.
-- **267–275:** still open with Ikenna; owed here.
+- **267–275:** ruled on 4 Nov 2026; see that section (NOTIF-B2) below.
 
 ## 2 Nov 2026 (Ikenna): the edge guard's open questions (EDGE-2)
 
@@ -784,6 +784,33 @@ Recorded in NOTIF-B1, which builds stage one: the security stopgap on the two ol
 - **324:** Wherever text lies over a cover, nothing of the cover (frame, emblem, author line, category) shows through it or touches it.
 - **325:** The unread count is a small violet badge with the number.
 - **326:** Opening the list clears the count, and dots show what's new since the last look.
-- **267–275, 289 and 304:** still open with Ikenna; owed here.
+- **267–275, 289 and 304:** ruled on 4 Nov 2026; see the next section (NOTIF-B2).
 
 At ship (4 Nov 2026, the app session's A57): the app's kinds are confirmed, and every one was already on the list. Each app notification is its own write after its event has landed, so a refusal never sinks the event. A note with no sender (the app's read-milestone reward) shows the house name, fixed in code. The `dm_conversations` tightening (the id check, the unread rule, the `lastAt` window) is **held back** for the app's next round, because the app's message writes weren't part of A57. It is kept unwired as `DM_CONVERSATIONS_HELD` in `scripts/notify/write-rules.mjs`.
+
+## 4 Nov 2026 (Ikenna): rulings 267–275, 289, 304 and 327–329 (NOTIF-B2)
+
+Recorded in NOTIF-B2, which builds the web bell (rulings 305, 325, 326, 327), new stories as one shared item (P3, ruling 308) and the web's writers moving onto `POST /api/notify`. These were owed above and are ruled now. **Built** means in this round; the rest are recorded here and built in their own rounds.
+
+- **327:** The Square keeps its bell, and it opens the same single list as the Home bell. **Built:** `app/components/bell/Bell.js` in the Square's header, as the panel on iPad and desktop and `/notifications` on a phone, with the one count.
+- **328:** Blocking or muting someone also hides their responses under stories, as it already does in the Square. The bell already leaves them out (`app/lib/bell.js`). **Owed:** the responses themselves, under stories.
+- **329:** The leftovers of the two accounts deleted before the deletion tool existed (one with push token rows, one with an old library inbox) are cleared, after a backup, under the 26 Sept deletion policy. **At ship:** those two leftovers only, through the SAFETY-1 guard (dry run, verified backup, apply, verify). Nothing else the scrub's dry run found is touched without a separate ruling.
+- **304:** New story addresses drop apostrophes ("nobodys-winning", not "nobody-s-winning"). Existing addresses stay as they are. **Owed.**
+- **289:** The website's drop cap matches the app's: the letter alone, sitting on the baseline. **Owed.**
+- **267:** Backups go to a vault: a separate Google Cloud project Ikenna owns, in Belgium, that the site's key can't reach. **Owed.**
+- **268:** Nothing in the vault can be deleted until it is 30 days old, by anyone, Ikenna included. It is trialled for two weeks, then locked for good. **Owed.**
+- **269:** The site's key is cut down to what the site uses, and replaced if it has been exposed since its last change, in its own round. **Owed.**
+- **270:** Only Ikenna holds the key that unlocks the accounts backup, offline. **Owed.**
+- **271:** The accounts restore test uses a flagged test reader, never a real reader. **Owed.**
+- **272:** The 326 MB of unused files is backed up and kept. Deleting any of it is a later ruling. **Owed** (the backup).
+- **273:** Copies of the Workers' code go into the vault, never the public repo. **Owed.**
+- **274:** Recorded: `/age-verified` points at a Worker that doesn't exist. It is fixed in its own round. **Owed.**
+- **275:** The old export script is retired and the restore guide corrected. **Owed.**
+
+What NOTIF-B2 settled on the way, for review with the round:
+
+- **The app's two old bells keep everything.** Until the app reads `inbox/` (P5), the server writes the old note too, in the shape the web used to write, for every reader it actually tells. That covers replies, mentions, quotes, reactions, follows and Open Pages replies, in `library_notifications` or `notifications`. The same silences apply, and the sender's fields come from their live profile. Each note carries `nid`, its inbox twin, so the web's bell shows the event once. Messages, responses on your story and story reactions never had an old note and get none.
+- **A new story reaches the bell at once, even overnight.** The announcer writes `announcements/{id}` when it claims an item, and also while its push is held for 08:00. A capped push still gets its bell item. The old per-follower copies stay until the app moves (P5); the web's bell shows each story once.
+- **The web's Stories switch stops story pushes now.** The announcer honours `notify_prefs/{uid}/stories` as well as the app's `storyNotifications`. Either one off means no story push.
+- **The bell's words are DRAFT.** "replied to your response", "liked your post", "sent you 2 messages", "A new story by …", and the empty and signed-out lines on `/notifications` all await a house-style pass (rule 13). They are in `app/lib/bell.js` WORDS and `app/notifications/page.js`.
+

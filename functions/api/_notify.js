@@ -22,6 +22,9 @@
 //   · for a message, a reader who has muted that conversation (dm_muted).
 // The caller is never told which: the endpoint answers { ok: true } either way.
 //
+// THE OLD NOTE (NOTIF-B2): a recipient may carry `legacy: { node, record }`, the note the app's old
+// bells read. It is written only for a recipient actually told, in one PATCH per call; see below.
+//
 // GROUPING (rulings 310, 318): reactions group per post, responses per story, messages per
 // conversation. The grouped record is updated under its ETag, so simultaneous reactions each land
 // exactly once (tests/notify/notify.emulator.mjs fires them together).
@@ -71,6 +74,12 @@ export function notifyDb(env, token, budget) {
       if (!etag) throw new Error('RTDB answered without an ETag');
       return { value: await res.json(), etag };
     },
+    /** One multi-path PATCH at the root: every path in `value` lands, or none does. */
+    async patch(value) {
+      const res = await call(`${base}/.json`, { method: 'PATCH', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+      if (!res.ok) throw new Error(`RTDB PATCH ${res.status}`);
+      return 'ok';
+    },
     /** PUT under `ifMatch` ('null_etag' = only if absent). 'ok' | 'stale'; throws otherwise. */
     async put(path, value, ifMatch = null) {
       const headers = { ...auth, 'Content-Type': 'application/json' };
@@ -87,6 +96,19 @@ export function notifyDb(env, token, budget) {
 
 /** A database key from parts: ids and slugs only ever hold [A-Za-z0-9_-], so ':' joins them safely. */
 export const recordId = (...parts) => parts.join(':');
+
+// ── THE APP'S TWO OLD BELLS (NOTIF-B2) ───────────────────────────────────────────────────────
+// Until the app reads inbox/ (P5), its Home bell reads library_notifications/{uid} and its Square
+// bell reads notifications/{uid}. The web's writers moved here, so this module writes the note the
+// web used to write, in the old shape, for every recipient it actually told: the same silences
+// (blocks, mutes) and never twice for one event. Each old note carries `nid`, the inbox record it
+// mirrors, which is how the web's bell knows to show the event once (app/lib/bell.js).
+// All of a call's old notes go in ONE multi-path PATCH, so the mirror costs one subrequest per call.
+
+/** The old note's key: derived, like the record's, so a repeat writes the same key. */
+export const legacyKey = (r) => r.legacyKey || `nb2:${r.group ? `${r.group}:${r.eventKey}` : r.id}`;
+/** What `nid` names: the inbox record the old note mirrors. */
+export const inboxId = (r) => r.group || r.id;
 
 /**
  * The next grouped record, or null when `eventKey` is already in it (a repeat changes nothing).
@@ -139,6 +161,9 @@ export function dedupe(recipients, actor) {
  * one conditional write). A recipient is admitted only when this fits; a grouped record's retries
  * after losing a race are paid from what is left once every admitted recipient's share is set aside.
  */
+/** The one PATCH that carries every old note in the call, when any recipient has one. */
+export const legacyCost = (list) => (list.some((r) => r.legacy) ? 1 : 0);
+
 export function recipientCost(r) {
   return CHECK_COST + (r.silenceIf?.length || 0) + (r.freshAfterSeen ? 1 : 0) + writeCost(r);
 }
@@ -166,9 +191,11 @@ export async function deliver(db, { actor, recipients, now }) {
   if (!list.length) return stats;
   const { budget } = db;
 
-  // 1. Admit, nearest fact first, after the one read every recipient shares.
-  if (!budget.fits(1 + recipientCost(list[0]))) { stats.dropped += list.length; return stats; }
-  let room = budget.left - 1;
+  // 1. Admit, nearest fact first, after the one read every recipient shares (and the old notes'
+  // one PATCH, when there are any).
+  const shared = 1 + legacyCost(list);
+  if (!budget.fits(shared + recipientCost(list[0]))) { stats.dropped += list.length; return stats; }
+  let room = budget.left - shared;
   const admitted = [];
   for (const r of list) {
     const c = recipientCost(r);
@@ -195,8 +222,13 @@ export async function deliver(db, { actor, recipients, now }) {
   });
   audible.sort((x, y) => admitted.indexOf(x.r) - admitted.indexOf(y.r));
 
-  // 3. Write.
-  let pending = audible.reduce((n, { r }) => n + writeCost(r), 0);
+  // 3. Write. The old notes' PATCH is set aside first, so no retry can eat it.
+  const legacy = {};
+  const mirror = (r) => {
+    if (!r.legacy) return;
+    legacy[`${r.legacy.node}/${r.uid}/${legacyKey(r)}`] = { ...r.legacy.record, read: false, createdAt: now, nid: inboxId(r) };
+  };
+  let pending = audible.reduce((n, { r }) => n + writeCost(r), 0) + (audible.some(({ r }) => r.legacy) ? 1 : 0);
   for (const { r, seenAt } of audible) {
     pending -= writeCost(r);
     try {
@@ -204,6 +236,7 @@ export async function deliver(db, { actor, recipients, now }) {
       if (!r.group) {
         const res = await db.put(path, { kind: r.kind, actor, subject: r.subject, at: now }, 'null_etag');
         stats[res === 'ok' ? 'delivered' : 'repeated']++;
+        if (res === 'ok') mirror(r);
         continue;
       }
       let done = false;
@@ -212,14 +245,21 @@ export async function deliver(db, { actor, recipients, now }) {
         const { value, etag } = await db.getWithEtag(path);
         const fresh = !!(r.freshAfterSeen && value && typeof value.at === 'number' && value.at <= seenAt);
         const next = mergeGroup(value, { kind: r.kind, subject: r.subject, actor, eventKey: r.eventKey, now, fresh });
-        if (!next) { stats.repeated++; done = true; break; }
-        if ((await db.put(path, next, etag)) === 'ok') { stats.delivered++; done = true; }
+        // A grouped repeat (a reader's second reaction on one post) adds nothing to the group, but
+        // the web always wrote its own note for it, so the old note still goes (under its own key).
+        if (!next) { stats.repeated++; done = true; if (r.legacyKey) mirror(r); break; }
+        if ((await db.put(path, next, etag)) === 'ok') { stats.delivered++; done = true; mirror(r); }
       }
       if (!done) stats.failed++;   // lost the race every time it could afford to try
     } catch (e) {
       stats.failed++;
       console.error(`[notify] a write failed: ${e?.code || e?.message || 'error'}`);
     }
+  }
+  const notes = Object.keys(legacy).length;
+  if (notes) {
+    try { await db.patch(legacy); stats.mirrored = notes; }
+    catch (e) { stats.mirrorFailed = notes; console.error(`[notify] the old notes failed: ${e?.code || e?.message || 'error'}`); }
   }
   return stats;
 }

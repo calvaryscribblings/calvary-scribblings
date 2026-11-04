@@ -9,6 +9,8 @@ export const ANNOUNCED = 'push_announced';
 export const RECEIPTS = 'push_receipts';
 export const TOKENS = 'push_tokens';
 export const HEARTBEAT = 'ops/push_announcer';
+/** NOTIF-B2 (P3, ruling 308): the one shared bell item per story or instalment. `.write: false`. */
+export const ANNOUNCEMENTS = 'announcements';
 
 const val = async (db, path) => (await db.ref(path).get()).val();
 
@@ -65,12 +67,17 @@ export async function writeSeed(db, marks, now) {
 
 export const readTokens = async (db) => (await val(db, TOKENS)) || {};
 
-/** users/{uid}/storyNotifications for exactly the uids that hold tokens — never the whole node. */
+/**
+ * Whether each token holder takes story pushes, for exactly the uids that hold tokens — never the
+ * whole node. Two switches, either of which turns it off: the app's users/{uid}/storyNotifications,
+ * and NOTIF-B2's notify_prefs/{uid}/stories (the web's Push notifications settings, ruling 312).
+ */
 export async function readPrefs(db, uids) {
   const out = {};
   await Promise.all(uids.map(async (uid) => {
-    const v = await val(db, `users/${uid}/storyNotifications`);
-    if (v !== null) out[uid] = v;
+    const [app, web] = await Promise.all([val(db, `users/${uid}/storyNotifications`), val(db, `notify_prefs/${uid}/stories`)]);
+    if (app === false || web === false) out[uid] = false;
+    else if (app !== null) out[uid] = app;
   }));
   return out;
 }
@@ -96,4 +103,30 @@ export async function clearReceipts(db, ids) {
   const patch = {};
   for (const id of ids) patch[`${RECEIPTS}/${id}`] = null;
   await db.ref().update(patch);
+}
+
+/**
+ * NOTIF-B2 (P3, ruling 308). The shared bell item, written when the item is claimed: ids only
+ * (305), drawn live by every bell. Keyed by kind and id, so a run that claims again after a
+ * release writes the same record, never a second one.
+ */
+export const announcementId = (kind, id) => `${kind}_${id}`;
+export function announcementRecord(item, world, detail, now) {
+  const rec = { kind: item.kind, id: item.id, at: now };
+  if (item.kind === 'story') {
+    const a = world.stories?.[item.id]?.authorUid;
+    if (typeof a === 'string' && a) rec.authorUid = a;
+  } else {
+    const row = world.instalments?.[item.id] || {};
+    if (typeof row.seriesId === 'string' && row.seriesId) rec.seriesId = row.seriesId;
+    const a = detail?.authorUid || world.series?.[row.seriesId]?.authorUid;
+    if (typeof a === 'string' && a) rec.authorUid = a;
+  }
+  return rec;
+}
+/** Create-only: the first write's `at` stands, whichever path (claim, cap, quiet-hours hold) got there first. */
+export async function writeAnnouncement(db, rec) {
+  if (!rec) return false;
+  const { committed } = await db.ref(`${ANNOUNCEMENTS}/${announcementId(rec.kind, rec.id)}`).transaction((cur) => (cur === null ? rec : undefined), undefined, false);
+  return committed;
 }

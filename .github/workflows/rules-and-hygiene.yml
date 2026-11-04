@@ -252,6 +252,13 @@ jobs:
       # emulators. This job's path list names suites one by one, so tests/safety/** is in it too.
       - name: W5 safety — /admin/reports, the under-18 check, the save toast
         run: npm run test:safety
+      # NOTIF-B2 — THE BELL, against the same emulators: the header's bell (signed-in only, beside
+      # the avatar / the menu), the badge at 0, 3 and 99+, the panel (seenAt, the dots, Escape), the
+      # page (four sources, each event once, the blocked and muted absent), the Square's bell and
+      # the Profile link opening the same list, and the settings switches. /api/notify is served by
+      # the Function itself (tests/square/write-route.mjs). Nothing reaches production.
+      - name: NOTIF-B2 — the bell, the panel, the page and settings
+        run: npm run test:notify:bell
       # SAFETY-1 — the bulk-write guard against the database AND storage emulators: dry by default,
       # backup of exactly the touched paths, verified, no write when the backup fails, the root and a
       # blank id refused, the firebase-admin wrappers, and a restore. Then the account scrub and the

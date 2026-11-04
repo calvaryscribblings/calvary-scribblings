@@ -673,6 +673,9 @@
     "notifications": {
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
+        ".indexOn": [
+          "createdAt"
+        ],
         "$notifId": {
           ".write": "auth != null && (($uid === auth.uid && data.exists() && !newData.exists()) || (!data.exists() && newData.exists() && ($uid === auth.uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (newData.child('fromUid').val() === auth.uid && newData.child('type').val() !== 'reward' && newData.child('type').val() !== 'new_story')) && ($uid === auth.uid || !newData.child('fromUid').isString() || (!root.child('blocked_users').child($uid).child(newData.child('fromUid').val()).exists() && !root.child('blocked_users').child(newData.child('fromUid').val()).child($uid).exists()))))",
           ".validate": "newData.hasChildren(['type', 'createdAt'])",
@@ -701,6 +704,9 @@
     "library_notifications": {
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
+        ".indexOn": [
+          "createdAt"
+        ],
         "$notifId": {
           ".write": "auth != null && (($uid === auth.uid && data.exists() && !newData.exists()) || (!data.exists() && newData.exists() && ($uid === auth.uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (newData.child('fromUid').val() === auth.uid && newData.child('type').val() !== 'reward' && newData.child('type').val() !== 'new_story')) && ($uid === auth.uid || !newData.child('fromUid').isString() || (!root.child('blocked_users').child($uid).child(newData.child('fromUid').val()).exists() && !root.child('blocked_users').child(newData.child('fromUid').val()).child($uid).exists()))))",
           ".validate": "newData.hasChildren(['type', 'createdAt'])",
@@ -728,7 +734,10 @@
     },
     "inbox": {
       "$uid": {
-        ".read": "auth != null && auth.uid === $uid"
+        ".read": "auth != null && auth.uid === $uid",
+        ".indexOn": [
+          "at"
+        ]
       }
     },
     "inbox_state": {
@@ -775,6 +784,13 @@
           ".validate": false
         }
       }
+    },
+    "announcements": {
+      ".read": "auth != null",
+      ".write": false,
+      ".indexOn": [
+        "at"
+      ]
     },
     "dm_conversations": {
       "$uid": {

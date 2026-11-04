@@ -8,7 +8,7 @@ import { use } from 'react';
 import AuthModal from '../../components/AuthModal';
 import { checkAndAwardBadges } from '../../lib/badgeEngine';
 import MentionTextarea from '../../components/MentionTextarea';
-import { notifyMentions } from '../../lib/mentions';
+import { notifyEvent } from '../../lib/notifyClient';
 import { requestScreening } from '../../lib/requestScreening';
 import {
   USER_COMMENTS_PATH, indexedCommentWrite, indexedCommentRemoval,
@@ -578,17 +578,9 @@ function CommentsSection({ slug, onSignIn }) {
     }
     // The reaction is saved. Telling the comment's author is a courtesy after it, and its
     // failure is not the reader's failure to react, so it never turns the reaction back off.
+    // NOTIF-B2: the server tells them (app/lib/notifyClient.js), fire and forget.
     if (!hasReacted && commentAuthorUid && commentAuthorUid !== user.uid) {
-      try {
-        const db = await getDB();
-        const { ref, push, get } = await import('firebase/database');
-        const commentSnap = await get(ref(db, `comments/${slug}/${commentId}`));
-        const commentText = commentSnap.exists() ? (commentSnap.val().text || '').slice(0, 120) : '';
-        await push(ref(db, `library_notifications/${commentAuthorUid}`), {
-          type, fromUid: user.uid, fromName: user.displayName || 'Reader',
-          slug, commentId, commentText, read: false, createdAt: Date.now(),
-        });
-      } catch (e) { console.error('Reaction notification error:', e); }
+      notifyEvent(user, 'comment_reaction', `${slug}/${commentId}/${type}`);
     }
   }, [user, slug, commentReactions, comments, requireSignIn]);
 
@@ -615,11 +607,12 @@ function CommentsSection({ slug, onSignIn }) {
     try {
       const db = await getDB();
       const { ref, push, get, update } = await import('firebase/database');
+      let commentId;
       try {
         // ONE atomic multi-path update carries the comment AND its index entry, so the two
         // cannot land separately. A comment written without its entry would be invisible to
         // every counter on the site. See app/lib/userComments.js.
-        const commentId = push(ref(db, `comments/${slug}`)).key;
+        commentId = push(ref(db, `comments/${slug}`)).key;
         await update(ref(db, '/'), indexedCommentWrite({
           uid: user.uid,
           slug,
@@ -648,27 +641,9 @@ function CommentsSection({ slug, onSignIn }) {
       // Comment landed — recompute reader score (distinct commented slugs feed
       // the leaderboard formula). Fire-and-forget; never block the comment UI.
       checkAndAwardBadges(user.uid, db).catch(() => {});
-      try {
-        await notifyMentions({
-          text: trimmed, slug,
-          fromUid: user.uid, fromName: user.displayName || 'Reader',
-          excludeUid: user.uid,
-        });
-      } catch (e) {}
-      if (parentId) {
-        const parentComment = comments.find(c => c.id === parentId);
-        if (parentComment && parentComment.authorUid !== user.uid) {
-          try {
-            await push(ref(db, `library_notifications/${parentComment.authorUid}`), {
-              type: 'reply', fromUid: user.uid,
-              fromName: user.displayName || 'Reader',
-              slug, commentId: parentId,
-              commentText: (parentComment.text || '').slice(0, 120),
-              read: false, createdAt: Date.now(),
-            });
-          } catch (e) {}
-        }
-      }
+      // NOTIF-B2: the reply, the mentions and the story's writer are told by the server, which
+      // reads the saved comment itself (app/lib/notifyClient.js). Fire and forget.
+      notifyEvent(user, 'comment', `${slug}/${commentId}`);
       // THE MILESTONE. This used to download the ENTIRE comments node — every comment on
       // every story by every reader, 494 KB and growing with the readership — to count one
       // reader's own comments. It now reads that reader's own index node: a few hundred

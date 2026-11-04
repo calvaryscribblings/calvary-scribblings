@@ -22,8 +22,11 @@
 //   message            {convId}/{messageId}                 the other participant (grouped per conversation)
 //   open_pages_reply   {pieceId}/{commentPath}              the author of the comment replied to
 //
-// NOTHING CALLS THIS YET. The web and the app keep writing the two old inboxes until the bell (P2)
-// reads this one; switching the writers then keeps the two lists from diverging in between.
+// NOTIF-B2: every web writer calls this after its event lands (app/lib/notifyClient.js), and no
+// longer writes the old inboxes itself. The app still does, until it reads inbox/ (P5). So that an
+// app reader keeps everything they had, this also writes the old note the web used to write, in
+// the old shape, to library_notifications or notifications (functions/api/_notify.js, THE APP'S
+// TWO OLD BELLS). Messages, responses on your story and story reactions never had an old note.
 //
 // LOGGING: codes and counts only.
 
@@ -52,6 +55,25 @@ const fail = (code, status) => reply({ ok: false, code }, status);
 class Refusal extends Error { constructor(code, status) { super(code); this.code = code; this.status = status; } }
 const refuse = (code, status) => { throw new Refusal(code, status); };
 const live = (rec) => rec && typeof rec === 'object' && rec.deleted !== true && rec.withdrawn !== true;
+const clip = (v, n) => (typeof v === 'string' && v ? v.slice(0, n) : undefined);
+
+// The old notes (NOTIF-B2). `lib` goes to the app's Home bell (library_notifications), `sq` to its
+// Square bell (notifications). The sender's fields are added once per call from their LIVE record
+// (withSender), so a server-written old note can't carry a name the sender typed into it.
+const drop = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== ''));
+const lib = (record) => ({ node: 'library_notifications', record: drop(record) });
+const sq = (record) => ({ node: 'notifications', record: drop(record) });
+
+/** The sender, as the old notes carried them, from users/{uid}: the one extra read a call makes. */
+export function senderFields(uid, user, node) {
+  const u = user && typeof user === 'object' ? user : {};
+  const handle = clip(u.username || u.handle, 64);
+  const name = clip(u.displayName || u.handle || u.username, 128) || 'Reader';
+  const avatar = clip(u.avatarUrl || u.photoURL, 512);
+  return drop(node === 'notifications'
+    ? { fromUid: uid, fromName: name, fromUsername: handle, fromHandle: handle, fromAvatarUrl: avatar }
+    : { fromUid: uid, fromName: name, fromHandle: handle, fromAvatarUrl: avatar });
+}
 const uidOrNull = (v) => (isId('uid', v) ? v : null);
 
 /** Up to MENTION_CAP handles in `text`, resolved through the usernames index. */
@@ -73,15 +95,22 @@ const EVENTS = {
     if (!live(c)) refuse('missing', 404);
     if (c.authorUid !== uid) refuse('not_yours', 403);
     const parentId = isKey(c.parentId) ? c.parentId : null;
-    const [writer, parentAuthor, mentions] = await Promise.all([
-      db.get(`${INDEX_PATH}/${slug}/authorUid`),
-      parentId ? db.get(`comments/${slug}/${parentId}/authorUid`) : null,
+    const [story, parent, mentions] = await Promise.all([
+      db.get(`${INDEX_PATH}/${slug}`),
+      parentId ? db.get(`comments/${slug}/${parentId}`) : null,
       mentioned(db, c.text),
     ]);
+    const writer = story?.authorUid;
+    const storyTitle = clip(story?.title, 200);
     const subject = { slug, commentId, ...(parentId ? { parentId } : {}) };
     return [
-      parentAuthor && { uid: uidOrNull(parentAuthor), kind: 'reply', subject, id: recordId('reply', slug, commentId) },
-      ...mentions.map((m) => ({ uid: m, kind: 'mention', subject, id: recordId('mention', slug, commentId) })),
+      // The old notes, as the story page wrote them: a reply names the response replied to and
+      // quotes it; a mention quotes the new words.
+      parent?.authorUid && { uid: uidOrNull(parent.authorUid), kind: 'reply', subject, id: recordId('reply', slug, commentId),
+        legacy: lib({ type: 'reply', slug, commentId: parentId, commentText: clip(parent.text, 120), storyTitle }) },
+      ...mentions.map((m) => ({ uid: m, kind: 'mention', subject, id: recordId('mention', slug, commentId),
+        legacy: lib({ type: 'mention', slug, commentText: clip(c.text, 140), storyTitle }) })),
+      // Responses on your story are new (ruling 307): there was never an old note for them.
       writer && { uid: uidOrNull(writer), kind: 'response', subject: { slug }, group: recordId('response', slug), eventKey: commentId },
     ];
   },
@@ -89,13 +118,17 @@ const EVENTS = {
   async comment_reaction(db, uid, parts) {
     const [slug, commentId, type] = parts;
     if (parts.length !== 3 || !isId('slug', slug) || !isKey(commentId) || !COMMENT_REACTIONS.has(type)) refuse('bad_request', 400);
-    const [mine, author] = await Promise.all([
+    const [mine, c] = await Promise.all([
       db.get(`comment_reactions/${slug}/${uid}/${commentId}/${type}`),
-      db.get(`comments/${slug}/${commentId}/authorUid`),
+      db.get(`comments/${slug}/${commentId}`),
     ]);
     if (mine !== true) refuse('not_yours', 403);
-    if (!author) refuse('missing', 404);
-    return [{ uid: uidOrNull(author), kind: 'reaction', subject: { slug, commentId }, group: recordId('reaction', 'c', slug, commentId), eventKey: uid }];
+    if (!c?.authorUid) refuse('missing', 404);
+    // The group counts each reader once (eventKey: the reader); the old note is one per reaction, as
+    // the web wrote it, so it is keyed by the reaction too.
+    const group = recordId('reaction', 'c', slug, commentId);
+    return [{ uid: uidOrNull(c.authorUid), kind: 'reaction', subject: { slug, commentId }, group, eventKey: uid,
+      legacyKey: recordId('nb2', group, uid, type), legacy: lib({ type, slug, commentId, commentText: clip(c.text, 120) }) }];
   },
 
   async story_reaction(db, uid, parts) {
@@ -114,7 +147,7 @@ const EVENTS = {
     const [target] = parts;
     if (parts.length !== 1 || !isId('uid', target)) refuse('bad_request', 400);
     if ((await db.get(`followers/${target}/${uid}`)) !== true) refuse('not_yours', 403);
-    return [{ uid: target, kind: 'follow', subject: { uid }, group: recordId('follow', uid), eventKey: uid }];
+    return [{ uid: target, kind: 'follow', subject: { uid }, group: recordId('follow', uid), eventKey: uid, legacy: lib({ type: 'follow' }) }];
   },
 
   async square_post(db, uid, parts) {
@@ -133,11 +166,18 @@ const EVENTS = {
       mentioned(db, p.text),
     ]);
     const subject = { postId, threadId: rootId || postId };
+    // The old notes, as the feed and the thread page wrote them. Ruling 320: never the followers'
+    // "posted" note (square_post), here or anywhere.
+    const thread = rootId ? { threadId: rootId } : {};
     return [
-      replyToAuthor && { uid: uidOrNull(replyToAuthor), kind: 'reply', subject: { ...subject, to: 'you' }, id: recordId('reply', 'sq', postId) },
-      rootAuthor && { uid: uidOrNull(rootAuthor), kind: 'reply', subject, id: recordId('reply', 'sq', postId) },
-      quotedAuthor && { uid: uidOrNull(quotedAuthor), kind: 'quote', subject: { ...subject, quotedPostId: quotedId }, id: recordId('quote', postId) },
-      ...mentions.map((m) => ({ uid: m, kind: 'mention', subject, id: recordId('mention', 'sq', postId) })),
+      replyToAuthor && { uid: uidOrNull(replyToAuthor), kind: 'reply', subject: { ...subject, to: 'you' }, id: recordId('reply', 'sq', postId),
+        legacy: sq({ type: 'square_reply_to_you', postId, ...thread }) },
+      rootAuthor && { uid: uidOrNull(rootAuthor), kind: 'reply', subject, id: recordId('reply', 'sq', postId),
+        legacy: sq({ type: 'square_reply', postId, ...thread }) },
+      quotedAuthor && { uid: uidOrNull(quotedAuthor), kind: 'quote', subject: { ...subject, quotedPostId: quotedId }, id: recordId('quote', postId),
+        legacy: sq({ type: 'square_quote', postId, quotedPostId: quotedId }) },
+      ...mentions.map((m) => ({ uid: m, kind: 'mention', subject, id: recordId('mention', 'sq', postId),
+        legacy: sq({ type: 'mention', postId, ...thread }) })),
     ];
   },
 
@@ -151,7 +191,9 @@ const EVENTS = {
     if (mine !== true) refuse('not_yours', 403);
     if (!live(p)) refuse('missing', 404);
     const subject = { postId, threadId: isKey(p.parentId) ? p.parentId : postId };
-    return [{ uid: uidOrNull(p.authorUid), kind: 'reaction', subject, group: recordId('reaction', 'sq', postId), eventKey: uid }];
+    const group = recordId('reaction', 'sq', postId);
+    return [{ uid: uidOrNull(p.authorUid), kind: 'reaction', subject, group, eventKey: uid,
+      legacyKey: recordId('nb2', group, uid, type), legacy: sq({ type, postId, ...(isKey(p.parentId) ? { threadId: p.parentId } : {}) }) }];
   },
 
   async message(db, uid, parts) {
@@ -180,7 +222,8 @@ const EVENTS = {
     const parentPath = path.replace(/\/replies\/[A-Za-z0-9_-]+$/, '');
     const parentAuthor = await db.get(`comments/${pieceId}/${parentPath}/authorUid`);
     const replyId = path.split('/').pop();
-    return [parentAuthor && { uid: uidOrNull(parentAuthor), kind: 'reply', subject: { pieceId, path }, id: recordId('reply', 'op', pieceId, replyId) }];
+    return [parentAuthor && { uid: uidOrNull(parentAuthor), kind: 'reply', subject: { pieceId, path }, id: recordId('reply', 'op', pieceId, replyId),
+      legacy: sq({ type: 'open_pages_reply', postId: pieceId }) }];
   },
 };
 export const EVENT_NAMES = Object.freeze(Object.keys(EVENTS));
@@ -221,7 +264,12 @@ export async function handleNotify(context, { now = Date.now(), limit = SUBREQUE
     budget.take(1);
     const db = notifyDb(env, await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY, SCOPES), budget);
 
-    const recipients = (await EVENTS[event](db, uid, subjectId.split('/'))).filter(Boolean).filter((r) => r.uid);
+    const recipients = (await EVENTS[event](db, uid, subjectId.split('/'))).filter(Boolean).filter((r) => r.uid && r.uid !== uid);
+    // The old notes need the sender's live name: one read, only when a recipient has an old note.
+    if (recipients.some((r) => r.legacy)) {
+      const user = await db.get(`users/${uid}`).catch(() => null);
+      for (const r of recipients) if (r.legacy) r.legacy = { node: r.legacy.node, record: { ...r.legacy.record, ...senderFields(uid, user, r.legacy.node) } };
+    }
     const result = await deliver(db, { actor: uid, recipients, now });
     if (stats) Object.assign(stats, result, { used: budget.used });
     return reply({ ok: true });

@@ -307,6 +307,69 @@ describe('the 08:00 hold and the two-a-day cap, on London\'s clock', () => {
   });
 });
 
+describe('NOTIF-B2 (P3, ruling 308) · the shared bell item, announcements/{id}', () => {
+  const T = (s) => Date.parse(s);
+  const world = (day) => seedWorld({
+    'series_instalments/bp-i2': { seriesId: 'bp', ordinal: 2, status: 'published', releaseAtMs: T('2027-01-01T00:00:00Z') },
+    'push_tokens/reader1/k': token(1, T(day)), 'push_tokens/reader2/k': token(2, T(day)), 'push_tokens/quiet/k': token(3, T(day)),
+  });
+
+  test('a sent story writes ONE announcement: ids only, with its writer', async () => {
+    await seedWorld();
+    await runSeed(await guarded(db), NOW, { apply: true });
+    await publish('brand-new', { title: 'Brand New', authorUid: 'writer-1' });
+    await runAnnouncer(await guarded(db), fakeExpo(), NOW + MIN, { apply: true, ...quiet });
+    assert.deepEqual(await val('announcements'), { 'story_brand-new': { kind: 'story', id: 'brand-new', authorUid: 'writer-1', at: NOW + MIN } });
+    await runAnnouncer(await guarded(db), fakeExpo(), NOW + 20 * MIN, { apply: true, ...quiet });
+    assert.equal(Object.keys(await val('announcements')).length, 1, 'never a second');
+  });
+
+  test('an instalment carries its series and its writer (from the detail, else the series)', async () => {
+    await seedWorld({ 'series/bp': { title: 'Beta Princess', status: 'published', authorUid: 'series-writer' } });
+    await runSeed(await guarded(db), NOW, { apply: true });
+    await runAnnouncer(await guarded(db), fakeExpo(), NOW + 2 * D + MIN, { apply: true, ...quiet });
+    assert.deepEqual(await val('announcements/instalment_bp-i2'), { kind: 'instalment', id: 'bp-i2', seriesId: 'bp', authorUid: 'series-writer', at: NOW + 2 * D + MIN });
+  });
+
+  test('HELD for 08:00: the bell has it at once; the 08:00 send keeps the first `at`', async () => {
+    await world('2026-09-25T00:00:00Z');
+    await runSeed(await guarded(db), T('2026-09-25T00:00:00Z'), { apply: true });
+    await publish('dawn', { publishAt: '2026-09-25T04:30:00Z' });
+    await runAnnouncer(await guarded(db), fakeExpo(), T('2026-09-25T05:45:00Z'), { apply: true, ...quiet });
+    assert.equal((await val('announcements/story_dawn')).at, T('2026-09-25T05:45:00Z'));
+    assert.equal(await val('push_announced/story/dawn'), null, 'the push itself is still held');
+    await runAnnouncer(await guarded(db), fakeExpo(), T('2026-09-25T07:00:00Z'), { apply: true, ...quiet });
+    assert.equal((await val('push_announced/story/dawn')).state, 'sent');
+    assert.equal((await val('announcements/story_dawn')).at, T('2026-09-25T05:45:00Z'));
+  });
+
+  test('CAPPED means no push, never no bell', async () => {
+    await world('2026-09-25T00:00:00Z');
+    await runSeed(await guarded(db), T('2026-09-25T00:00:00Z'), { apply: true });
+    for (const s of ['a1', 'a2', 'a3']) await publish(s, { publishAt: '2026-09-25T09:00:00Z' });
+    await runAnnouncer(await guarded(db), fakeExpo(), T('2026-09-25T09:05:00Z'), { apply: true, ...quiet });
+    assert.deepEqual(Object.keys(await val('announcements')).sort(), ['story_a1', 'story_a2', 'story_a3']);
+  });
+
+  test('ruling 312: the web\'s Stories switch (notify_prefs) stops story pushes too; the bell still has it', async () => {
+    await seedWorld({ 'notify_prefs/reader2/stories': false });
+    await runSeed(await guarded(db), NOW, { apply: true });
+    await publish('brand-new');
+    const expo = fakeExpo();
+    await runAnnouncer(await guarded(db), expo, NOW + MIN, { apply: true, ...quiet });
+    assert.deepEqual(expo.sent.map((m) => m.to), ['ExpoPushToken[dev1]']);
+    assert.ok(await val('announcements/story_brand-new'));
+  });
+
+  test('a DRY RUN writes no announcement', async () => {
+    await seedWorld();
+    await runSeed(await guarded(db), NOW, { apply: true });
+    await publish('brand-new');
+    await runAnnouncer(await guarded(db), fakeExpo(), NOW + MIN, { apply: false, ...quiet });
+    assert.equal(await val('announcements'), null);
+  });
+});
+
 describe('receipts and pruning', () => {
   test('DeviceNotRegistered on the TICKET deletes that row at once', async () => {
     await seedWorld();

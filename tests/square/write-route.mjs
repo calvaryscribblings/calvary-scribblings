@@ -17,6 +17,7 @@
 // it isn't" is proven.
 import { generateKeyPairSync } from 'node:crypto';
 import { handleWrite } from '../../functions/api/square/write.js';
+import { handleNotify } from '../../functions/api/notify.js';
 import { DB_NAMESPACE } from '../series/harness.mjs';
 
 const FAKE = 'https://w54-square.test';
@@ -72,6 +73,9 @@ export async function routeSquareWrite(page, { at, now = null, fail = null } = {
     hold() { if (!held) { let open; held = { wait: new Promise((r) => { open = r; }), open }; } },
     release() { if (held) { held.open(); held = null; } },
   };
+  // NOTIF-B2: the Square's notifications are the server's now (POST /api/notify after each save),
+  // so every suite that serves the write serves that too, the same way and on the same clock.
+  await routeNotify(page, { at, now });
   await page.route('**/api/square/write', async (route) => {
     if (held) await held.wait;
     if (fail) {
@@ -89,4 +93,27 @@ export async function routeSquareWrite(page, { at, now = null, fail = null } = {
     return route.fulfill({ status: res.status, contentType: 'application/json', body });
   });
   return control;
+}
+
+/**
+ * NOTIF-B2 — serve /api/notify on this page: functions/api/notify.js, unmodified, against the
+ * emulators, exactly as /api/square/write above. `calls` are the answered statuses.
+ */
+export async function routeNotify(page, { at, now = null } = {}) {
+  installFetch();
+  const shift = (at ?? Date.now()) - Date.now();
+  const calls = [];
+  await page.route('**/api/notify', async (route) => {
+    const req = route.request();
+    const request = new Request('https://calvaryscribblings.co.uk/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: req.headers().authorization || '' },
+      body: req.postData() || '',
+    });
+    const res = await handleNotify({ request, env: ENV }, { now: now ?? Date.now() + shift });
+    const body = await res.text();
+    calls.push({ status: res.status, body: JSON.parse(body) });
+    return route.fulfill({ status: res.status, contentType: 'application/json', body });
+  });
+  return { calls };
 }

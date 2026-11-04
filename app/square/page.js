@@ -21,6 +21,8 @@ import MessagesPanel from '../components/square/MessagesPanel';
 import ReaderCard from '../components/square/ReaderCard';
 import useSafety from '../components/square/useSafety';
 import { sendSquareWrite } from '../lib/squareWrite';
+import { notifyEvent } from '../lib/notifyClient';
+import Bell from '../components/bell/Bell';
 import { INDEX_PATH } from '../lib/storyIndex';
 import { rememberStory } from '../lib/storyLive';
 import { REACTION_TYPES, withReactionCounts } from '../lib/squareReactions';
@@ -392,118 +394,11 @@ function StoryAttachModal({ onSelect, onClose, cmsStories }) {
 // see app/lib/squarePostBody.js.
 // W53 — the messages panel is app/components/square/MessagesPanel.js: identity drawn live, the
 // reader card, the block barrier (ruling 208) and Report a message.
-// ── Notifications Panel ───────────────────────────────────────────────────────
-// W53 — a muted or blocked reader's notifications don't show (and a blocked reader's are refused
-// by the rules), and a face or a name opens the reader card. Identity is the live record (203).
-function NotificationsPanel({ user, onClose, hidden, onOpenReader }) {
-  const [all, setAll] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [identities, setIdentities] = useState({});
-  const notifs = all.filter(n => !(n.fromUid && hidden?.has(n.fromUid))).slice(0, 30);
+// ── Notifications ─────────────────────────────────────────────────────────────
+// NOTIF-B2 (ruling 327): the Square keeps its bell, and it opens the same single list as the Home
+// bell: the panel on iPad and desktop, /notifications on a phone (components/bell/Bell.js). Its
+// unread mark is the one count. The Square's own panel, which read notifications/{uid} alone, is gone.
 
-  useEffect(() => {
-    if (!user) return;
-    let unsub = null;
-    let cancelled = false;
-    (async () => {
-      const db = await getDB();
-      const { ref, onValue } = await import('firebase/database');
-      if (cancelled) return;
-      unsub = onValue(ref(db, `notifications/${user.uid}`), (snap) => {
-        // LIVE-PATHS-1: the KEY is the id; a stored `id` field never overrides it.
-        setAll(snap.exists() ? Object.entries(snap.val()).map(([id, n]) => ({ ...n, id })).sort((a, b) => b.createdAt - a.createdAt) : []);
-        setLoading(false);
-      });
-    })();
-    return () => { cancelled = true; if (unsub) unsub(); };
-  }, [user]);
-
-  // Mark what is shown as read; a hidden reader's notification is neither shown nor counted.
-  const unreadKey = notifs.filter(n => !n.read).map(n => n.id).join(',');
-  useEffect(() => {
-    if (!user || !unreadKey) return;
-    (async () => {
-      const db = await getDB();
-      const { ref, update } = await import('firebase/database');
-      update(ref(db, `notifications/${user.uid}`), Object.fromEntries(unreadKey.split(',').map(id => [`${id}/read`, true]))).catch(() => {});
-    })();
-  }, [user, unreadKey]);
-
-  const fromKey = [...new Set(notifs.map(n => n.fromUid).filter(Boolean))].sort().join(',');
-  useEffect(() => {
-    if (!fromKey) return;
-    let cancelled = false;
-    (async () => {
-      const db = await getDB();
-      const map = await resolveIdentities(db, fromKey.split(','));
-      if (!cancelled) setIdentities(Object.fromEntries(map));
-    })();
-    return () => { cancelled = true; };
-  }, [fromKey]);
-  const whoFrom = (n) => identityOf({ authorUid: n.fromUid, authorName: n.fromName, authorHandle: n.fromUsername, authorAvatarUrl: n.fromAvatarUrl }, identities[n.fromUid]);
-
-  const notifLabel = (n) => {
-    if (NOTIFICATION_WORDS[n.type]) return NOTIFICATION_WORDS[n.type];   // W52: replied to your post / to you
-    if (n.type === 'mention') return ' mentioned you in the Square';
-    if (n.type === 'reply') return ' replied to your comment';
-    if (n.type === 'open_pages_reply') return ' replied to your comment on Open Pages';
-    if (n.type === 'follow') return ' started following you';
-    if (n.type === 'heart') return ' loved your post';
-    if (n.type === 'clap') return ' liked your post';
-    if (n.type === 'fire') return ' reacted 🔥 to your post';
-    if (n.type === 'new_story') return ` published a new story: ${n.storyTitle || 'a new story'}`;
-    if (n.type === 'reward') return n.message || ' — you earned points!';
-    if (n.type === 'follow') return ' started following you';
-    if (n.type === 'square_post') return ' posted in the Square';
-    if (n.type === 'like') return ' liked your post';
-    if (n.type === 'clap') return ' liked your post';
-    if (n.type === 'fire') return ' reacted 🔥 to your post';
-    return '';
-  };
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div data-notifications-panel style={{ background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, maxHeight: '75vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: 'var(--cs-cookie-space, 0px)', boxSizing: 'border-box' }}>
-        <div style={{ padding: '10px 14px 10px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Notifications</div>
-          <button onClick={onClose} aria-label="Close notifications" style={{ width: 44, height: 44, background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {loading ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#f5f0e8', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.9rem' }}>Loading…</div>
-          ) : notifs.length === 0 ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No notifications yet</div>
-          ) : notifs.map(n => {
-            const href = n.type === 'follow' ? `/user?id=${n.fromUid}` : n.type === 'open_pages_reply' ? (n.postId ? `/open-pages/${n.postId}` : null) : squareNotificationHref(n);
-            const w = whoFrom(n);
-            return (
-              <div key={n.id} data-notification={n.id}
-                style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', gap: 10, alignItems: 'flex-start', background: n.read ? 'transparent' : 'rgba(107,47,173,0.05)' }}>
-                {n.fromUid ? <Avatar uid={n.fromUid} initials={w.initials} size={34} isAuthor={w.isAuthor} avatarUrl={w.avatarUrl} onOpen={onOpenReader} label={`Open ${w.displayName}`} /> : <div style={{ width: 34, flex: 'none' }} />}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '0.88rem', color: '#f0ece6', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.45, marginBottom: 2 }}>
-                    {n.fromUid
-                      ? <button type="button" onClick={() => onOpenReader(n.fromUid)} data-reader-open={n.fromUid} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 600, color: '#f5f0e8' }}>{w.displayName}</button>
-                      : <span style={{ fontWeight: 600, color: '#f5f0e8' }}>{n.fromName}</span>}
-                    {href
-                      ? <a href={href} style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none' }}>{notifLabel(n)}</a>
-                      : <span style={{ color: 'rgba(255,255,255,0.48)' }}>{notifLabel(n)}</span>}
-                  </div>
-                  {w.handle && <div style={{ fontSize: '0.7rem', color: 'rgba(167,139,250,0.45)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 2 }}>@{w.handle}</div>}
-                  <div style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.22)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{timeAgo(n.createdAt)}</div>
-                </div>
-                {!n.read && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#6b2fad', flexShrink: 0, marginTop: 5 }} />}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function SquarePage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -515,11 +410,9 @@ export default function SquarePage() {
   const [attachedStory, setAttachedStory] = useState(null);
   const [showStoryAttach, setShowStoryAttach] = useState(false);
   const [showDM, setShowDM] = useState(false);
-  const [showNotifs, setShowNotifs] = useState(false);
   const [showPollCreator, setShowPollCreator] = useState(false);
   // null until presence is KNOWN — "0 in the room" over a feed that never loaded was a claim (SQ-03).
   const [presenceCount, setPresenceCount] = useState(null);
-  const [notifRaw, setNotifRaw] = useState([]);
   // W53 — the reader card, and the conversation it opens.
   const [cardUid, setCardUid] = useState(null);
   const [dmStart, setDmStart] = useState(null);
@@ -548,7 +441,6 @@ export default function SquarePage() {
   // W53 — this reader's mute and block lists (app/components/square/useSafety.js).
   const safety = useSafety(user?.uid || null);
   const hidden = safety.hidden;
-  const unreadNotifs = notifRaw.filter(n => !n.read && !(n.fromUid && hidden.has(n.fromUid))).length;
   const openReader = useCallback((uid) => { if (uid) setCardUid(uid); }, []);
 
   // This reader's own reactions, from the same lists the counts come from.
@@ -681,9 +573,6 @@ export default function SquarePage() {
           if (cancelled) return;
           const snap = await get(ref(db, `users/${u.uid}`));
           if (snap.exists()) setUserData(snap.val());
-          childUnsubs.push(onValue(ref(db, `notifications/${u.uid}`), (snap) => {
-            setNotifRaw(snap.exists() ? Object.values(snap.val()) : []);
-          }));
           const presRef = ref(db, `square_presence/${u.uid}`);
           await set(presRef, true);
           onDisconnect(presRef).remove();
@@ -786,44 +675,9 @@ export default function SquarePage() {
   const insertMention = (username) => { setText(text.replace(/@\w*$/, `@${username} `)); setMentionQuery(''); textareaRef.current?.focus(); };
   const insertMentionEdit = (username) => { setEditText(editText.replace(/@\w*$/, `@${username} `)); setMentionQueryEdit(''); editTextareaRef.current?.focus(); };
 
-  // W53 — one notification at a time, each on its own: the rules refuse one to a reader who has
-  // blocked the sender, and that refusal must not stop the next reader hearing.
-  const tryNotify = async (db, uid, record) => {
-    try {
-      const { ref, push } = await import('firebase/database');
-      await push(ref(db, `notifications/${uid}`), record);
-    } catch (e) { console.error('Notification not sent:', e?.code || e?.message || e); }
-  };
-
-  // W52 — replies are written on the thread page (/square/p), which tells their readers itself.
-  const sendNotifications = async (text, postId, type = 'mention') => {
-    const db = await getDB();
-    const { ref, push, get } = await import('firebase/database');
-    // W51 — the lowercase index only. The old fallback read the founder-only users root and
-    // threw for every other reader; a handle that does not resolve now simply notifies nobody.
-    const readIndex = async (h) => (await get(ref(db, `usernames/${h}`))).val();
-    for (const handle of mentionHandles(text)) {
-      const targetUid = await resolveHandle(handle, readIndex);
-      if (!targetUid || targetUid === user.uid) continue;
-      await tryNotify(db, targetUid, {
-        type: 'mention', fromUid: user.uid, fromName: user.displayName || 'Reader',
-        fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
-        postId, read: false, createdAt: Date.now(),
-      });
-    }
-    if (type === 'post') {
-      const followersSnap = await get(ref(db, `followers/${user.uid}`));
-      if (followersSnap.exists()) {
-        for (const followerUid of Object.keys(followersSnap.val())) {
-          await tryNotify(db, followerUid, {
-            type: 'square_post', fromUid: user.uid, fromName: user.displayName || 'Reader',
-            fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
-            postId, read: false, createdAt: Date.now(),
-          });
-        }
-      }
-    }
-  };
+  // NOTIF-B2 — a post's readers (its @mentions, a quoted post's author) are told by the server,
+  // which reads the saved post itself (app/lib/notifyClient.js). Ruling 320: nobody writes the
+  // followers' "posted" note any more. W52: replies are written, and told, on the thread page.
 
   const mirrorToUserPosts = async (postId, postData) => {
     const db = await getDB();
@@ -874,17 +728,8 @@ export default function SquarePage() {
       });
       if (retry) setFailedPosts(f => f.filter(x => x.id !== retry.id));
       else { setText(''); setAttachedStory(null); setQuotedPostId(null); }
-      const db = await getDB();
       afterSave(key, postData, async () => {
-        await sendNotifications(body, key, 'post');
-        const quotedPost = quoted ? posts.find(p => p.id === quoted) : null;
-        if (quotedPost && quotedPost.authorUid && quotedPost.authorUid !== user.uid) {
-          await tryNotify(db, quotedPost.authorUid, {
-            type: 'square_quote', fromUid: user.uid, fromName: user.displayName || 'Reader',
-            fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
-            postId: key, quotedPostId: quoted, read: false, createdAt: Date.now(),
-          });
-        }
+        notifyEvent(user, 'square_post', key);
       });
     } catch (e) {
       console.error('Post error:', e?.code || e);
@@ -929,16 +774,9 @@ export default function SquarePage() {
       throw e;
     }
     // Saved. Telling the post's author is a courtesy after it and never undoes the reaction.
+    // NOTIF-B2: the server tells them (app/lib/notifyClient.js), fire and forget.
     const post = posts.find(p => p.id === postId);
-    if (!hasReacted && post && post.authorUid !== user.uid) {
-      try {
-        await push(ref(db, `notifications/${post.authorUid}`), {
-          type, fromUid: user.uid, fromName: user.displayName || 'Reader',
-          fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
-          postId, read: false, createdAt: Date.now(),
-        });
-      } catch (e) { console.error('Reaction notification error:', e); }
-    }
+    if (!hasReacted && post && post.authorUid !== user.uid) notifyEvent(user, 'square_reaction', `${postId}/${type}`);
   };
 
   const handlePin = async (p) => {
@@ -1179,10 +1017,7 @@ export default function SquarePage() {
               <button onClick={() => setShowDM(true)} aria-label="Messages" style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               </button>
-              <button onClick={() => setShowNotifs(true)} aria-label="Notifications" style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', position: 'relative' }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                {unreadNotifs > 0 && <span style={{ position: 'absolute', top: 4, right: 4, width: 7, height: 7, borderRadius: '50%', background: '#c9a84c', border: '1.5px solid #0a0a0a' }} />}
-              </button>
+              <span style={{ margin: '-6px -6px' }}><Bell user={user} mode="auto" phone="auto" /></span>
               <a href="/profile" style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(107,47,173,0.3)', border: '1.5px solid rgba(107,47,173,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#c4b5fd', textDecoration: 'none', overflow: 'hidden', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
                 {userData?.avatarUrl ? <img src={userData.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : userInitials}
               </a>
@@ -1444,7 +1279,6 @@ export default function SquarePage() {
       {showPollCreator && <PollCreatorModal onCreate={createPoll} onClose={() => setShowPollCreator(false)} />}
       {reportingPost && <ReportModal post={reportingPost} onSubmit={submitReport} onClose={() => setReportingPost(null)} />}
       {showDM && user && <MessagesPanel user={user} safety={safety} startWith={dmStart} onOpenReader={openReader} canSendImages={canPostImages} onClose={() => { setShowDM(false); setDmStart(null); }} />}
-      {showNotifs && user && <NotificationsPanel user={user} hidden={hidden} onOpenReader={openReader} onClose={() => setShowNotifs(false)} />}
       {cardUid && <ReaderCard uid={cardUid} me={user} safety={safety} onClose={() => setCardUid(null)}
         onMessage={(uid) => { setCardUid(null); if (!user) { setShowAuth(true); return; } setDmStart(uid); setShowDM(true); }} />}
 

@@ -4,7 +4,7 @@ import React from 'react';
 import { quizAllowed } from '../../lib/readerCollection';
 import { resolveAuthorNames, currentAuthorName } from '../../lib/resolveAuthorNames';
 import MentionTextarea from '../../components/MentionTextarea';
-import { notifyMentions } from '../../lib/mentions';
+import { notifyEvent } from '../../lib/notifyClient';
 import { requestScreening } from '../../lib/requestScreening';
 import {
   USER_COMMENTS_PATH, indexedCommentWrite, indexedCommentRemoval,
@@ -279,15 +279,9 @@ function CommentsSection({ slug, onSignIn }) {
       throw e;
     }
     // Saved. The author's notification is a courtesy after it and never undoes the reaction.
+    // NOTIF-B2: the server tells them (app/lib/notifyClient.js), fire and forget.
     if (!hasReacted && commentAuthorUid && commentAuthorUid !== user.uid) {
-      try {
-        const db = await getDB();
-        const { ref, push } = await import('firebase/database');
-        await push(ref(db, `library_notifications/${commentAuthorUid}`), {
-          type, fromUid: user.uid, fromName: user.displayName || 'Reader',
-          slug, read: false, createdAt: Date.now(),
-        });
-      } catch (e) {}
+      notifyEvent(user, 'comment_reaction', `${slug}/${commentId}/${type}`);
     }
   }, [user, slug, commentReactions, comments]);
 
@@ -317,28 +311,12 @@ function CommentsSection({ slug, onSignIn }) {
       // forget: the comment is already saved, and a screening failure must never
       // block or delay somebody commenting. See app/lib/requestScreening.js.
       requestScreening({ getIdToken: () => user.getIdToken(), slug, commentId }).catch(() => {});
-      try {
-        await notifyMentions({
-          text: commentText.trim(), slug,
-          fromUid: user.uid, fromName: user.displayName || 'Reader',
-          excludeUid: user.uid,
-        });
-      } catch (e) {}
-      if (parentId) {
-        const parentComment = comments.find(c => c.id === parentId);
-        // NOTIF-B1: on its own. The rules refuse a notification across a block, and the reply is
-        // already saved; a refusal here used to skip clearing the box below (the W53 trap).
-        if (parentComment && parentComment.authorUid !== user.uid) {
-          try {
-            await push(ref(db, `library_notifications/${parentComment.authorUid}`), {
-              type: 'reply', fromUid: user.uid,
-              fromName: user.displayName || 'Reader',
-              slug, read: false, createdAt: Date.now(),
-            });
-          } catch (e) {}
-        }
-        setReplyText(''); setReplyTo(null);
-      } else setText('');
+      // NOTIF-B2: the reply, the mentions and the story's writer are told by the server, which
+      // reads the saved comment itself (app/lib/notifyClient.js). Fire and forget, never awaited,
+      // so nothing it does can keep the box below from clearing (the W53 trap).
+      notifyEvent(user, 'comment', `${slug}/${commentId}`);
+      if (parentId) { setReplyText(''); setReplyTo(null); }
+      else setText('');
       // THE MILESTONE — was a full download of the comments node to count one reader's own
       // comments; now one read of that reader's own index. See app/lib/userComments.js.
       try {

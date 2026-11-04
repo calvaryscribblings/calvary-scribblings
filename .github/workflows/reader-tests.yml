@@ -220,6 +220,21 @@ jobs:
       - name: Throwaway edge-ledger key (this job's builds only)
         run: node scripts/ci/edge-ledger-throwaway.mjs
 
+      # NOTIF-B2 (item 8) — THE BROWSERS ARE KEPT BETWEEN RUNS. On 4 Nov the run for aee1390e was
+      # cancelled at its 30-minute limit while downloading WebKit: no test failed, the download
+      # stalled. ~/.cache/ms-playwright is cached, keyed on the exact Playwright version, so a new
+      # Playwright downloads its own browsers once and every run after reuses them. The two
+      # `playwright install --with-deps` steps below still run: they install the OS packages
+      # (never cached) and skip any browser already present in the restored cache.
+      - name: Playwright version (the browser cache's key)
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Restore the Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
       # Chromium only. The reader is one engine's geometry problem and the other two
       # browsers would triple the minutes to answer a question nobody asked.
       - name: Install Chromium

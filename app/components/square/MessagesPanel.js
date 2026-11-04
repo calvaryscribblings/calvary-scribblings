@@ -32,6 +32,7 @@ import { ref, get, push, set, update, remove, onValue, increment } from 'firebas
 import { db } from '../../lib/firebaseCore';
 import { Avatar, UserBadge } from '../conversation/ConversationKit';
 import PostBody from '../conversation/PostBody';
+import { notifyEvent } from '../../lib/notifyClient';
 import { resolveIdentities, identityOf } from '../../lib/squareIdentity';
 import { matchReaders } from '../../lib/squareHandles';
 import { SAFETY_COPY, isPermissionDenied, unreadShown } from '../../lib/squareSafety';
@@ -219,8 +220,12 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
     if (file && !url) url = await sendDmImage(user, convId, await prepareImage(file));
     const msg = { text, senderUid: user.uid, createdAt: Date.now() };
     if (url) msg.imageUrl = url;
-    try { await push(ref(db, `dm_messages/${convId}`), msg); }
+    let messageId;
+    try { messageId = (await push(ref(db, `dm_messages/${convId}`), msg)).key; }
     catch (e) { throw Object.assign(e, { uploaded: url }); }
+    // NOTIF-B2: the other reader's bell (grouped per conversation, silent if they muted it), told by
+    // the server after the message is saved; fire and forget (app/lib/notifyClient.js).
+    notifyEvent(user, 'message', `${convId}/${messageId}`);
   };
 
   const sendDM = async ({ retry = null } = {}) => {

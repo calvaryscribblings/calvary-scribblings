@@ -57,11 +57,11 @@ export async function pruneStale(db, now, { apply, log = noop, tokens }) {
   return stale;
 }
 
-async function messageFor(db, item, world) {
-  if (item.kind === 'story') return storyMessage(item.id, world.stories[item.id]);
+async function messageFor(db, item, world, now) {
+  if (item.kind === 'story') return { ...storyMessage(item.id, world.stories[item.id]), announcement: store.announcementRecord(item, world, null, now) };
   const row = world.instalments[item.id];
   const detail = await store.readInstalmentDetail(db, item.id);
-  return instalmentMessage(item.id, row, detail, world.series[row?.seriesId]);
+  return { ...instalmentMessage(item.id, row, detail, world.series[row?.seriesId]), announcement: store.announcementRecord(item, world, detail, now) };
 }
 
 /**
@@ -73,11 +73,14 @@ async function messageFor(db, item, world) {
  * notification is a smaller failure than a reader getting the same one twice.
  */
 async function announceOne(db, expo, item, message, recipients, ctx) {
-  const { now, runId, log, pause } = ctx;
+  const { now, runId, log, pause, announcement } = ctx;
   if (!(await store.claim(db, item.kind, item.id, runId, now))) {
     log(`  ${item.kind}/${item.id}: already claimed by another run — skipped`);
     return null;
   }
+  // NOTIF-B2 (P3): claimed, so it is in every reader's bell. Written before the send: the bell does
+  // not wait on Expo, and a release and re-claim rewrites the same record.
+  if (announcement) await store.writeAnnouncement(db, announcement);
   const batches = messagesFor(message, recipients);
   let accepted = 0, ok = 0, dead = 0, errors = 0;
   try {
@@ -145,7 +148,7 @@ export async function runAnnouncer(db, expo, now, {
   const results = [];
   const ready = [];
   for (const item of due) {
-    const built = await messageFor(db, item, world);
+    const built = await messageFor(db, item, world, now);
     if (built.refused) {
       log(`  ${item.kind}/${item.id}: REFUSED — ${built.refused}. Recorded, never sent.`);
       if (apply && await store.claim(db, item.kind, item.id, runId, now)) {
@@ -158,26 +161,31 @@ export async function runAnnouncer(db, expo, now, {
     // this log is public for 90 days. push_announced holds what was sent.
     if (built.dropped) log(`  ${item.kind}/${item.id}: tail dropped — byline only`);
     log(`  ${item.kind}/${item.id}: ready (title ${built.message.title.length} chars, body ${built.message.body.length} chars)`);
-    ready.push({ item, message: built.message });
+    ready.push({ item, message: built.message, announcement: built.announcement });
   }
 
   // The 08:00 hold and the two-a-day cap, both on London's clock.
   const window = planSendWindow(ready, world.announced, now);
   if (ready.length) log(`window: ${window.sentToday} sent today (London ${londonDay(now)}), cap ${DAILY_CAP}`);
-  for (const { item } of window.held) {
+  for (const { item, announcement } of window.held) {
     log(`  ${item.kind}/${item.id}: HELD — before ${String(QUIET_UNTIL_HOUR).padStart(2, '0')}:00 London; goes on the first run after`);
+    // The push waits for 08:00; the bell does not (ruling 308). Create-only, so the hourly re-runs
+    // during the hold write nothing more.
+    if (apply) await store.writeAnnouncement(db, announcement);
     results.push({ ...item, held: true });
   }
-  for (const { item } of window.capped) {
+  for (const { item, announcement } of window.capped) {
     log(`  ${item.kind}/${item.id}: CAPPED — ${DAILY_CAP} already sent today. Recorded, never sent.`);
     if (apply && await store.claim(db, item.kind, item.id, runId, now)) {
+      // Capped means no push, never no bell: ruling 308 puts every new story in every list.
+      await store.writeAnnouncement(db, announcement);
       await store.finish(db, item.kind, item.id, { state: 'capped', at: now, day: londonDay(now) });
     }
     results.push({ ...item, capped: true });
   }
-  for (const { item, message } of window.send) {
+  for (const { item, message, announcement } of window.send) {
     if (!apply) { results.push({ ...item, message, dryRun: true }); continue; }
-    const entry = await announceOne(db, expo, item, message, recipients, { now, runId, log, pause });
+    const entry = await announceOne(db, expo, item, message, recipients, { now, runId, log, pause, announcement });
     results.push({ ...item, message, entry });
   }
 

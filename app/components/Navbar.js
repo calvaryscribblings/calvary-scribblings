@@ -9,6 +9,7 @@ import AuthModal from './AuthModal';
 import { TabLinks, isSquareOpenLondon } from './TabBar';
 import { useViewportGuard, useBarReadout } from './useBarGuard';
 import { apartCss } from '../lib/storyBar';
+import Bell from './bell/Bell';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -175,6 +176,10 @@ export default function Navbar() {
            so a plain max-width:768 rule matched at exactly 768 too and left that one width with
            neither the bottom bar nor the desktop tabs — only the hamburger. */
         @media (max-width: 767.98px) { .cs-desktop-links { display: none !important; } .cs-hamburger { display: flex !important; } }
+        /* NOTIF-B2 — one bell per width: beside the avatar from 768px, beside the menu below it. */
+        .cs-bell-desk { display: inline-flex; margin-right: -4px; }
+        .cs-bell-phone { display: none; margin-left: auto; margin-right: 6px; }
+        @media (max-width: 767.98px) { .cs-bell-phone { display: inline-flex; } }
       `}</style>
 
       <nav ref={navRef} data-state="shown" className={`cs-nav ${scrolled ? 'scrolled' : 'top'}`}>
@@ -216,6 +221,8 @@ export default function Navbar() {
           <a href="/quizzes">Quizzes</a>
           <a href="/leaderboard">Leaderboard</a>
           </span>
+          {/* NOTIF-B2 — the bell, immediately left of the avatar on iPad and desktop (the panel). */}
+          {user ? <span className="cs-bell-desk"><Bell user={user} mode="panel" panelTop={76} /></span> : null}
           {user ? (
             <a href="/profile" className="cs-nav-avatar" title={user.displayName || 'Profile'}>
               {avatarUrl ? <img src={avatarUrl} alt={user.displayName || 'Avatar'} /> : initials}
@@ -224,6 +231,8 @@ export default function Navbar() {
             <button className="cs-signin-btn" onClick={() => setShowAuth(true)}>Sign In</button>
           )}
         </div>
+        {/* NOTIF-B2 — on a phone, immediately left of the menu button; it opens the full page. */}
+        {user ? <span className="cs-bell-phone"><Bell user={user} mode="page" phone /></span> : null}
         <button className="cs-hamburger" onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu">
           <span style={{ transform: menuOpen ? 'rotate(45deg) translate(5px, 5px)' : 'none' }} />
           <span style={{ opacity: menuOpen ? 0 : 1 }} />

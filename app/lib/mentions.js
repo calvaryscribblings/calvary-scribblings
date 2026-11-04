@@ -24,19 +24,8 @@ export async function resolveHandles(handles) {
   return map;
 }
 
-export async function notifyMentions({ text, slug, fromUid, fromName, excludeUid }) {
-  const handles = extractMentions(text);
-  if (!handles.length) return;
-  const { ref, push } = await import('firebase/database');
-  const map = await resolveHandles(handles);
-  const targets = Object.values(map).filter(uid => uid && uid !== excludeUid);
-  if (!targets.length) return;
-  const snippet = (text || '').slice(0, 140);
-  await Promise.all(targets.map(uid => push(ref(db, `library_notifications/${uid}`), {
-    type: 'mention', fromUid, fromName,
-    slug, commentText: snippet, read: false, createdAt: Date.now(),
-  })));
-}
+// NOTIF-B2: notifyMentions is gone. A comment's @mentions are told by the server, which reads the
+// saved comment (POST /api/notify, event `comment`; app/lib/notifyClient.js).
 
 export async function searchUsernames(prefix, limit = 5) {
   const p = (prefix || '').toLowerCase().trim();

@@ -68,6 +68,7 @@
     "test:series-notes-admin": "node --test tests/series-notes/admin/*.test.mjs && firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/series-notes/admin/playwright.config.mjs\"",
     "test:ci": "node --test \"tests/ci/*.test.mjs\"",
     "test:notify:emulator": "firebase emulators:exec --config tests/notify/firebase.json --only database --project demo-calvary-notify \"node --test --test-concurrency=1 tests/notify/*.emulator.mjs\"",
+    "test:notify:bell": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/notify/playwright.bell.config.mjs\"",
     "test:live-paths:emulator": "firebase emulators:exec --config tests/live-paths/firebase.json --only database --project demo-live-paths \"node --test --test-concurrency=1 tests/live-paths/*.emulator.test.mjs\"",
     "test:reads": "node --test tests/reads/read-hit.test.mjs tests/reads/read-credit.test.mjs",
     "test:reads:emulator": "firebase emulators:exec --only database --project demo-calvary-reads \"node --test --test-concurrency=1 tests/reads/*.emulator.test.mjs\"",

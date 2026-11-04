@@ -32,6 +32,8 @@ function legacyInbox(node) {
   ].join('');
   return { $uid: {
     '.read': 'auth != null && auth.uid == $uid',
+    // NOTIF-B2: the bell reads the newest N by createdAt (app/lib/useBell.js), never the whole inbox.
+    '.indexOn': ['createdAt'],
     $notifId: {
       '.write': write,
       '.validate': "newData.hasChildren(['type', 'createdAt'])",
@@ -86,8 +88,13 @@ const followers = {
   },
 };
 
-// P1. inbox: the server writes it (the Admin token passes no rule), its owner reads it.
-const inbox = { $uid: { '.read': 'auth != null && auth.uid === $uid' } };
+// P1. inbox: the server writes it (the Admin token passes no rule), its owner reads it. NOTIF-B2:
+// indexed on `at`, so the bell reads the newest N and never the whole inbox.
+const inbox = { $uid: { '.read': 'auth != null && auth.uid === $uid', '.indexOn': ['at'] } };
+// P3 (ruling 308). announcements/{id}: one shared item per new story or instalment, written by the
+// announcer (an Admin SDK, which passes no rule) when it claims the item. Every signed-in bell reads
+// the newest N by `at`. Ids only: the title and cover are drawn live from the story's own record.
+const announcements = { '.read': 'auth != null', '.write': false, '.indexOn': ['at'] };
 const inboxState = {
   $uid: {
     '.read': 'auth != null && auth.uid === $uid',
@@ -109,11 +116,11 @@ export function build(rules) {
   const r = rules.rules;
   const out = {};
   for (const [k, v] of Object.entries(r)) {
-    if (['inbox', 'inbox_state', 'notify_prefs'].includes(k)) continue;
+    if (['inbox', 'inbox_state', 'notify_prefs', 'announcements'].includes(k)) continue;
     if (k === 'library_notifications' || k === 'notifications') out[k] = legacyInbox(k);
     else if (k === 'followers') out[k] = followers;
     else out[k] = v;
-    if (k === 'library_notifications') Object.assign(out, { inbox, inbox_state: inboxState, notify_prefs: notifyPrefs });
+    if (k === 'library_notifications') Object.assign(out, { inbox, inbox_state: inboxState, notify_prefs: notifyPrefs, announcements });
   }
   return { ...rules, rules: out };
 }

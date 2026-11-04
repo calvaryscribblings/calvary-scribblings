@@ -29,6 +29,7 @@ import { indexedCommentWrite } from '../../lib/userComments';
 import { Reaction, useReactionNote, useKeyedReactionNote } from '../../components/conversation/Reaction';
 import { DELETED_RESPONSE, DELETED_PIECE, PIECE_ID_RE, isTombstone } from '../../lib/deletedContent';
 import { isId } from '../../lib/ids';
+import { notifyEvent } from '../../lib/notifyClient';
 
 const REPORT_REASONS = ['Harmful content', 'Spam', 'Plagiarism', 'Other'];
 
@@ -650,17 +651,9 @@ export default function OpenPageDetailClient({ params }) {
       // W53 — on its own: the rules refuse a notification to a reader who has blocked this one
       // (ruling 209, one block list everywhere), and the reply above is already saved. A refusal
       // here used to fall into the catch below and take a saved reply off the screen.
+      // NOTIF-B2: the server tells them (app/lib/notifyClient.js), fire and forget.
       if (parentNode.authorUid && parentNode.authorUid !== user.uid) {
-        await push(ref(db, `notifications/${parentNode.authorUid}`), {
-          type: 'open_pages_reply',
-          fromUid: user.uid,
-          fromName: user.displayName || 'Reader',
-          fromUsername: null,
-          fromAvatarUrl: user.photoURL || null,
-          postId: id,
-          read: false,
-          createdAt: Date.now(),
-        }).catch((e) => console.error('[open-pages] reply notification not sent:', e?.code || e?.message || e));
+        notifyEvent(user, 'open_pages_reply', `${id}/${parentNode.path}/replies/${replyId}`);
       }
     } catch (err) {
       console.error('[open-pages] reply post failed:', err);

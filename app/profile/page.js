@@ -18,8 +18,10 @@ import { USER_COMMENTS_PATH, loadCommentsFor, commentCountOf } from '../lib/user
 import PostBody from '../components/conversation/PostBody';
 import HandleField, { readHandleOwner, useHandleCheck } from '../components/HandleField';
 import { checkHandle, renameHandle, normaliseHandle, handleStatusLine, HandleRefused, HANDLE_COPY } from '../lib/handle';
-import { postHref, squareNotificationHref, NOTIFICATION_WORDS } from '../lib/squareThreads';
-import { identityOf } from '../lib/squareIdentity';
+import { postHref } from '../lib/squareThreads';
+import { useAuth } from '../lib/AuthContext';
+import { useBell } from '../lib/useBell';
+import { badgeText, ariaLabel } from '../lib/bell';
 import { reactionsOf, withReactionCounts } from '../lib/squareReactions';
 
 const FB = {
@@ -409,26 +411,6 @@ function CommentHistoryModal({ uid, onClose, allStoriesMerged }) {
   );
 }
 
-function notifLabel(type) {
-  if (NOTIFICATION_WORDS[type]) return NOTIFICATION_WORDS[type];   // W52: the Square's thread replies
-  switch (type) {
-    case 'heart': return ' loved your comment';
-    case 'fire': return ' reacted \uD83D\uDD25 to your comment';
-    case 'clap': return ' liked your comment';
-    case 'reply': return ' replied to your comment';
-    case 'follow': return ' started following you';
-    case 'new_story': return ' published a new story';
-    case 'mention': return ' mentioned you in a comment';
-    default: return ' interacted with you';
-  }
-}
-
-function notifHref(n) {
-  if (n.type === 'follow' && n.fromUid) return `/user?id=${n.fromUid}`;
-  if (n.slug) return `/stories/${n.slug}`;
-  return squareNotificationHref(n);   // W52: a Square notification opens its thread
-}
-
 export default function ProfilePage() {
   const router = useRouter();
   const [authUser, setAuthUser] = useState(null);
@@ -464,15 +446,11 @@ export default function ProfilePage() {
   const [saveError, setSaveError] = useState('');
   const [userBadges, setUserBadges] = useState({});
   const [streakData, setStreakData] = useState(null);
-  const [libNotifs, setLibNotifs] = useState([]);
-  const [showLibNotifs, setShowLibNotifs] = useState(false);
-  const [unreadLibCount, setUnreadLibCount] = useState(0);
   const avatarInputRef = useRef(null);
   const headerInputRef = useRef(null);
   const modalAvatarInputRef = useRef(null);
   const badgeAnchorRef = useRef(null);
   const [showBadgeLadder, setShowBadgeLadder] = useState(false);
-  const [notifUsers, setNotifUsers] = useState({});
 
   useEffect(() => {
     (async () => {
@@ -491,58 +469,10 @@ export default function ProfilePage() {
     })();
   }, []);
 
-  useEffect(() => {
-    let unsubNotifs;
-    (async () => {
-      try {
-        const auth = await getFirebaseAuth();
-        const { onAuthStateChanged } = await import('firebase/auth');
-        onAuthStateChanged(auth, u => {
-          if (!u) return;
-          (async () => {
-            const db = await getDB();
-            const { ref, onValue } = await import('firebase/database');
-            unsubNotifs = onValue(ref(db, `library_notifications/${u.uid}`), snap => {
-              if (!snap.exists()) { setLibNotifs([]); setUnreadLibCount(0); return; }
-              // LIVE-PATHS-1: the KEY is the id; a stored `id` field never overrides it.
-              const items = Object.entries(snap.val()).map(([id, n]) => ({ ...n, id })).sort((a, b) => b.createdAt - a.createdAt).slice(0, 40);
-              setLibNotifs(items);
-              setUnreadLibCount(items.filter(n => !n.read).length);
-            });
-          })();
-        });
-      } catch (e) {}
-    })();
-    return () => { if (unsubNotifs) unsubNotifs(); };
-  }, []);
-
-  useEffect(() => {
-    if (!showLibNotifs || !libNotifs.length) return;
-    const uids = [...new Set(libNotifs.filter(n => n.fromUid && !notifUsers[n.fromUid]).map(n => n.fromUid))];
-    if (!uids.length) return;
-    (async () => {
-      const db = await getDB();
-      const { ref, get } = await import('firebase/database');
-      const results = await Promise.all(uids.map(uid => get(ref(db, `users/${uid}`)).then(s => ({ uid, data: s.exists() ? s.val() : null }))));
-      const map = { ...notifUsers };
-      results.forEach(({ uid, data }) => { if (data) map[uid] = data; });
-      setNotifUsers(map);
-    })();
-  }, [showLibNotifs, libNotifs]);
-
-  const markLibNotifsRead = async () => {
-    setUnreadLibCount(0);
-    try {
-      const auth = await getFirebaseAuth();
-      const u = auth.currentUser;
-      if (!u) return;
-      const db = await getDB();
-      const { ref, update } = await import('firebase/database');
-      const updates = {};
-      libNotifs.filter(n => !n.read).forEach(n => { updates[`${n.id}/read`] = true; });
-      if (Object.keys(updates).length) await update(ref(db, `library_notifications/${u.uid}`), updates);
-    } catch (e) {}
-  };
+  // NOTIF-B2 (rulings 305, 327): the Profile page's own notifications panel is gone. Its bell is a
+  // link to /notifications, the one list, and carries the one count (app/lib/useBell.js).
+  const { user: bellUser } = useAuth();
+  const bell = useBell(bellUser);
 
   // W2 / ACC-06 — the profile's first value has a deadline. The page waits on a users/{uid}
   // listener, and a listener against an unreachable database never fires — so the blank board
@@ -791,10 +721,6 @@ export default function ProfilePage() {
         .pf-account-row { display: flex; align-items: center; justify-content: space-between; padding: 0.88rem 1.1rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 0.38rem; }
         .pf-account-label { font-size: 0.85rem; color: rgba(255,255,255,0.3); font-weight: 500; font-family: Cormorant Garamond, Georgia, serif; }
 
-        .lib-notif-panel { position: fixed; top: 0; right: 0; width: min(400px,100vw); height: 100vh; background: #0c0c0c; border-left: 1px solid rgba(255,255,255,0.07); z-index: 2000; display: flex; flex-direction: column; }
-        .lib-notif-item { padding: 0.95rem 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; gap: 10px; align-items: flex-start; text-decoration: none; transition: background 0.15s; }
-        .lib-notif-item:hover { background: rgba(255,255,255,0.022); }
-        .lib-notif-item.unread { background: rgba(107,47,173,0.055); }
 
         .pf-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.82); z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
         @media (min-width: 600px) { .pf-modal-backdrop { align-items: center; } }
@@ -838,16 +764,16 @@ export default function ProfilePage() {
       <nav className="pf-nav">
         <div className="pf-nav-logo">Calvary <span>Scribblings</span></div>
         <div className="pf-nav-right">
-          <button onClick={() => { setShowLibNotifs(true); markLibNotifsRead(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.42)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <a href="/notifications" data-profile-bell aria-label={ariaLabel(bell.unread)} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, margin: '-12px -6px -12px -12px' }}>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.42)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
             </svg>
-            {unreadLibCount > 0 && (
-              <span style={{ position: 'absolute', top: -3, right: -3, background: '#6b2fad', color: '#fff', fontSize: '0.53rem', fontWeight: 700, borderRadius: '999px', minWidth: 13, height: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 2px', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
-                {unreadLibCount > 9 ? '9+' : unreadLibCount}
+            {badgeText(bell.unread) && (
+              <span data-bell-badge style={{ position: 'absolute', top: 6, right: 4, background: '#6E45C8', color: '#F6F1E7', fontSize: 10, fontWeight: 700, borderRadius: 999, minWidth: 17, height: 17, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', boxSizing: 'border-box', fontFamily: "'Inter', system-ui, sans-serif", boxShadow: '0 0 0 2px #0a0a0a' }}>
+                {badgeText(bell.unread)}
               </span>
             )}
-          </button>
+          </a>
           <a href="/" className="pf-nav-back">← Back to stories</a>
         </div>
       </nav>
@@ -1155,82 +1081,6 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Notification panel */}
-      {showLibNotifs && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => setShowLibNotifs(false)} />
-          <div className="lib-notif-panel">
-            <div style={{ padding: '1.2rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.08rem', color: '#f5f0e8' }}>Notifications</span>
-              <button onClick={() => setShowLibNotifs(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.26)', fontSize: '1.2rem' }}>×</button>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-              {libNotifs.length === 0
-                ? <div style={{ padding: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No notifications yet</div>
-                : libNotifs.map(n => {
-                  const href = notifHref(n);
-                  const isReward = n.type === 'reward';
-                  const w = n.fromUid ? identityOf({ authorUid: n.fromUid }, notifUsers[n.fromUid]) : null;
-                  const senderName = w ? w.displayName : 'Calvary Scribblings';
-                  return (
-                    <a
-                      key={n.id}
-                      href={href || '#'}
-                      className={`lib-notif-item${n.read ? '' : ' unread'}`}
-                      onClick={!href ? e => e.preventDefault() : undefined}
-                    >
-                      {/* NOTIF-B1 (P0): the sender is drawn from their LIVE record, as the Square panel does,
-                          and never from the copy stored on the notification (fromName, fromAvatarUrl,
-                          fromHandle), which the sender wrote and could make say anything. A record
-                          with no sender is the house's own (a reward, which only the reader or a
-                          founder can write). */}
-                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(107,47,173,0.17)', border: '1px solid rgba(107,47,173,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#a78bfa', flexShrink: 0, fontFamily: 'Cormorant Garamond, Georgia, serif', overflow: 'hidden' }}>
-                        {w?.avatarUrl ? <img src={w.avatarUrl} alt={senderName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (w ? w.initials : 'CS')}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginBottom: 2 }}>
-                          <span data-notif-sender style={{ fontSize: '0.88rem', fontWeight: 600, color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{senderName}</span>
-                          {(() => {
-                            const actor = n.fromUid ? notifUsers[n.fromUid] : null;
-                            if (!actor) return null;
-                            if (actor.isAuthor) return <WriterBadge size={11} />;
-                            const b = getBadge(actor.readCount || 0, n.fromUid);
-                            return b ? <BadgeIcon color={b.color} size={12} isFounder={b.isFounder} /> : null;
-                          })()}
-                        </div>
-                        {n.fromUid && notifUsers[n.fromUid]?.username && (
-                          <div style={{ fontSize: '0.68rem', color: 'rgba(167,139,250,0.42)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 3 }}>
-                            @{notifUsers[n.fromUid].username}
-                          </div>
-                        )}
-                        <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.48)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.4, marginBottom: '0.18rem' }}>
-                          {isReward
-                            ? <span>{n.message || 'You earned Scribbles!'}</span>
-                            : <span>{notifLabel(n.type)}</span>}
-                        </div>
-                        {n.commentText && (
-                          <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.28)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', lineHeight: 1.48, marginBottom: '0.2rem', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                            "{n.commentText}"
-                          </div>
-                        )}
-                        {n.slug && !isReward && n.type !== 'follow' && (
-                          <div style={{ fontSize: '0.64rem', color: 'rgba(155,109,255,0.42)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.16rem' }}>
-                            {allStoriesMerged.find(s => s.id === n.slug)?.title || n.slug}
-                          </div>
-                        )}
-                        <div style={{ fontSize: '0.64rem', color: 'rgba(255,255,255,0.18)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
-                          {n.createdAt ? timeAgo(n.createdAt) : ''}
-                        </div>
-                      </div>
-                      {!n.read && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#6b2fad', flexShrink: 0, marginTop: 5 }} />}
-                    </a>
-                  );
-                })
-              }
-            </div>
-          </div>
-        </>
-      )}
     {showAdjuster && pendingHeaderFile && (
         <HeaderAdjuster
           file={pendingHeaderFile}

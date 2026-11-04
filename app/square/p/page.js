@@ -29,6 +29,7 @@ import AttachmentCard from '../../components/conversation/AttachmentCard';
 import { PostMenu, ReportModal } from '../../components/conversation/SquarePostMenu';
 import { attachmentOf, refusalFor, showCounter, MAX_REPLY_CHARS } from '../../lib/squarePostBody';
 import { sendSquareWrite, isPostId } from '../../lib/squareWrite';
+import { notifyEvent } from '../../lib/notifyClient';
 import { withReactionCounts } from '../../lib/squareReactions';
 import { isTombstone, announcedPieceOf, DELETED_POST } from '../../lib/deletedContent';
 import { mentionHandles, resolveHandle, matchReaders } from '../../lib/squareHandles';
@@ -367,25 +368,14 @@ function Thread() {
   };
 
   // A reply's readers hear after it saved, never instead of it. Logged, never shown as a failure.
+  // NOTIF-B2: the server works out who (the reply's target, the thread's author, the @mentions,
+  // nearest first, as replyNotifications did) and tells them (app/lib/notifyClient.js).
   const tellReaders = async (db, key, body, target, written) => {
-    const { ref, push, get, set } = await import('firebase/database');
+    const { ref, set } = await import('firebase/database');
     const record = { text: written.text, authorUid: user.uid, parentId: rootId, createdAt: written.createdAt };
     if (target) record.replyToId = target.id;
+    notifyEvent(user, 'square_post', key);
     await set(ref(db, `user_square_posts/${user.uid}/${key}`), record);
-    const mentioned = [];
-    for (const h of mentionHandles(body)) {
-      const uid = await resolveHandle(h, async (k) => (await get(ref(db, `usernames/${k}`))).val());
-      if (uid) mentioned.push(uid);
-    }
-    const from = {
-      fromUid: user.uid, fromName: user.displayName || 'Reader',
-      fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
-    };
-    for (const n of replyNotifications({ me: user.uid, rootAuthorUid: root.authorUid, replyToAuthorUid: target?.authorUid || null, mentionedUids: mentioned })) {
-      // One at a time, each on its own: the rules refuse one to a reader who has blocked this one (W53).
-      try { await push(ref(db, `notifications/${n.uid}`), { type: n.type, ...from, postId: key, threadId: rootId, read: false, createdAt: Date.now() }); }
-      catch (e) { console.error('Notification not sent:', e?.code || e?.message || e); }
-    }
   };
 
   const send = useCallback(async ({ body, target, retryOf = null }) => {
@@ -444,15 +434,8 @@ function Thread() {
       if (mine) await remove(ref(db, `square_reactions/${p.id}/${type}/${user.uid}`));
       else await set(ref(db, `square_reactions/${p.id}/${type}/${user.uid}`), true);
     } catch (e) { apply(mine); throw e; }
-    if (!mine && p.authorUid && p.authorUid !== user.uid) {
-      try {
-        await push(ref(db, `notifications/${p.authorUid}`), {
-          type, fromUid: user.uid, fromName: user.displayName || 'Reader',
-          fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
-          postId: p.id, threadId: rootId, read: false, createdAt: Date.now(),
-        });
-      } catch (e) { console.error('Reaction notification error:', e); }
-    }
+    // NOTIF-B2: the server tells them (app/lib/notifyClient.js), fire and forget.
+    if (!mine && p.authorUid && p.authorUid !== user.uid) notifyEvent(user, 'square_reaction', `${p.id}/${type}`);
   };
   const activeOf = (p) => {
     const r = reactions[p.id] || {};

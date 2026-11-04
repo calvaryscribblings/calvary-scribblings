@@ -39,6 +39,9 @@ const FLOORS = new Map([
   ['actions/setup-java', { floor: 5, runtime: 'node24' }],
   // v5 declares node20 despite its release notes. v6 is the first that actually moves.
   ['actions/upload-artifact', { floor: 6, runtime: 'node24' }],
+  // NOTIF-B2: the reader job's Playwright browser cache. v4 declares node20; v5 (and v6) node24,
+  // read out of each tag's action.yml on 4 Nov 2026.
+  ['actions/cache', { floor: 5, runtime: 'node24' }],
 ]);
 
 function workflows() {
