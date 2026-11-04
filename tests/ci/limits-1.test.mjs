@@ -5,13 +5,15 @@
 // 1. POST /api/story-index/build: the scheduled publish's index record comes from the REAL builder.
 // 2. The two budgeted endpoints make no outbound call around their Budget.
 // 3. The bulk reset's loop (app/lib/quizResetLoop.js), driven with a scripted server.
+// 4. One shared constant: every budgeted call plans to 45 of the 50.
 // The emulator half, under the 50-subrequest shim, is tests/limits/limits.emulator.mjs.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { onRequestPost, MAX_BODY_BYTES } from '../../functions/api/story-index/build.js';
 import { buildIndexRecord } from '../../app/lib/storyIndex.js';
-import { Budget, BudgetExceeded, pooled } from '../../functions/api/_budget.js';
+import { Budget, BudgetExceeded, pooled, SUBREQUEST_LIMIT, SUBREQUEST_BUDGET, SUBREQUEST_HEADROOM } from '../../functions/api/_budget.js';
+import * as mail from '../../functions/api/proofs/_mail.js';
 import { planBatch, pushId } from '../../functions/api/admin/reset-attempt.js';
 import { runBulkReset, BULK_RETRIES } from '../../app/lib/quizResetLoop.js';
 
@@ -129,5 +131,34 @@ describe('LIMITS-1 · the page\'s bulk-reset loop', () => {
     const s = script([{ ok: false, status: 401, data: { error: 'Unauthorised.' } }]);
     const r = await runBulkReset(s.call, { slug: 'q', wait: async () => {} });
     assert.equal(r.ok, false); assert.equal(s.sent.length, 1);
+  });
+});
+
+describe('LIMITS-1 · one budget, 45 of the 50, for every budgeted call', () => {
+  test('the constant: 45 planned, 5 headroom, under the platform\'s 50', () => {
+    assert.equal(SUBREQUEST_LIMIT, 50);
+    assert.equal(SUBREQUEST_BUDGET, 45);
+    assert.equal(SUBREQUEST_HEADROOM, 5);
+    assert.equal(new Budget().limit, SUBREQUEST_BUDGET, 'a Budget with no argument plans to 45');
+  });
+
+  test('Proofs uses the same Budget, not a copy', () => {
+    assert.equal(mail.Budget, Budget);
+    assert.equal(mail.BudgetExceeded, BudgetExceeded);
+    assert.equal(mail.SUBREQUEST_BUDGET, SUBREQUEST_BUDGET);
+  });
+
+  test('no Function defines its own Budget or limit, or defaults to the platform\'s 50', async () => {
+    const { readdirSync, statSync } = await import('node:fs');
+    const walk = (d) => readdirSync(d).flatMap((f) => { const p = `${d}/${f}`; return statSync(p).isDirectory() ? walk(p) : p.endsWith('.js') ? [p] : []; });
+    const dir = new URL('functions', ROOT).pathname;
+    for (const p of walk(dir)) {
+      const rel = p.slice(dir.length - 'functions'.length);
+      const s = readFileSync(p, 'utf8').replace(/^\s*\/\/.*$/gm, '');
+      if (rel === 'functions/api/_budget.js') continue;
+      assert.doesNotMatch(s, /class Budget\b|class BudgetExceeded\b/, `${rel} defines its own Budget`);
+      assert.doesNotMatch(s, /SUBREQUEST_(LIMIT|BUDGET)\s*=/, `${rel} defines its own limit`);
+      assert.doesNotMatch(s, /=\s*SUBREQUEST_LIMIT\b|new Budget\(\s*SUBREQUEST_LIMIT/, `${rel} plans to the platform's 50`);
+    }
   });
 });

@@ -2,14 +2,14 @@
 // tests/limits/limits.emulator.mjs drives this exact loop against the real endpoint.
 //
 // The server (functions/api/admin/reset-attempt.js, action 'bulk') resets one batch per call, each
-// batch one atomic write that carries its resets and their audit entries, within Cloudflare's 50
+// batch one atomic write that carries its resets and their audit entries, within 45 of Cloudflare's 50
 // subrequests. It answers { resetCount, remaining, more, runId }. This calls again with the runId
 // until more is false, as /admin/proofs does with its send batches.
 //
 // A call that fails is tried again (up to BULK_RETRIES in a row): a batch either landed whole or
 // not at all, and the run's audit entries stop anyone being reset twice, so retrying is safe.
 
-export const BULK_CALLS = 200;     // 45 readers a call at most: 200 calls is 9,000 readers
+export const BULK_CALLS = 200;     // 40 readers a call at most: 200 calls is 8,000 readers
 export const BULK_RETRIES = 3;
 
 /**

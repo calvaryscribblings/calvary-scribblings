@@ -14,12 +14,12 @@
 //   · OPEN IS ONE ATOMIC WRITE. A single multi-path PATCH at the root queues every ticked writer
 //     (proofs_mail/queue/{uid}), marks every unticked one excluded, and opens the switch: all of it
 //     or none of it, at a constant cost whatever the number of writers or stories.
-//   · SENDING IS BATCHED UNDER A BUDGET. Every outbound call is charged to a Budget (50 per call)
-//     BEFORE it is made, and an item is started only if its whole cost fits: an opening is 4 (read
+//   · SENDING IS BATCHED UNDER A BUDGET. Every outbound call is charged to a Budget (45 per call,
+//     5 under the platform's 50: functions/api/_budget.js) BEFORE it is made, and an item is started only if its whole cost fits: an opening is 4 (read
 //     the writer's record, one conditional write that claims the opening AND carries its stories,
 //     the send, one write recording the outcome and dequeuing it); a story email is the same 4.
 //     A call that runs out stops cleanly and answers { more: true }; the caller calls again, and
-//     each call is a new request with a new 50.
+//     each call is a new request with a new budget.
 //   · NOTHING IS CLAIMED THAT ISN'T SENT IN THE SAME CALL, because the cost is checked first. If a
 //     call dies anyway between the claim and the outcome, the next call finds the claim, records it
 //     as 'interrupted' and does NOT send: a lost email beats a double one (ruling 302).
@@ -58,20 +58,12 @@ export const RESEND_API = 'https://api.resend.com/emails';
 const MAX_WRITERS = 1000;
 
 // ── THE BUDGET ───────────────────────────────────────────────────────────────────────────
-/** Cloudflare's subrequests per request on the plan we build for (R3.1 decision 4: 50, whatever the plan). */
-export const SUBREQUEST_LIMIT = 50;
+// LIMITS-1 (ship): the Budget is the shared one in ../_budget.js, which plans every call to 45 of
+// the platform's 50 (R3.1 decision 4: 50, whatever the plan). Re-exported for the callers here.
+import { Budget, BudgetExceeded, SUBREQUEST_LIMIT, SUBREQUEST_BUDGET } from '../_budget.js';
+export { Budget, BudgetExceeded, SUBREQUEST_LIMIT, SUBREQUEST_BUDGET };
 /** What one opening or one story email costs: read, conditional write, send, record. */
 export const ITEM_COST = 4;
-export class BudgetExceeded extends Error {
-  constructor() { super('subrequest budget exceeded'); this.name = 'BudgetExceeded'; this.code = 'budget'; }
-}
-/** Counts every outbound call of one request. `take` before the call; it throws rather than overrun. */
-export class Budget {
-  constructor(limit = SUBREQUEST_LIMIT) { this.limit = limit; this.used = 0; }
-  get left() { return this.limit - this.used; }
-  fits(n) { return this.used + n <= this.limit; }
-  take(n = 1) { if (!this.fits(n)) throw new BudgetExceeded(); this.used += n; }
-}
 /** Every outbound call in this module goes through here: charged first, then made. */
 async function sub(budget, url, init = {}) {
   budget.take(1);

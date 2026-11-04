@@ -72,12 +72,12 @@ export const hasPaidMembership = (membership) => !!membership && (
   || membership.status === 'active' || membership.status === 'past_due'
 );
 
-// LIMITS-1 — PACED. The server works inside Cloudflare's 50 subrequests a request. When a reader
+// LIMITS-1 — PACED. The server plans to 45 of Cloudflare's 50 subrequests a request. When a reader
 // holds more than one request's worth (many Storage objects, several subscriptions) it answers
 // 202 { more: true } and this flow calls again, until the 200. A call that fails is tried again
 // a few times before the reader hears about it: every step is recorded as it finishes, so a call
 // always resumes where the last one stopped and nothing is done twice.
-export const DELETE_MAX_CALLS = 60;   // a call clears ~38 objects at worst: 60 calls is ~2,000
+export const DELETE_MAX_CALLS = 60;   // a call clears ~33 objects at worst: 60 calls is ~1,900
 export const DELETE_RETRIES = 3;      // in a row, with no progress between them
 const RETRY_MS = 1000;
 

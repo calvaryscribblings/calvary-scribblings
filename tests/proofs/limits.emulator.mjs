@@ -2,7 +2,7 @@
 // 6 simultaneous connections, enforced on every outbound call (harness.mjs installLimits). At
 // production size (10 writer-badge holders, 6 with scheduled stories, 35 stories) and at ten times
 // that (100, 60, 350). Every simulated request must stay within 50, or the shim throws exactly as
-// workerd does and the test fails.
+// workerd does and the test fails; and within SUBREQUEST_BUDGET (45), the plan (LIMITS-1, ship).
 //
 // Invented writers, stories and addresses only.
 import { test, describe, before, after, beforeEach } from 'node:test';
@@ -11,7 +11,7 @@ import { install, uninstall, installLimits, loadRules, wipe, get, set, request, 
 import { handleWriters } from '../../functions/api/proofs/writers.js';
 import { handleTick } from '../../functions/api/proofs/mail-tick.js';
 import { handleProofs } from '../../functions/api/proofs/index.js';
-import { BudgetExceeded, SUBREQUEST_LIMIT } from '../../functions/api/proofs/_mail.js';
+import { BudgetExceeded, SUBREQUEST_LIMIT, SUBREQUEST_BUDGET } from '../../functions/api/proofs/_mail.js';
 import { REMINDER_LEAD_MS } from '../../app/lib/proofMail.js';
 
 const NOW = Date.parse('2026-11-03T10:00:00Z');
@@ -68,7 +68,7 @@ async function drain(fn, cap = 200) {
 const perAddress = () => sent.reduce((m, e) => m.set(e.to[0], (m.get(e.to[0]) || 0) + 1), new Map());
 const within = (label) => {
   assert.equal(L.refused, 0, `${label}: a request went past ${SUBREQUEST_LIMIT} subrequests`);
-  assert.ok(Math.max(...L.calls) <= SUBREQUEST_LIMIT, `${label}: worst request used ${Math.max(...L.calls)}`);
+  assert.ok(Math.max(...L.calls) <= SUBREQUEST_BUDGET, `${label}: worst request used ${Math.max(...L.calls)}, over the ${SUBREQUEST_BUDGET} planned`);
 };
 
 before(async () => { install(); L = installLimits({ limit: SUBREQUEST_LIMIT, connections: 6 }); await loadRules(); });
@@ -80,7 +80,7 @@ for (const [label, size] of [['production size', { writers: 10, withStories: 6, 
     let W;
     beforeEach(async () => { W = await seed(size); });
 
-    test('the list, Open and every send batch each stay within 50; every writer gets exactly one opening email', async () => {
+    test('the list, Open and every send batch each stay within 45; every writer gets exactly one opening email', async () => {
       const list = await writers({ action: 'list' });
       assert.equal(list.writers.length, size.writers);
       const open = await writers({ action: 'open', include: W });
@@ -114,7 +114,7 @@ for (const [label, size] of [['production size', { writers: 10, withStories: 6, 
       assert.equal(L.calls.at(-1) <= 6, true, `Open used ${L.calls.at(-1)}: auth, token, two reads, one write`);
     });
 
-    test('the scheduled, date-changed and 48-hour emails: each once, every batch within 50', async () => {
+    test('the scheduled, date-changed and 48-hour emails: each once, every batch within 45', async () => {
       await writers({ action: 'open', include: W });
       await drain(() => writers({ action: 'send' }));
       sent.length = 0;
@@ -137,7 +137,7 @@ for (const [label, size] of [['production size', { writers: 10, withStories: 6, 
       within(label);
     });
 
-    test('the founders’ /api/proofs list stays within 50', async () => {
+    test('the founders’ /api/proofs list stays within 45', async () => {
       await set('proofs_access', { open: true, changedAt: NOW, changedBy: STAND_IN_FOUNDER });
       L.begin();
       const { ctx } = context(request('/api/proofs', { body: { action: 'list' }, token: tokenFor(STAND_IN_FOUNDER) }));

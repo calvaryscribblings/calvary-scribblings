@@ -9,7 +9,7 @@
 //          { action: 'sample' }               → every writer email, with invented stories, to the
 //                                               signed-in founder's OWN address (from their Auth record)
 //
-// R3.1: every call fits in 50 subrequests (functions/api/proofs/_mail.js, Budget). Every failure
+// R3.1: every call is planned to 45 of the 50 subrequests (functions/api/_budget.js). Every failure
 // answers JSON { error, code } with status 500, never 502, so the page can always show both.
 import { readBody, readIdToken, respond, configured } from './_proofs.js';
 import { lookupUser } from '../bookstore/_lib.js';

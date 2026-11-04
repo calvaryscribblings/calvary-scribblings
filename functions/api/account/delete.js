@@ -10,7 +10,8 @@
 //   429 / 503                                      the house limiter (limitResponse)
 //   500 { code: 'delete_failed', step }            a step failed; NOTHING is claimed. Calling
 //                                                  again resumes from that step.
-//   202 { deleted: false, more: true, step }       LIMITS-1: this request's 50 subrequests are
+//   202 { deleted: false, more: true, step }       LIMITS-1: this request's 45 planned subrequests
+//                                                  (of the platform's 50) are
 //                                                  spent and there is more to do. Not a failure:
 //                                                  call again (the web page does, until 200).
 //                                                  The app must too — see the hand-off note.
@@ -22,7 +23,7 @@ import {
   json, lookupUser, mintAccessToken, decodeJwtPayload, judgeIdentity, runDeletion, realIo,
   ADMIN_SCOPES, StepError, MoreToDo, RECENT_LOGIN_S, DELETION_PATH,
 } from './_deletion.js';
-import { Budget, SUBREQUEST_LIMIT } from '../_budget.js';
+import { Budget, SUBREQUEST_BUDGET } from '../_budget.js';
 
 const LABEL = 'account/delete';
 
@@ -58,7 +59,7 @@ function readIdToken(request, body) {
 export const onRequestPost = (context) => handleDelete(context);
 
 /** `opts` is the test seam: `limit` (the subrequest budget), `nowS`, `consume`. */
-export async function handleDelete(context, { limit: budgetLimit = SUBREQUEST_LIMIT, nowS = null, consume: charge = consume } = {}) {
+export async function handleDelete(context, { limit: budgetLimit = SUBREQUEST_BUDGET, nowS = null, consume: charge = consume } = {}) {
   const { request, env } = context;
   if (!env.NEXT_PUBLIC_FIREBASE_API_KEY || !env.FIREBASE_CLIENT_EMAIL || !env.FIREBASE_PRIVATE_KEY) {
     console.error(`[${LABEL}] credentials not configured`);

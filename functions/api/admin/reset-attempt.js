@@ -1,5 +1,5 @@
 import { isId } from '../../../app/lib/ids.js';
-import { Budget, BudgetExceeded, SUBREQUEST_LIMIT, pooled } from '../_budget.js';
+import { Budget, BudgetExceeded, SUBREQUEST_BUDGET, pooled } from '../_budget.js';
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 const ADMIN_EMAILS = ['ikennaworksfromhome@gmail.com', 'fynbecki@gmail.com'];
@@ -69,7 +69,8 @@ async function getAccessToken(budget, clientEmail, privateKeyPem) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 //
-// LIMITS-1. Every outbound call goes through a Budget of 50 (functions/api/_budget.js), counted
+// LIMITS-1. Every outbound call goes through a Budget planned to 45 of the platform's 50
+// (functions/api/_budget.js, SUBREQUEST_BUDGET), counted
 // before it is made. PROOFS-R3.1's audit found the bulk reset cost 4 + 2 per reader: from the
 // 24th reader on, audit entries were dropped silently, and at 47 the reset itself failed. Now:
 //
@@ -77,7 +78,7 @@ async function getAccessToken(budget, clientEmail, privateKeyPem) {
 //     per reader go in a single multi-path PATCH, so they land together or not at all. A dropped
 //     audit entry is no longer possible.
 //   · BATCHED UNDER THE BUDGET. 5 fixed (sign-in check, token, the submissions read, this run's
-//     audit read, the PATCH) + 1 handle read per reader, so a batch is at most 45 readers. The
+//     audit read, the PATCH) + 1 handle read per reader, so a batch is at most 40 readers. The
 //     answer carries { more, runId }; /admin/quiz-resets calls again with the runId until more is
 //     false, as /admin/proofs does.
 //   · NOTHING DONE TWICE. A run's audit entries are keyed `<runId>-<uid>`, and each batch skips a
@@ -193,7 +194,7 @@ async function resetBulk(budget, fbDb, bearer, adminUid, slug, reason, runId, no
 export const onRequestPost = (context) => handleReset(context);
 
 /** `opts` is the test seam: `admin` (who may call), `now`, `limit` (the budget). */
-export async function handleReset(context, { admin = isAdmin, now = Date.now(), limit = SUBREQUEST_LIMIT } = {}) {
+export async function handleReset(context, { admin = isAdmin, now = Date.now(), limit = SUBREQUEST_BUDGET } = {}) {
   const { request, env } = context;
   const budget = new Budget(limit);
 

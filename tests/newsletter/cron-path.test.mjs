@@ -405,6 +405,37 @@ test('LIMITS-1: at most 8 stories a tick ask the builder; the rest go live on th
   assert.equal(withOpening.length, 8);
 });
 
+// LIMITS-1 (ship) — THE TICK'S SUBREQUESTS. A Worker invocation has the same 50 as a Pages Function,
+// and the builder calls add to it. Counted from this Worker, per tick:
+//   publish half      1 (cms_stories) + per due story: 1 body read + 1 builder (first 8 only) + 1 flip
+//                     (+1 GET, +1 PUT the first time, per due story still without a cover)
+//   newsletter half   1 (drafts) + per due issue: 1 lock + 1 subscribers + ceil(N/50) Resend batches
+//                     + 1 archive + 1 settle
+//   end               1 deploy hook (if anything went live, or the first tick after London midnight)
+//                     + 1 heartbeat
+// At 8 due stories that is 27 + the newsletter half. Today (4 Nov 2026) there are 56 active
+// subscribers and no scheduled issue; one due issue costs 6, so 34. Planned like every Function, to
+// 45 of the 50: these pin 8 stories with two issues due at today's list (40) and with one issue due
+// at ten times today's list (44). INDEX_BUILDER_PER_TICK stays 8.
+const subscribersOf = (n) => Object.fromEntries(Array.from({ length: n }, (_, i) => [`s${i}`, { email: `invented${i}@example.com`, status: 'active' }]));
+for (const [label, subscribers, issues, expected] of [['two issues due, today\'s list (56)', 56, 2, 40], ['one issue due, ten times today\'s list (560)', 560, 1, 44]]) {
+  test(`LIMITS-1: a tick with 8 stories going live and ${label} stays within 45 subrequests`, async () => {
+    const db = makeDb();
+    db.subscribers = subscribersOf(subscribers);
+    db.cms_stories = {};
+    for (let i = 0; i < 8; i++) {
+      db.cms_stories[`tick-${i}`] = { title: `Tick ${i}`, published: false, publishAt: PAST, cover: 'https://cdn.test/covers-typographic/t.webp', content: `<p>Tick ${i} opens here.</p>` };
+    }
+    const due = Object.entries(db.newsletter_drafts).filter(([, d]) => d.status === 'scheduled' && d.scheduledAt === PAST);
+    for (const [id] of due.slice(issues)) delete db.newsletter_drafts[id];
+    const calls = await runCron(db);
+    assert.equal(calls.filter((c) => c.url.endsWith('/api/story-index/build')).length, 8, 'all 8 asked the builder');
+    assert.equal(calls.length, expected, `the tick made ${calls.length} subrequests`);
+    assert.ok(calls.length <= 45);
+    console.log(`# Worker tick, 8 stories, ${label}: ${calls.length} subrequests`);
+  });
+}
+
 test('a story whose publishAt is still ahead does not flip', async () => {
   const calls = await runCron(makeDb());
   const touched = calls.filter((c) => c.method === 'PATCH')

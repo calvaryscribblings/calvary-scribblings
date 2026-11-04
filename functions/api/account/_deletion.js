@@ -213,7 +213,8 @@ export class StepError extends Error {
 // only calling again (which resumes) got any further. Now every outside call is charged to a
 // Budget (realIo does it), and a step starts only when what it needs still fits. When it doesn't,
 // the run stops cleanly with MoreToDo and the endpoint answers 202 { more: true }; the page calls
-// again, and each call is a new request with a new 50. Nothing about WHAT is deleted changes.
+// again, and each call is a new request with a new budget. The budget is 45, not 50: 5 are kept
+// for what the counter can't see (functions/api/_budget.js, SUBREQUEST_BUDGET). Nothing about WHAT is deleted changes.
 //
 // The costs, counted from realIo (each includes the step's own `mark` write):
 //   membership  6 to start: the billing record, the Stripe search, the Paystack customer and its

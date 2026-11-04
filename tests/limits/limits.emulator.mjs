@@ -1,7 +1,8 @@
 // LIMITS-1 — the bulk quiz reset and account deletion under Cloudflare's real limits: 50
 // subrequests per request and 6 connections at once, enforced on every outbound call by the
 // PROOFS-R3.1 shim (tests/proofs/harness.mjs installLimits). The 51st fetch in a request throws as
-// workerd does, and every test asserts no request reached it.
+// workerd does, and every test asserts no request reached it. Every request must also stay within
+// SUBREQUEST_BUDGET (45): the 5 above it are headroom for what the counter can't see.
 //
 // Sizes: TODAY = the largest real case measured read-only on 3 Nov 2026 (the busiest quiz has 44
 // readers; the reader with the most Storage objects holds 12), and TEN TIMES that (440 readers,
@@ -16,7 +17,7 @@ import assert from 'node:assert/strict';
 import { install, uninstall, installLimits, loadRules, wipe, get, set, request, context, tokenFor, STAND_IN_FOUNDER, ENV } from '../proofs/harness.mjs';
 import { handleReset } from '../../functions/api/admin/reset-attempt.js';
 import { handleDelete } from '../../functions/api/account/delete.js';
-import { SUBREQUEST_LIMIT } from '../../functions/api/_budget.js';
+import { SUBREQUEST_LIMIT, SUBREQUEST_BUDGET } from '../../functions/api/_budget.js';
 import { runBulkReset } from '../../app/lib/quizResetLoop.js';
 import { runDeleteFlow } from '../../app/lib/accountDeletion.js';
 import { OWNED_NODES } from '../../functions/api/account/_deletion.js';
@@ -114,7 +115,7 @@ beforeEach(() => {
 
 const within = (label) => {
   assert.equal(L.refused, 0, `${label}: a request went past ${SUBREQUEST_LIMIT} subrequests`);
-  assert.ok(Math.max(...L.calls) <= SUBREQUEST_LIMIT, `${label}: worst request used ${Math.max(...L.calls)}`);
+  assert.ok(Math.max(...L.calls) <= SUBREQUEST_BUDGET, `${label}: worst request used ${Math.max(...L.calls)}, over the ${SUBREQUEST_BUDGET} planned`);
   assert.ok(L.peak <= 6, `${label}: ${L.peak} connections at once`);
 };
 
@@ -168,7 +169,7 @@ for (const [label, size] of [['today\'s size', TODAY], ['ten times today\'s size
   describe(`bulk quiz reset at ${label} (${size.readers} readers on one quiz)`, () => {
     beforeEach(() => seedQuiz(size.readers));
 
-    test('the page\'s loop finishes; every batch within 50; one audit entry per reader, nobody twice', async () => {
+    test('the page\'s loop finishes; every batch within 45; one audit entry per reader, nobody twice', async () => {
       const r = await runBulkReset(resetCall, { slug: SLUG, reason: 'invented', wait: async () => {} });
       assert.equal(r.ok, true, r.error);
       assert.equal(r.count, size.readers);
@@ -188,7 +189,7 @@ for (const [label, size] of [['today\'s size', TODAY], ['ten times today\'s size
     test('a batch killed before its write: the next call does it, nothing twice', async () => {
       let patches = 0;
       // Kill the 2nd batch's PATCH (or the 1st, at today's size) before it reaches the database.
-      const killAt = size.readers > 45 ? 2 : 1;
+      const killAt = size.readers > SUBREQUEST_BUDGET - 5 ? 2 : 1;
       L.killAt = (url) => (url === 'https://proofs.test/.json' && ++patches === killAt ? new Error('isolate died') : null);
       const r = await runBulkReset(resetCall, { slug: SLUG, wait: async () => {} });
       assert.equal(r.ok, true, r.error);
@@ -315,7 +316,7 @@ for (const [label, size] of [['today\'s size', TODAY], ['ten times today\'s size
   describe(`account deletion at ${label} (${size.objects} Storage objects, two subscriptions)`, () => {
     beforeEach(() => seedLeaver(size.objects));
 
-    test('the page\'s flow finishes with no failure shown; every request within 50', async () => {
+    test('the page\'s flow finishes with no failure shown; every request within 45', async () => {
       const f = flowDeps();
       const r = await runDeleteFlow(f.deps);
       assert.deepEqual(r, { ok: true });
