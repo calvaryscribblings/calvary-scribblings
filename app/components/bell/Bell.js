@@ -118,7 +118,7 @@ export function BellPanel({ id, bell, onClose, anchorRef, top = 76 }) {
         ) : rows.length ? rows.map((r) => (
           <BellRow key={r.key} r={r} details={details} now={now} compact fresh={typeof since === 'number' && r.at > since} onOpen={() => onClose(false)} />
         )) : (
-          <div data-bell-empty style={{ padding: '22px 20px', fontFamily: "'Cormorant Garamond', Georgia, serif", fontStyle: 'italic', fontSize: 16, color: '#8E879D' }}>Nothing yet.</div>
+          <div data-bell-empty style={{ padding: '22px 20px', fontFamily: "'Cormorant Garamond', Georgia, serif", fontStyle: 'italic', fontSize: 16, color: '#8E879D' }}>No notifications yet</div>
         )}
       </div>
       <a href="/notifications" data-bell-all style={{ display: 'block', padding: '14px 20px 16px', borderTop: '1px solid #2A2637', fontFamily: "'Cormorant Garamond', Georgia, serif", fontStyle: 'italic', fontSize: 16.5, color: '#C9A84C', textDecoration: 'none', textAlign: 'center' }}>

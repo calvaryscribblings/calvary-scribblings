@@ -155,7 +155,7 @@ describe('every surface is on the one button', () => {
   test('an author\'s notification can never turn a saved reaction back off', () => {
     for (const [name, src, head] of [['story', STORY, 'const toggleCommentReaction'], ['reader', READER, 'const toggleCommentReaction'], ['square', SQUARE, 'const toggleReaction = async']]) {
       const s = src.slice(src.indexOf(head));
-      const rethrow = s.search(/throw e;/), notify = s.search(/push\(ref\(db, `(library_)?notifications\//);
+      const rethrow = s.search(/throw e;/), notify = s.search(/notifyEvent\(/);   // NOTIF-B2: the server's /api/notify, never a client write
       assert.ok(rethrow > 0 && notify > rethrow, `${name}: the notification is sent after the save's try, in its own`);
     }
   });

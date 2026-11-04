@@ -26,7 +26,7 @@ const app = adminApp('square-w551');
 const db = getDatabase(app);
 test.afterAll(() => closeApp(app));
 
-const A = 'w551-test-reader', B = 'w551-reader-b', C = 'w551-reader-c', D = 'w551-reader-d', E = 'w551-reader-e';
+const A = 'w551testreader', B = 'w551readerb', C = 'w551readerc', D = 'w551readerd', E = 'w551readere';
 const conv = (x, y) => [x, y].sort().join('_');
 const AC = conv(A, C);
 

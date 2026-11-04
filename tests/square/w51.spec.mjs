@@ -22,7 +22,7 @@ const app = adminApp('square-w51');
 const db = getDatabase(app);
 test.afterAll(() => closeApp(app));
 
-const A = 'w51-reader-a', B = 'w51-reader-b', C = 'w51-reader-c';
+const A = 'w51readera', B = 'w51readerb', C = 'w51readerc';
 
 function lastOpenInstant(now = Date.now()) {
   const london = (t) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(t);

@@ -30,7 +30,7 @@ const app = adminApp('square-w52');
 const db = getDatabase(app);
 test.afterAll(() => closeApp(app));
 
-const A = 'w52-test-reader', B = 'w52-reader-b', C = 'w52-reader-c', D = 'w52-reader-d', M = 'w52-moderator';
+const A = 'w52testreader', B = 'w52readerb', C = 'w52readerc', D = 'w52readerd', M = 'w52moderator';
 const SHOTS = 'test-results/w52';
 
 const londonAt = (hhmm, now = Date.now()) => {

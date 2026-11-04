@@ -98,11 +98,12 @@ const CHANGED = [
   ["3", "app/profile/page.js", ">No posts yet.</div>", ">No posts yet</div>", 1],
   ["3", "app/profile/page.js", ">No one here yet.</div>", ">No one here yet</div>", 1],
   ["3", "app/profile/page.js", ">No comments yet.</div>", ">No comments yet</div>", 1],
-  ["3", "app/profile/page.js", ">No notifications yet.</div>", ">No notifications yet</div>", 1],
+  // NOTIF-B2 (rulings 305/327, one list): the Profile and Square panels are gone; their ruled empty
+  // state now lives once, in the bell's panel.
+  ["3", "app/components/bell/Bell.js", ">No notifications yet.</div>", ">No notifications yet</div>", 1],
   ["3", "app/user/page.js", ">No posts yet.</div>", ">No posts yet</div>", 1],
   ["3", "app/user/page.js", ">No one here yet.</div>", ">No one here yet</div>", 1],
   ["3", "app/user/page.js", ">No comments yet.</div>", ">No comments yet</div>", 1],
-  ["3", "app/square/page.js", ">No notifications yet.</div>", ">No notifications yet</div>", 1],
   ["3", "app/quizzes/page.js", "'No completed quizzes yet.'", "'No completed quizzes yet'", 1],
   ["3", "app/quizzes/page.js", "'All quizzes attempted.'", "'All quizzes attempted'", 1],
   ["3", "app/quizzes/page.js", "'No quizzes available.'", "'No quizzes available'", 1],

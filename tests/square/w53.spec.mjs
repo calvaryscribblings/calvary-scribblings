@@ -25,7 +25,7 @@ const app = adminApp('square-w53');
 const db = getDatabase(app);
 test.afterAll(() => closeApp(app));
 
-const A = 'w53-test-reader', B = 'w53-reader-b', C = 'w53-reader-c', D = 'w53-reader-d', M = 'w53-moderator';
+const A = 'w53testreader', B = 'w53readerb', C = 'w53readerc', D = 'w53readerd', M = 'w53moderator';
 const SHOTS = 'test-results/w53';
 const conv = (x, y) => [x, y].sort().join('_');
 

@@ -32,7 +32,7 @@ const app = adminApp('square-w552');
 const db = getDatabase(app);
 test.afterAll(() => closeApp(app));
 
-const A = 'w552-test-reader', G = 'w552-reader-granted', C = 'w552-reader-c';
+const A = 'w552testreader', G = 'w552readergranted', C = 'w552readerc';
 const conv = (x, y) => [x, y].sort().join('_');
 const AC = conv(A, C), GC = conv(G, C);
 const H = 60 * 60 * 1000;

@@ -25,7 +25,7 @@ const app = adminApp('square-w54');
 const db = getDatabase(app);
 test.afterAll(() => closeApp(app));
 
-const A = 'w54-test-reader', B = 'w54-reader-b', C = 'w54-reader-c';
+const A = 'w54testreader', B = 'w54readerb', C = 'w54readerc';
 
 const londonAt = (hhmm, now = Date.now()) => {
   const fmt = (t) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(t);
