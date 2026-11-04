@@ -73,7 +73,11 @@ export function BellButton({ unread, open, onPress, phone = false, tone = 'dark'
   );
 }
 
-/** The panel: under the header at the right, 400px (never wider than the screen), five rows. */
+/**
+ * The panel: under the header at the right, 400px (never more than 92% of the screen), five rows.
+ * Its right edge is the header's gutter, max(16px, 4vw): measured in line with the header's last
+ * item (the menu button) at 820, 1180 and 1440 (tests/notify/bell.spec.mjs, geometry).
+ */
 export function BellPanel({ id, bell, onClose, anchorRef, top = 76 }) {
   const ref = useRef(null);
   const rows = bell.list.slice(0, PANEL_ROWS);
@@ -100,7 +104,7 @@ export function BellPanel({ id, bell, onClose, anchorRef, top = 76 }) {
       aria-label="Notifications"
       data-bell-panel
       style={{
-        position: 'fixed', top, right: 'max(16px, 4vw)', width: 400, maxWidth: 'calc(100vw - 32px)', zIndex: 1100,
+        position: 'fixed', top, right: 'max(16px, 4vw)', width: 400, maxWidth: '92vw', zIndex: 1100,
         background: '#14121C', border: '1px solid #2A2637', borderRadius: 16, boxShadow: '0 28px 70px rgba(0,0,0,.6)',
         overflow: 'hidden', color: '#EFE8DA',
       }}

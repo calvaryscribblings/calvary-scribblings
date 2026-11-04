@@ -24,6 +24,8 @@
 // (identityOf). No sender at all is the house: "Calvary Scribblings". A sender with no profile is
 // "Reader".
 
+import { formFor } from '../../scripts/push/forms.mjs';
+
 export const HOUSE_NAME = 'Calvary Scribblings';
 export const NO_PROFILE_NAME = 'Reader';
 
@@ -54,31 +56,48 @@ export const BADGES = Object.freeze({
 
 const LEGACY_REACTIONS = new Set(['heart', 'fire', 'clap', 'quill', 'like']);
 
-/** The DRAFT words for each row (house style, rule 13; for Ikenna's review). `n` = others. */
+/**
+ * The words of every row (rule 13, curly quotes throughout). Each entry is marked with where it
+ * comes from:
+ *   DESIGN   a line Ikenna's approved design shows (rulings 305–327; NOTIF-B2 ship, 4 Nov 2026)
+ *   PUSH     the push wording ruled 25 Sep 2026 (docs/PUSH-GO-LIVE.md, scripts/push/forms.mjs)
+ *   DRAFT    not shown in the design; for Ikenna's ruling in the next web round
+ * A row's first line is `{name}` + the words, the name at weight 600; where the design sets other
+ * words in bold, the entry says which. Its second line is a title (#D8D0C2) or quoted words
+ * (#A39CB2, inside “ ”).
+ */
 export const WORDS = Object.freeze({
-  reply_story: 'replied to your response',
-  reply_square: 'replied to your post',
-  reply_square_you: 'replied to you',
-  reply_open_pages: 'replied to you on Open Pages',
-  mention_story: 'mentioned you in a response',
-  mention_square: 'mentioned you in the Square',
-  quote: 'quoted your post',
-  message_one: 'sent you a message',
-  message_many: (count) => `sent you ${count} messages`,
-  follow: 'started following you',
-  reaction_response: 'liked your response',
-  reaction_post: 'liked your post',
-  story_reaction: 'liked your story',
-  response: 'responded to your story',
-  new_story: 'A new story by',
-  new_instalment: 'A new instalment by',
-  from_followed: 'FROM A WRITER YOU FOLLOW',
-  badge: 'You earned a new badge',
-  tier_up: 'You reached a new tier',
-  open_pages_live: 'Your Open Pages piece is live',
-  open_pages_declined: 'Your Open Pages piece was not published',
-  square_opens: 'The Square is open',
-  others: (n) => (n === 1 ? '1 other' : `${n} others`),
+  reply_story: 'replied to your response',                           // DESIGN, then “quoted words”
+  reply_square: 'replied to your post',                              // DRAFT
+  reply_square_you: 'replied to you',                                // DRAFT
+  reply_open_pages: 'replied to you on Open Pages',                  // DRAFT
+  mention_story: 'mentioned you in a response',                      // DRAFT
+  mention_square: 'mentioned you in the Square',                     // DESIGN, then “quoted words”
+  quote: 'quoted your post',                                         // DRAFT
+  message_one: 'sent you a message',                                 // DRAFT
+  message_many: (count) => `sent you ${count} messages`,             // DESIGN
+  follow: 'started following you',                                   // DESIGN
+  reaction_response: 'liked your response',                         // DESIGN, then “on {title}”
+  reaction_on: (title) => `on ${title}`,                             // DESIGN (the second line)
+  reaction_post: 'liked your post',                                  // DRAFT
+  story_reaction: 'liked your story',                                // DRAFT
+  responses: (n) => (n === 1 ? '1 new response' : `${n} new responses`), // DESIGN, bold (“1 new response”: DRAFT)
+  responses_tail: 'on your story',                                   // DESIGN, then {title}
+  new_story: (form) => `New ${form} by`,                             // DESIGN + PUSH ({form}), then {writer} bold, {title}
+  new_story_unknown: 'New story by',                                 // PUSH (FALLBACK_FORM: the story’s form not yet read)
+  new_instalment: (part) => `${part} by`,                            // PUSH, then {writer} bold, {series}
+  new_instalment_unknown: 'A new instalment by',                     // DRAFT (the part’s title not yet read)
+  from_followed: 'FROM A WRITER YOU FOLLOW',                         // DESIGN, the third line
+  badge: 'You earned a new badge',                                   // DRAFT
+  tier_up: 'You’re now a',                                           // DESIGN, then {tier} bold
+  tier_up_unnamed: 'You reached a new tier',                         // DRAFT (no tier named)
+  open_pages_live: 'Your piece is live in',                          // DESIGN, then “Open Pages” bold, {title}
+  open_pages_name: 'Open Pages',                                     // DESIGN (bold)
+  open_pages_declined: 'Your Open Pages piece wasn’t published',     // DRAFT
+  square_opens: 'The Square is open.',                               // DESIGN (bold)
+  square_opens_tail: 'Tonight’s question is waiting.',               // DESIGN
+  reward: 'You earned Scribbles',                                    // DRAFT (the house’s note, when it carries no words)
+  others: (n) => (n === 1 ? '1 other' : `${n} others`),              // DESIGN (“and {n} others”; “1 other”: DRAFT)
 });
 
 // ── normalising the four sources into rows ────────────────────────────────────────────────────
@@ -114,10 +133,10 @@ export function fromInbox(id, r) {
   switch (r.kind) {
     case 'reply':
       if (s.pieceId) return row({ ...base, badge: 'violet', verb: WORDS.reply_open_pages, href: `/open-pages/${encodeURIComponent(s.pieceId)}` });
-      if (square) return row({ ...base, badge: 'violet', verb: s.to === 'you' ? WORDS.reply_square_you : WORDS.reply_square, href: threadHref(s.threadId, s.postId) });
+      if (square) return row({ ...base, badge: 'violet', verb: s.to === 'you' ? WORDS.reply_square_you : WORDS.reply_square, needsPost: s.postId, href: threadHref(s.threadId, s.postId) });
       return row({ ...base, badge: 'violet', verb: WORDS.reply_story, slug: s.slug, href: storyHref(s.slug, s.commentId), needsQuote: s.slug && s.commentId ? { slug: s.slug, commentId: s.commentId } : null });
     case 'mention':
-      if (square) return row({ ...base, badge: 'violet', verb: WORDS.mention_square, href: threadHref(s.threadId, s.postId) });
+      if (square) return row({ ...base, badge: 'violet', verb: WORDS.mention_square, needsPost: s.postId, href: threadHref(s.threadId, s.postId) });
       return row({ ...base, badge: 'violet', verb: WORDS.mention_story, slug: s.slug, href: storyHref(s.slug, s.commentId), needsQuote: s.slug && s.commentId ? { slug: s.slug, commentId: s.commentId } : null });
     case 'quote':
       return row({ ...base, badge: 'violet', verb: WORDS.quote, href: threadHref(s.threadId, s.postId) });
@@ -126,18 +145,18 @@ export function fromInbox(id, r) {
     case 'follow':
       return row({ ...base, badge: 'slate', verb: WORDS.follow, href: base.actor ? `/user?id=${encodeURIComponent(base.actor)}` : null });
     case 'reaction':
-      return row({ ...base, badge: 'heart', verb: square ? WORDS.reaction_post : WORDS.reaction_response, slug: s.slug || null, href: square ? threadHref(s.threadId, s.postId) : storyHref(s.slug, s.commentId) });
+      return row({ ...base, badge: 'heart', verb: square ? WORDS.reaction_post : WORDS.reaction_response, slug: s.slug || null, needsTitle: square ? null : (s.slug || null), href: square ? threadHref(s.threadId, s.postId) : storyHref(s.slug, s.commentId) });
     case 'story_reaction':
       return row({ ...base, badge: 'heart', verb: WORDS.story_reaction, slug: s.slug, href: storyHref(s.slug), needsTitle: s.slug || null });
     case 'response':
-      return row({ ...base, badge: 'violet', verb: WORDS.response, slug: s.slug, href: storyHref(s.slug), needsTitle: s.slug || null });
+      return row({ ...base, badge: 'violet', verb: WORDS.responses_tail, slug: s.slug, href: storyHref(s.slug), needsTitle: s.slug || null });
     case 'badge':
       return row({ ...base, actor: null, actors: [], tile: 'star', verb: WORDS.badge, href: '/profile' });
     case 'tier_up':
-      return row({ ...base, actor: null, actors: [], tile: 'star', verb: WORDS.tier_up, href: '/profile' });
+      return row({ ...base, actor: null, actors: [], tile: 'star', verb: WORDS.tier_up, tier: str(s.tier), href: '/profile' });
     case 'open_pages_live':
     case 'open_pages_declined':
-      return row({ ...base, actor: null, actors: [], tile: 'feather', verb: WORDS[r.kind], href: s.pieceId ? `/open-pages/${encodeURIComponent(s.pieceId)}` : '/open-pages' });
+      return row({ ...base, actor: null, actors: [], tile: 'feather', verb: WORDS[r.kind], needsPiece: r.kind === 'open_pages_live' ? str(s.pieceId) : null, href: s.pieceId ? `/open-pages/${encodeURIComponent(s.pieceId)}` : '/open-pages' });
     case 'square_opens':
       return row({ ...base, actor: null, actors: [], tile: 'diamond', verb: WORDS.square_opens, href: '/square' });
     default:
@@ -179,14 +198,14 @@ export function fromLegacy(node, id, n) {
       if (square) return row({ ...base, badge: 'violet', verb: WORDS.reply_square, href: sqHref });
       return row({ ...base, badge: 'violet', verb: WORDS.reply_story, slug: str(n.slug), href: storyHref(n.slug, n.commentId) });
     case 'square_reply':
-      return row({ ...base, badge: 'violet', verb: WORDS.reply_square, href: sqHref });
+      return row({ ...base, badge: 'violet', verb: WORDS.reply_square, needsPost: str(n.postId), href: sqHref });
     case 'square_reply_to_you':
-      return row({ ...base, badge: 'violet', verb: WORDS.reply_square_you, href: sqHref });
+      return row({ ...base, badge: 'violet', verb: WORDS.reply_square_you, needsPost: str(n.postId), href: sqHref });
     case 'square_quote':
       return row({ ...base, badge: 'violet', verb: WORDS.quote, href: sqHref });
     case 'mention':
       return square
-        ? row({ ...base, badge: 'violet', verb: WORDS.mention_square, href: sqHref })
+        ? row({ ...base, badge: 'violet', verb: WORDS.mention_square, needsPost: str(n.postId), href: sqHref })
         : row({ ...base, badge: 'violet', verb: WORDS.mention_story, slug: str(n.slug), href: storyHref(n.slug) });
     case 'open_pages_reply':
       return row({ ...base, badge: 'violet', verb: WORDS.reply_open_pages, href: n.postId ? `/open-pages/${encodeURIComponent(n.postId)}` : '/open-pages' });
@@ -198,12 +217,12 @@ export function fromLegacy(node, id, n) {
     }
     case 'reward':
       // The house's own note: never a stored name. The words are the reader's own milestone.
-      return row({ ...base, actor: null, actors: [], actorCount: 0, house: true, verb: str(n.message) || 'You earned Scribbles', quote: null, href: '/profile' });
+      return row({ ...base, actor: null, actors: [], actorCount: 0, house: true, verb: str(n.message) || WORDS.reward, quote: null, href: '/profile' });
     default:
       if (LEGACY_REACTIONS.has(n.type)) {
         return square
           ? row({ ...base, kind: 'reaction', badge: 'heart', verb: n.slug ? WORDS.reaction_response : WORDS.reaction_post, href: n.slug ? storyHref(n.slug) : sqHref })
-          : row({ ...base, kind: 'reaction', badge: 'heart', verb: WORDS.reaction_response, slug: str(n.slug), href: storyHref(n.slug, n.commentId) });
+          : row({ ...base, kind: 'reaction', badge: 'heart', verb: WORDS.reaction_response, slug: str(n.slug), needsTitle: str(n.slug), href: storyHref(n.slug, n.commentId) });
       }
       return null;
   }
@@ -311,12 +330,44 @@ export function nameOf(uid, users) {
   return (typeof n === 'string' && n.trim()) ? n : NO_PROFILE_NAME;
 }
 
+/** The story's {form}, as the push names it (ruled 25 Sep); null until its index record is read. */
+function formOf(story) {
+  if (!story || typeof story !== 'object') return null;
+  return formFor(story.category || '', story.subcategory || '');
+}
+
+/** What a new story's row shows: title and cover, and for an instalment its part and series. */
+export function storyBits(r, d = {}) {
+  if (r.slug) {
+    const s = d.story?.(r.slug);
+    return { title: (s && s.title) || r.title || null, cover: (s && (s.coverSmall || s.cover)) || null, form: formOf(s) };
+  }
+  if (r.instalmentId) {
+    const i = d.instalment?.(r.instalmentId);
+    const se = r.seriesId ? d.series?.(r.seriesId) : null;
+    return { title: (se && se.title) || null, part: (i && typeof i.title === 'string' && i.title.trim()) || null, cover: (i && i.coverUrl) || (se && se.coverUrl) || null };
+  }
+  return { title: null, cover: null };
+}
+
 /**
- * The first line as parts: [{ name }, { text }]. Grouped: "Ada Obi and 4 others liked your response".
- * New stories: "A new story by {writer}".
+ * The first line as parts: [{ name } | { text }], `name` drawn at weight 600. Grouped:
+ * "Ada Obi and 4 others liked your response". New stories: "New short story by {writer}".
+ * `d` holds the rows' live details (story, instalment, series); without them a new story reads
+ * as the push's fallback until its record arrives.
  */
-export function headline(r, users) {
-  if (r.kind === 'new_story') return [{ text: `${r.verb} ` }, { name: nameOf(r.writer, users) }];
+export function headline(r, users, d = {}) {
+  if (r.kind === 'new_story') {
+    const b = storyBits(r, d);
+    const lead = r.instalmentId
+      ? (b.part ? WORDS.new_instalment(b.part) : WORDS.new_instalment_unknown)
+      : (b.form ? WORDS.new_story(b.form) : WORDS.new_story_unknown);
+    return [{ text: `${lead} ` }, { name: nameOf(r.writer, users) }];
+  }
+  if (r.kind === 'response') return [{ name: WORDS.responses(Math.max(1, r.count || 1)) }, { text: ` ${WORDS.responses_tail}` }];
+  if (r.kind === 'square_opens') return [{ name: WORDS.square_opens }, { text: ` ${WORDS.square_opens_tail}` }];
+  if (r.kind === 'tier_up') return r.tier ? [{ text: `${WORDS.tier_up} ` }, { name: r.tier }] : [{ text: WORDS.tier_up_unnamed }];
+  if (r.kind === 'open_pages_live') return [{ text: `${WORDS.open_pages_live} ` }, { name: WORDS.open_pages_name }];
   if (r.house || (!r.actor && !r.tile)) return [{ name: HOUSE_NAME }, { text: ` ${r.verb}` }];
   if (r.tile) return [{ text: r.verb }];
   const first = nameOf(r.actor, users);
@@ -324,4 +375,23 @@ export function headline(r, users) {
   return others > 0
     ? [{ name: first }, { text: ` and ${WORDS.others(others)} ${r.verb}` }]
     : [{ name: first }, { text: ` ${r.verb}` }];
+}
+
+/**
+ * The second line: { text, quoted } or null. A title is drawn plain (#D8D0C2), quoted words
+ * inside “ ” (#A39CB2). `d` getters return undefined while a read is in flight, null for none.
+ */
+export function secondLine(r, d = {}) {
+  if (r.kind === 'new_story') { const t = storyBits(r, d).title; return t ? { text: t, quoted: false } : null; }
+  const storyTitle = r.needsTitle ? (d.story?.(r.needsTitle)?.title || null) : null;
+  if (r.kind === 'reaction' && r.slug) return storyTitle ? { text: WORDS.reaction_on(storyTitle), quoted: false } : null;
+  if (r.kind === 'response' || r.kind === 'story_reaction') return storyTitle ? { text: storyTitle, quoted: false } : null;
+  if (r.needsPiece) { const p = d.piece?.(r.needsPiece); return p && p.title ? { text: p.title, quoted: false } : null; }
+  let q = r.quote || null;
+  if (!q && r.needsQuote) q = d.quote?.(r.needsQuote.slug, r.needsQuote.commentId) || null;
+  if (!q && r.needsPost) {
+    const p = d.post?.(r.needsPost);
+    q = p && !p.withdrawn && !p.removedBy && typeof p.text === 'string' ? p.text : null;
+  }
+  return q ? { text: q, quoted: true } : null;
 }

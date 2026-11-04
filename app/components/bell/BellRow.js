@@ -9,7 +9,7 @@
 //
 // Every name and picture is drawn live (identityOf); a row with no sender is the house's.
 
-import { BADGES, headline, timeLabel, HOUSE_NAME, NO_PROFILE_NAME } from '../../lib/bell';
+import { BADGES, WORDS, headline, secondLine, storyBits, timeLabel, HOUSE_NAME, NO_PROFILE_NAME } from '../../lib/bell';
 import { KindBadge, Tile } from './icons';
 
 const INK = '#EFE8DA';
@@ -34,22 +34,6 @@ function Face({ uid, users, size, ring, house }) {
   );
 }
 
-/** What a new story's row shows: title, cover, and for an instalment its series. */
-function storyBits(r, details) {
-  if (r.slug) {
-    const s = details.story(r.slug);
-    return { title: (s && s.title) || r.title || null, cover: (s && (s.coverSmall || s.cover)) || null };
-  }
-  if (r.instalmentId) {
-    const d = details.instalment(r.instalmentId);
-    const se = r.seriesId ? details.series(r.seriesId) : null;
-    const part = d && d.title;
-    const title = se?.title && part ? `${se.title} · ${part}` : (part || se?.title || null);
-    return { title, cover: (d && d.coverUrl) || (se && se.coverUrl) || null };
-  }
-  return { title: null, cover: null };
-}
-
 /** `now` comes from the caller (a render must not read the clock). */
 export default function BellRow({ r, details, compact = false, now, fresh = false, onOpen }) {
   const ground = fresh ? (compact ? '#1A1626' : '#100D1B') : (compact ? '#14121C' : 'transparent');
@@ -58,11 +42,9 @@ export default function BellRow({ r, details, compact = false, now, fresh = fals
   const badgeSize = compact ? 16 : 18;
   const users = (uid) => details.user(uid);
   const userMap = new Proxy({}, { get: (_, uid) => details.user(uid) });
-  const parts = headline(r, userMap);
+  const parts = headline(r, userMap, details);
   const bits = r.kind === 'new_story' ? storyBits(r, details) : null;
-  const titled = r.kind === 'response' || r.kind === 'story_reaction';
-  const titleOf = titled && r.slug ? (details.story(r.slug)?.title || null) : null;
-  const quote = r.quote || (r.needsQuote ? details.quote(r.needsQuote.slug, r.needsQuote.commentId) : null) || null;
+  const line2 = secondLine(r, details);
   const grouped = (r.actorCount || 0) > 1 && r.actors.length > 1 && r.badge === 'heart';
 
   let picture;
@@ -99,9 +81,6 @@ export default function BellRow({ r, details, compact = false, now, fresh = fals
     );
   }
 
-  const second = bits ? bits.title : (titleOf || quote);
-  const secondIsTitle = !!(bits || titleOf);
-
   return (
     <a
       href={r.href || '#'}
@@ -114,16 +93,16 @@ export default function BellRow({ r, details, compact = false, now, fresh = fals
       {fresh ? <span aria-hidden="true" data-dot style={{ position: 'absolute', left: compact ? 7 : 9, top: '50%', marginTop: -3.5, width: 7, height: 7, borderRadius: '50%', background: '#8B63E6' }} /> : null}
       {picture}
       <span style={{ flex: 1, minWidth: 0 }}>
-        {r.fromFollowed ? (
-          <span style={{ display: 'block', fontFamily: INTER, fontWeight: 600, fontSize: 10, letterSpacing: '0.2em', color: '#C9A84C', marginBottom: 3 }}>FROM A WRITER YOU FOLLOW</span>
-        ) : null}
         <span style={{ display: 'block', fontFamily: SERIF, fontSize: compact ? 16 : 17, lineHeight: 1.3, color: INK }}>
           {parts.map((p, i) => (p.name ? <b key={i} style={{ fontWeight: 600 }}>{p.name}</b> : <span key={i}>{p.text}</span>))}
         </span>
-        {second ? (
-          <span style={{ marginTop: 2, fontFamily: SERIF, fontStyle: 'italic', fontSize: 15.5, lineHeight: 1.35, color: secondIsTitle ? '#D8D0C2' : '#A39CB2', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-            {secondIsTitle ? second : `“${second}”`}
+        {line2 ? (
+          <span style={{ marginTop: 2, fontFamily: SERIF, fontStyle: 'italic', fontSize: 15.5, lineHeight: 1.35, color: line2.quoted ? '#A39CB2' : '#D8D0C2', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+            {line2.quoted ? `“${line2.text}”` : line2.text}
           </span>
+        ) : null}
+        {r.fromFollowed ? (
+          <span style={{ display: 'block', fontFamily: INTER, fontWeight: 600, fontSize: 10, letterSpacing: '0.2em', color: '#C9A84C', marginTop: 5 }}>{WORDS.from_followed}</span>
         ) : null}
       </span>
       <span style={{ fontFamily: INTER, fontWeight: 500, fontSize: 11, color: '#8E879D', whiteSpace: 'nowrap', paddingTop: 3 }}>{timeLabel(r.at, now)}</span>

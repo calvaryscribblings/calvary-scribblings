@@ -119,9 +119,9 @@ export function useBell(user) {
 
 // ── the rows' live details ────────────────────────────────────────────────────────────────────
 // Who (users/{uid}), the story's title and cover (cms_stories_index/{slug}), an instalment's
-// title and its series' poster, a response's words. Read only for the rows on screen, each once.
+// title and its series' poster, a response's words, a Square post's words, a piece's title. Read only for the rows on screen, each once.
 
-const cache = { users: new Map(), stories: new Map(), instalments: new Map(), series: new Map(), quotes: new Map() };
+const cache = { users: new Map(), stories: new Map(), instalments: new Map(), series: new Map(), quotes: new Map(), posts: new Map(), pieces: new Map() };
 const inflight = new Map();
 /** Read once into the cache; a read that fails caches null (the row draws without it). */
 function load(kind, key, read) {
@@ -156,6 +156,15 @@ export function useBellDetails(rows) {
           const { slug: s, commentId } = r.needsQuote;
           jobs.push(load('quotes', `${s}/${commentId}`, () => val(`comments/${s}/${commentId}/text`)));
         }
+        // A Square post's words (withdrawn or removed posts draw none) and an Open Pages piece's title.
+        if (r.needsPost && !r.quote) {
+          const id = r.needsPost;
+          jobs.push(load('posts', id, async () => {
+            const p = await val(`square_posts/${id}`);
+            return p ? { text: p.text ?? null, withdrawn: !!p.withdrawn, removedBy: p.removedBy ?? null } : null;
+          }));
+        }
+        if (r.needsPiece) jobs.push(load('pieces', r.needsPiece, async () => ({ title: await val(`open_pages/${r.needsPiece}/title`) })));
       }
       await Promise.all(jobs);
       if (live) bump((n) => n + 1);
@@ -172,5 +181,7 @@ export function useBellDetails(rows) {
     instalment: (id) => cache.instalments.get(id),
     series: (id) => cache.series.get(id),
     quote: (slug, cid) => cache.quotes.get(`${slug}/${cid}`),
+    post: (id) => cache.posts.get(id),
+    piece: (id) => cache.pieces.get(id),
   };
 }

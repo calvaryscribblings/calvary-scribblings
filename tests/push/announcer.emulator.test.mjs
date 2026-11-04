@@ -358,6 +358,7 @@ describe('NOTIF-B2 (P3, ruling 308) · the shared bell item, announcements/{id}'
     const expo = fakeExpo();
     await runAnnouncer(await guarded(db), expo, NOW + MIN, { apply: true, ...quiet });
     assert.deepEqual(expo.sent.map((m) => m.to), ['ExpoPushToken[dev1]']);
+    assert.equal(await val('notify_prefs/reader1'), null, 'reader1 has no notify_prefs at all, and still gets the push');
     assert.ok(await val('announcements/story_brand-new'));
   });
 

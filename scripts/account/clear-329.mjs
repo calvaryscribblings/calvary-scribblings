@@ -18,7 +18,18 @@
 // profile-less owner appearing later can never be swept up by a re-run. Every write is the guard's
 // (dry without --apply; a fresh, checksum-verified backup of exactly these paths; one atomic update),
 // and afterwards each path is read back and must be gone. Counts only: never a key, a token or a uid.
+//
+// A SECOND, LOCAL BACKUP (NOTIF-B2 ship). The guard's backup lives in the backups bucket for 30
+// days. With --apply this script first also writes exactly these paths' values to
+// ~/calvary-private/backups/ruling-329-<stamp>.json (outside the repo, mode 0600), reads the file
+// back and checks its SHA-256 and every value against what was read. If that fails, nothing is
+// written. It prints the file's name and its counts, never its contents.
 import { pathToFileURL } from 'node:url';
+import { createHash } from 'node:crypto';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getDatabase } from 'firebase-admin/database';
@@ -76,6 +87,21 @@ async function main() {
   console.log(`ruling 329: ${apply ? 'APPLY' : 'dry run'}`);
   for (const [node, c] of Object.entries(counts)) console.log(`  ${node}: ${c.owners} leftover, ${c.records} record(s)`);
 
+  if (apply) {
+    const values = {};
+    for (const p of paths) values[p] = (await db.ref(p).get()).val();
+    const dir = join(homedir(), 'calvary-private', 'backups');
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const file = join(dir, `ruling-329-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
+    const body = JSON.stringify({ ruling: '329', takenAt: new Date().toISOString(), values });
+    const sha = createHash('sha256').update(body).digest('hex');
+    writeFileSync(file, body, { mode: 0o600, flag: 'wx' });
+    const back = readFileSync(file, 'utf8');
+    const ok = createHash('sha256').update(back).digest('hex') === sha
+      && paths.every((p) => isDeepStrictEqual(JSON.parse(back).values[p], values[p]) && values[p] !== null);
+    if (!ok) throw new Error('LOCAL BACKUP NOT VERIFIED: nothing was written.');
+    console.log(`  local backup: ${file.replace(homedir(), '~')} (${paths.length} path(s), sha256 verified)`);
+  }
   await db.ref().update(Object.fromEntries(paths.map((p) => [p, null])));   // the guard: dry, or backup + verify + write
   if (!apply) { console.log('  dry run: nothing written. Re-run with --apply.'); return; }
 

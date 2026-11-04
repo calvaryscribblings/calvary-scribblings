@@ -101,7 +101,7 @@ async function open(page, path, { uid = A, size = 'desktop' } = {}) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   if (process.env.BELL_DEBUG) page.on('console', (m) => console.log('[page]', m.type(), m.text().slice(0, 300)));
-  await page.setViewportSize(WIDTHS[size]);
+  await page.setViewportSize(typeof size === 'object' ? size : WIDTHS[size]);
   await routeNotify(page, { at: AT });
   await page.goto(path);
   if (uid) {
@@ -222,7 +222,8 @@ test('the full page: a phone\'s bell opens it; four sources, each event once; th
   // 323: from the reader's own following list; the other story's writer isn't followed.
   const harbour = page.locator('[data-bell-row="new_story"]', { hasText: 'A Quiet Harbour' });
   await expect(harbour).toContainText('FROM A WRITER YOU FOLLOW');
-  await expect(harbour).toContainText('A new story by Wren Writer');
+  await expect(harbour).toContainText('New short story by Wren Writer');
+  await expect(page.locator('[data-bell-row="reaction"]')).toContainText('on A Quiet Harbour');
   await expect(page.locator('[data-bell-row="new_story"]', { hasText: 'The Long Field' })).not.toContainText('FROM A WRITER YOU FOLLOW');
   // Sender-less: the house; a sender with no profile: "Reader". Never a stored name.
   await expect(page.locator('[data-bell-row="reward"]')).toContainText('Calvary Scribblings');
@@ -235,7 +236,7 @@ test('the full page: a phone\'s bell opens it; four sources, each event once; th
   await expect.poll(() => val(`notifications/${A}/-sq2/read`)).toBe(true);
   await page.screenshot({ path: `${SHOTS}/page-phone.png`, fullPage: true });
   for (const size of ['ipad', 'desktop']) {
-    await page.setViewportSize(WIDTHS[size]);
+    await page.setViewportSize(typeof size === 'object' ? size : WIDTHS[size]);
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${SHOTS}/page-${size}.png`, fullPage: true });
   }
@@ -295,4 +296,107 @@ test('settings: the defaults, a switch writes notify_prefs, YOUR WRITING for wri
   await expect(page.locator('[data-card="YOUR WRITING"]')).toBeVisible({ timeout: 60000 });
   await expect(page.locator('[data-pref="responses"]')).toContainText('grouped, at most once an hour for each story');
   await page.screenshot({ path: `${SHOTS}/settings-writer-phone.png`, fullPage: true });
+});
+
+// ── NOTIF-B2 ship: the bell measured against the design, from the page's own boxes ────────────
+// At 360, 390, 820, 1180 and 1440. Every figure comes from getBoundingClientRect (or computed
+// style), never from a screenshot. The table goes to test-results/notif-b2/geometry.json.
+const GEOMETRY_WIDTHS = [[360, 780], [390, 844], [820, 1180], [1180, 820], [1440, 900]];
+const near = (a, b, tol = 0.51) => Math.abs(a - b) <= tol;
+
+test('geometry: the bell, the badge, the panel and the rows, measured at five widths', async ({ page }) => {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  await reset({ unread: 3 });
+  const table = [];
+  for (const [width, height] of GEOMETRY_WIDTHS) {
+    const phone = width < 768;
+    await reset({ unread: 3 });   // opening the panel clears the count (ruling 326)
+    await open(page, '/about', { size: { width, height } });
+    const bell = visibleBell(page);
+    await expect(bell).toHaveAttribute('data-unread', '3', { timeout: 90000 });
+    await page.evaluate(() => document.fonts.ready);
+    const m = await page.evaluate((isPhone) => {
+      const r = (el) => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, r: b.right, b: b.bottom, cx: b.x + b.width / 2, cy: b.y + b.height / 2 }; };
+      const btn = [...document.querySelectorAll('[data-bell-button]')].find((e) => e.offsetParent);
+      const neighbour = document.querySelector(isPhone ? '.cs-hamburger' : '.cs-nav-avatar');
+      const out = { target: r(btn), circle: r(btn.querySelector('[data-bell-circle]')), badge: r(btn.querySelector('[data-bell-badge]')), neighbour: r(neighbour), vw: window.innerWidth, pageScroll: document.documentElement.scrollWidth > window.innerWidth };
+      if (isPhone) {
+        const title = document.querySelector('.cs-logo-title'), sub = document.querySelector('.cs-logo-sub');
+        out.title = { ...r(title), clipped: title.scrollWidth > title.clientWidth + 0.5 };
+        out.sub = { ...r(sub), clipped: sub.scrollWidth > sub.clientWidth + 0.5 };
+      }
+      return out;
+    }, phone);
+    const row = {
+      width, mode: phone ? 'phone' : 'panel',
+      target: `${m.target.w}×${m.target.h}`, circle: `${m.circle.w}×${m.circle.h}`,
+      circleOffInTarget: [+(m.circle.cx - m.target.cx).toFixed(2), +(m.circle.cy - m.target.cy).toFixed(2)],
+      centreLineVsNeighbour: +(m.circle.cy - m.neighbour.cy).toFixed(2),
+      badgeH: m.badge.h, badgeAbove: +(m.circle.y - m.badge.y).toFixed(2), badgeRight: +(m.badge.r - m.circle.r).toFixed(2),
+      pageScroll: m.pageScroll,
+    };
+    expect.soft(m.target.w).toBe(44); expect.soft(m.target.h).toBe(44);
+    expect.soft(m.circle.w).toBe(phone ? 31 : 36);
+    expect.soft(near(m.circle.cx, m.target.cx) && near(m.circle.cy, m.target.cy)).toBe(true);
+    expect.soft(near(m.circle.cy, m.neighbour.cy)).toBe(true);
+    expect.soft(m.badge.h).toBe(17);
+    expect.soft(near(m.circle.y - m.badge.y, 5)).toBe(true);
+    expect.soft(near(m.badge.r - m.circle.r, 7)).toBe(true);
+    expect.soft(m.pageScroll).toBe(false);
+    if (phone) {
+      row.titleGap = +(m.target.x - m.title.r).toFixed(2); row.subGap = +(m.target.x - m.sub.r).toFixed(2);
+      row.clipped = m.title.clipped || m.sub.clipped;
+      expect.soft(m.title.r).toBeLessThanOrEqual(m.target.x);
+      expect.soft(m.sub.r).toBeLessThanOrEqual(m.target.x);
+      expect.soft(row.clipped).toBe(false);
+    } else {
+      await bell.click();
+      const panel = page.locator('[data-bell-panel]');
+      await expect(panel.locator('[data-bell-row]').first()).toBeVisible({ timeout: 60000 });
+      const p = await page.evaluate(() => {
+        const el = document.querySelector('[data-bell-panel]');
+        const b = el.getBoundingClientRect();
+        // The header's last item: its rightmost visible link or button (at every desktop width the
+        // menu button, after the avatar), measured independently of the bell's own lastItemRight.
+        const items = [...document.querySelector('nav.cs-nav').querySelectorAll('a, button')].filter((e) => { const q = e.getBoundingClientRect(); return q.width > 0 && q.height > 0; });
+        const lastEl = items.reduce((a, e) => (e.getBoundingClientRect().right > a.getBoundingClientRect().right ? e : a));
+        const last = lastEl.getBoundingClientRect();
+        const rows = [...el.querySelectorAll('[data-bell-row]')];
+        const faces = rows.flatMap((x) => [...x.querySelectorAll('[data-face]')].filter((f) => !f.closest('[data-grouped]'))).map((f) => f.getBoundingClientRect().width);
+        const badges = rows.flatMap((x) => [...x.querySelectorAll('[data-kind-badge]')]).map((f) => f.getBoundingClientRect().width);
+        const dots = [...el.querySelectorAll('[data-dot]')].map((f) => f.getBoundingClientRect().width);
+        return { w: b.width, right: b.right, lastRight: last.right, lastItem: lastEl.className || lastEl.getAttribute('aria-label') || lastEl.tagName, radius: getComputedStyle(el).borderTopLeftRadius, vw: window.innerWidth, faces, badges, dots };
+      });
+      Object.assign(row, { panelW: p.w, panelPctOfScreen: +((100 * p.w) / p.vw).toFixed(1), panelRadius: p.radius, lastItem: p.lastItem, panelRightVsLastItem: +(p.right - p.lastRight).toFixed(2),
+        panelFaces: [...new Set(p.faces)], panelKindBadges: [...new Set(p.badges)], panelDots: [...new Set(p.dots)] });
+      console.log('[geometry]', JSON.stringify(row));
+      expect.soft(p.w).toBe(Math.min(400, p.vw * 0.92));
+      expect.soft(p.radius).toBe('16px');
+      expect.soft(near(p.right, p.lastRight)).toBe(true);
+      expect.soft(row.panelFaces).toEqual([36]); expect.soft(row.panelKindBadges).toEqual([16]); expect.soft(row.panelDots).toEqual([7]);
+      await page.keyboard.press('Escape');
+    }
+    table.push(row);
+  }
+  // The page: avatars 40, kind badges 18, the dot 7, covers 31×46 (at a phone and a desktop width).
+  for (const [width, height] of [[390, 844], [1440, 900]]) {
+    await reset({ unread: 3 });
+    await open(page, '/notifications', { size: { width, height } });
+    await expect(page.locator('[data-bell-row="new_story"] [data-cover]').first()).toBeVisible({ timeout: 90000 });
+    const g = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('[data-notifications-list] [data-bell-row]')];
+      const w = (els) => [...new Set(els.map((f) => f.getBoundingClientRect().width))];
+      return {
+        faces: w(rows.flatMap((x) => [...x.querySelectorAll('[data-face]')].filter((f) => !f.closest('[data-grouped]')))),
+        badges: w(rows.flatMap((x) => [...x.querySelectorAll('[data-kind-badge]')])),
+        dots: w([...document.querySelectorAll('[data-notifications-list] [data-dot]')]),
+        covers: [...new Set([...document.querySelectorAll('[data-notifications-list] [data-cover]')].map((c) => `${c.getBoundingClientRect().width}×${c.getBoundingClientRect().height}`))],
+      };
+    });
+    table.push({ width, mode: 'page', pageFaces: g.faces, pageKindBadges: g.badges, pageDots: g.dots, covers: g.covers });
+    expect.soft(g.faces).toEqual([40]); expect.soft(g.badges).toEqual([18]); expect.soft(g.dots).toEqual([7]); expect.soft(g.covers).toEqual(['31×46']);
+  }
+  mkdirSync(SHOTS, { recursive: true });
+  writeFileSync(`${SHOTS}/geometry.json`, JSON.stringify(table, null, 2));
+  console.log(JSON.stringify(table));
 });

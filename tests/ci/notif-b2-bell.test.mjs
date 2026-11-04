@@ -46,8 +46,9 @@ describe('each event once', () => {
     assert.equal(buildList({ announcements: a }, { followed: { w: true } })[0].fromFollowed, true);
   });
 
-  test('ruling 320: an old `square_post` note is never shown', () => {
+  test('ruling 320: an old `square_post` note is never shown, in either old node, whoever wrote it', () => {
     assert.deepEqual(buildList({ square: { n: { type: 'square_post', fromUid: 'x', postId: 'p', createdAt: T } } }), []);
+    assert.deepEqual(buildList({ library: { n: { type: 'square_post', fromUid: 'x', postId: 'p', createdAt: T, read: false } } }), []);
   });
 
   test('blocked or muted senders are absent from every source', () => {
@@ -162,6 +163,12 @@ describe('the writers moved to /api/notify (item 3)', () => {
   }
   test('ruling 320: nothing on the web writes the followers\' `square_post` note', () => {
     for (const f of ['app/square/page.js', 'app/square/p/page.js']) assert.doesNotMatch(code(f), /type: 'square_post'/);
+  });
+  test('brief item 2: both publish paths still write the per-follower `new_story` copies the app\'s Home bell reads', () => {
+    const cms = code('app/admin/page.js');
+    assert.match(cms, /pushNotif\(ref\(db, `library_notifications\/\$\{fid\}`\), \{\s*type: 'new_story'/);
+    const reconciler = code('scripts/covers/on-publish.mjs');
+    assert.match(reconciler, /updates\[`library_notifications\/\$\{fid\}\/\$\{pushId\(\)\}`\] = \{\s*type: 'new_story'/);
   });
   test('the old client-side mention writer is gone', () => {
     assert.doesNotMatch(code('app/lib/mentions.js'), /export async function notifyMentions/);

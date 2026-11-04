@@ -98,6 +98,14 @@ describe('the old notes, in the shapes the web wrote', () => {
     assert.deepEqual(await lib(U.ben), [{ type: 'follow', ...FROM('ada'), read: false, createdAt: NOW, nid: `follow:${U.ada}` }]);
   });
 
+  test('a follow of a legacy author record (an `author_…` key, not an account): refused, nothing written under it', async () => {
+    const AUTHOR = 'author_x';
+    await set(`followers/${AUTHOR}/${U.ada}`, true);
+    assert.equal((await call(U.ada, 'follow', AUTHOR)).status, 400);
+    assert.equal(await get(`library_notifications/${AUTHOR}`), null);
+    assert.equal(await get(`inbox/${AUTHOR}`), null);
+  });
+
   test('a Square reply: square_reply_to_you, square_reply and mention, with the thread', async () => {
     await post(id(1), U.ben);
     await post(id(2), U.cal, { parentId: id(1) });
