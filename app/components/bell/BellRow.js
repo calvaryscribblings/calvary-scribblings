@@ -82,8 +82,11 @@ export default function BellRow({ r, details, compact = false, now, fresh = fals
   } else if (grouped) {
     picture = (
       <span data-grouped style={{ position: 'relative', width: avatar, height: avatar, flexShrink: 0 }}>
-        <span style={{ position: 'absolute', left: 0, top: 0 }}><Face uid={r.actors[1]} users={users} size={30} /></span>
-        <span style={{ position: 'absolute', right: 0, bottom: 0 }}><Face uid={r.actors[0]} users={users} size={30} ring={ring} /></span>
+        {/* In the avatar's own square two 30px faces sit 6px apart and their initials collide, so
+            each reaches 4px past it (short of the unread dot on the left, into the gap on the right):
+            14px apart in the panel, 18px on the page. */}
+        <span style={{ position: 'absolute', left: -4, top: -2 }}><Face uid={r.actors[1]} users={users} size={30} /></span>
+        <span style={{ position: 'absolute', right: -4, bottom: -2 }}><Face uid={r.actors[0]} users={users} size={30} ring={ring} /></span>
         <KindBadge badge={r.badge} kind={r.kind} size={badgeSize} ring={ring} colors={BADGES} />
       </span>
     );
