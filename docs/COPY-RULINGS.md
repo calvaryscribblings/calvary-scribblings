@@ -814,3 +814,18 @@ What NOTIF-B2 settled on the way, for review with the round:
 - **The web's Stories switch stops story pushes now.** The announcer honours `notify_prefs/{uid}/stories` as well as the app's `storyNotifications`. Either one off means no story push.
 - **The bell's words are DRAFT.** "replied to your response", "liked your post", "sent you 2 messages", "A new story by …", and the empty and signed-out lines on `/notifications` all await a house-style pass (rule 13). They are in `app/lib/bell.js` WORDS and `app/notifications/page.js`.
 
+
+## 4 Nov 2026 (Ikenna): Calvary Radio and the Calvary account, rulings 330–348 (RADIO-C0)
+
+Recorded in RADIO-C0, the writing round for `docs/RADIO-CONTRACT.md` and `docs/ACCOUNT-CONTRACT.md` (both DRAFT until reviewed). Nothing below is built yet except 337, which shipped in NOTIF-B2. The contracts say which round builds each.
+
+- **332:** Every recorded story gets a listen player on its own page, on the website and in Story Island.
+- **333:** Writers hear their recording before release, with a three-day window.
+- **334:** The collection picker suggests the most-read and most-responded-to stories, mixing flash fiction and short stories. A collection holds at most two stories by one writer (a chosen number).
+- **335:** Outside links, Radio's included, can open Story Island at a Series instalment.
+- **336:** On premiere nights the Square opens with a listen-along post.
+- **337:** Until their pushes exist, the notification settings show only the new-stories switch. The others appear as their pushes go live. **Shipped in NOTIF-B2** (`CARD_LIVE` in `app/lib/notifySettings.js`).
+- **345:** New collections and premieres go into readers' notification lists on Story Island and the website, with no push.
+- **331 (in part):** Each writer confirms the pronunciation guide for their own story before recording.
+- **330, 344, and the rest of 331:** ruled 4 Nov 2026 and held with Radio.
+- **338–343 and 346–348:** **Owed.** The contracts write 347 (writers confirm pronunciations and hear their recordings in Proofs) and 348 (who holds the premiere's live point, decided by a measurement) as suggestions, marked pending.
