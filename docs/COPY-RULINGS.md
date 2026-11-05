@@ -829,3 +829,9 @@ Recorded in RADIO-C0, the writing round for `docs/RADIO-CONTRACT.md` and `docs/A
 - **331 (in part):** Each writer confirms the pronunciation guide for their own story before recording.
 - **330, 344, and the rest of 331:** ruled 4 Nov 2026 and held with Radio.
 - **338–343 and 346–348:** **Owed.** The contracts write 347 (writers confirm pronunciations and hear their recordings in Proofs) and 348 (who holds the premiere's live point, decided by a measurement) as suggestions, marked pending.
+- **349–353:** **Owed.** Written into `docs/RADIO-CONTRACT.md` in RADIO-B1 on the reviewer's suggestion and marked pending there:
+  - **349:** Radio's downloads re-check whenever the app is online, and stop playing after 30 days without a check.
+  - **350:** asked: whether Story Island's Series downloads lock when a membership lapses.
+  - **351:** A day pass doesn't download.
+  - **352:** A recorded story is free to every signed-in listener for its first week on Radio, then follows its text's access.
+  - **353:** A writer has three days to confirm their pronunciation guide, after which Ikenna's checked guide stands.

@@ -183,7 +183,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  reader:
+  # RADIO-B1 — FOUR JOBS IN PARALLEL, NOT ONE. On 81f52aec the single `reader` job took 27m12s of
+  # its 30 even with the browser cache: the time is the suites, not the downloads. Each job now
+  # sets itself up (npm ci, the cached browsers) and builds its own out/ (16s in CI), because no job
+  # may hand another an artifact (LIMITS-1, below). Within a job the steps keep their old order, so
+  # every ordering note still holds: test:unreleased stays LAST in its job, and the /u prerender
+  # check still rebuilds out/ before the membership harnesses that follow it. Balanced on 81f52aec's
+  # step times: about 7 minutes of suites per job.
+  host:
+    name: 'reader host harness, payment rails, EPUB emulators'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -315,6 +323,42 @@ jobs:
         run: npx playwright test -c tests/reader/playwright.config.mjs
         if: ${{ !cancelled() }}
 
+  export:
+    name: 'the React boundary, doors, print and copy, stories, designed states'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Throwaway edge-ledger key (this job's builds only)
+        run: node scripts/ci/edge-ledger-throwaway.mjs
+
+      - name: Playwright version (the browser cache's key)
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build fixture EPUBs
+        run: node tests/fixtures/make-epub.mjs
+
       # §H's build gate, and the app suite's input in one step: out/ IS the artifact
       # Cloudflare Pages serves, and it is what the app config drives.
       - name: Build the static export
@@ -345,6 +389,62 @@ jobs:
       # W37 — and six public pages, signed out: no uncaught error, no read the rules refuse.
       - name: Story responses and public pages, signed out
         run: npx playwright test -c tests/stories/playwright.config.mjs
+        if: ${{ !cancelled() }}
+
+      # W2 — nothing that failed may look empty: every surface with the database unreachable,
+      # Retry, rendered content staying, and the house 404.
+      - name: Designed states (unreachable database, retry, content stays, the 404)
+        run: npx playwright test -c tests/states/playwright.config.mjs
+        if: ${{ !cancelled() }}
+
+  shop_a:
+    name: 'Book Store harnesses (first half), membership, search, unreleased pages'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Throwaway edge-ledger key (this job's builds only)
+        run: node scripts/ci/edge-ledger-throwaway.mjs
+
+      - name: Playwright version (the browser cache's key)
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build fixture EPUBs
+        run: node tests/fixtures/make-epub.mjs
+
+      # W43 — the carry-over's write mode against the RTDB emulator: every branch, a reader's
+      # save racing the write, idempotence. Needs Chromium (installed above) and a JDK for the
+      # emulator. Invented book and records under a demo- namespace; nothing reaches production.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # §H's build gate, and the app suite's input in one step: out/ IS the artifact
+      # Cloudflare Pages serves, and it is what the app config drives.
+      - name: Build the static export
+        run: npx next build
         if: ${{ !cancelled() }}
 
       # R8.1 — the pre-launch gate, against the same out/ the step above built. Its own port
@@ -421,6 +521,160 @@ jobs:
       # animation back and requires the other four to go red.
       - name: Arrival harness (the detail page renders finished, nothing settles)
         run: npx playwright test -c tests/bookstore/playwright.reveal.config.mjs
+        if: ${{ !cancelled() }}
+
+      # ── R11.17 — MEMBERSHIP AND /links ────────────────────────────────────────────────────
+      #
+      # All three run against the out/ built above. Ordered cheapest first: the deck check is
+      # node-only and finishes in ~100 ms, so "the deck and the page disagree" should not cost
+      # two browser suites to hear. It is the same order as the test:membership-copy script,
+      # which is deliberate — one chain, two places to run it, no divergence in what runs first.
+      - name: Deck parity (the copy deck vs the shipped page)
+        run: node --test tests/membership/deck-parity.test.mjs
+
+      # R24.1 — the falsifiable half of the /u check. It runs TWO real `next build`s of its
+      # own: one clean, asserting out/u is empty and the sitemap names no /u URL, and one with
+      # a canary route restored, requiring the pages to come back. Without the second, "out/u
+      # is empty" would also pass against a typo in the path or a build that emitted nothing.
+      # It rides this workflow because it is the one that budgets for builds; the cheap source
+      # half runs in rules-and-hygiene, whose filter watches app/**.
+      - name: The /u prerender stays removed — and the check is proved able to see it
+        run: npm run test:no-u-prerender
+        if: ${{ !cancelled() }}
+
+      # Its own port (4327). It claimed 4325 until R11.17 and the territory suite above has held
+      # 4325 since R8.4 — a clash that could not bite while these suites never shared a job, and
+      # this step is what would have made it bite. See the header of the copy config.
+      # W27 — the redrawn /membership: level rows, equal actions, no dash-first line and no
+      # sideways scroll at seven widths, the h1 on two lines, naira set in Cormorant.
+      - name: Membership page layout (the drawing, measured)
+        run: npx playwright test -c tests/membership/playwright.layout.config.mjs
+        if: ${{ !cancelled() }}
+
+      - name: Membership copy matrix (3 currencies × 2 intervals × 3 cards)
+        run: npx playwright test -c tests/membership/playwright.copy.config.mjs
+        if: ${{ !cancelled() }}
+
+      # No MEMBERSHIP_STATE: the spec reads the state from MEMBERSHIP_LAUNCHED in
+      # app/links/page.js, the constant that built out/ (W25). This step pinned 'pre' until W36,
+      # and the launch (1414dd72, 29 Sep) flipped the flag without moving the pin, so the step
+      # had asserted the pre-launch wording against a post-launch build ever since.
+      - name: /links harness (membership entry, readers' group)
+        run: npx playwright test -c tests/membership/playwright.links.config.mjs
+        if: ${{ !cancelled() }}
+
+      # R19.6 — THE DEPLOY HOOK, PROVEN ABSENT FROM WHAT WE SERVE.
+      #
+      # It runs HERE, after the build, and not in the hygiene job with the rest of test:ci,
+      # because the half of this suite that matters scans out/ — the sources can be perfectly
+      # clean and a bundler can still emit the value. Without a built out/ the suite says so
+      # loudly and asserts only the source half; this step is what makes it assert both.
+      #
+      # ⚠ It is currently a RATCHET, not a clean pass: two live deploy-hook URLs were already
+      # hardcoded in client components when it was written, and are already in the deployed
+      # bundle. Read the header of tests/ci/deploy-hook-secrecy.test.mjs before touching it.
+      - name: Deploy hook secrecy (sources + the built export)
+        run: node --test tests/ci/deploy-hook-secrecy.test.mjs
+        if: ${{ !cancelled() }}
+
+      # UNRELEASED-1 — a story that is not live (scheduled, held, hidden, a draft) has no page, no
+      # link and no metadata in the export. Over out/ as built above, against whatever is
+      # unreleased in cms_stories right now; it names counts only, never a slug (logs are public).
+      - name: Unreleased stories are absent from the export
+        run: npm run test:unreleased:export
+        if: ${{ !cancelled() }}
+
+      # R45 — THE QUIZ MARKER IS OFF THE CARDS, proved against what PAINTS.
+      #
+      # It runs HERE, after the build, and not in the hygiene job, for the same reason as the
+      # step above: the source half (tests/ci/quiz-marker.test.mjs, under test:ci) can be
+      # perfectly clean while a card still draws a chip. That is not hypothetical — it is the
+      # exact failure this repo has shipped twice, a census that read the CALLER rather than
+      # what the caller renders. The mutation was run: a marker assembled at runtime from
+      # String.fromCharCode passes the whole source suite and fails this one on both viewports.
+      #
+      # Six card surfaces × two viewports, plus the two surfaces that KEEP the marker, so a
+      # sweep that goes too far is caught by the same run.
+      - name: Quiz marker (no card paints it; /search and the story page still do)
+        run: npx playwright test -c tests/quizmarker/playwright.config.mjs
+        if: ${{ !cancelled() }}
+
+      # R46 — THE ISLAND'S INDEX, the half no source grep can settle.
+      #
+      # tests/ci/search-index.test.mjs (under test:ci, in the hygiene job) proves the data and
+      # the source: that the subject run is a list of labels and not a joined string, that each
+      # item is declared nowrap, that every count carries the oldstyle class. None of that is
+      # what a reader sees, and the three questions that decide this screen are all rendered
+      # ones — does a subject BREAK MID-NAME at 390 and 430, do the counts actually SET in
+      # oldstyle (font-variant-numeric is inert on a fallback and fails silently to lining),
+      # and does the Voices row hold up with six photographs and four fallback discs beside
+      # each other.
+      #
+      # The mutations were run against this suite and both were killed: restoring the violet
+      # fallback disc fails the Voices row, and pointing reader search back at the founder-only
+      # `users` root fails the signed-out reader test — the exact defect this round fixed, which
+      # every source check in the repo was blind to.
+      - name: Search index (subjects unbroken, oldstyle counts, the Voices row as a row)
+        run: npx playwright test -c tests/search/playwright.config.mjs
+        if: ${{ !cancelled() }}
+
+      # UNRELEASED-1 — and readable the moment it goes live: two real builds from the RTDB
+      # emulator, the real /api/story Function, a story flipped live with no page built opening
+      # through the 404 and matching its built page. LAST, because it builds out/ twice (it sets
+      # the one above aside and puts it back, but nothing after it should have to trust that).
+      - name: A fresh story reads through the 404 until its page is built (emulator)
+        run: npm run test:unreleased
+        if: ${{ !cancelled() }}
+
+      # LIMITS-1 — NO ARTIFACTS. This repo is public, and anything uploaded from a run can be
+      # downloaded by anyone signed in to GitHub. No config here records a trace, a video or an
+      # HTML report, but Playwright 1.62 still writes test-results/**/error-context.md on every
+      # failure: the error, with its received values, and an accessibility snapshot of the failing
+      # page. Those pages are built from live data and show readers' public names. A failure is
+      # reproduced locally instead (the step's command, the same build). tests/ci/workflows.test.mjs
+      # fails if any workflow uploads an artifact again.
+
+
+  shop_b:
+    name: 'Book Store harnesses (second half): covers, rhythm, shelf, alignment, pair, payload'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Throwaway edge-ledger key (this job's builds only)
+        run: node scripts/ci/edge-ledger-throwaway.mjs
+
+      - name: Playwright version (the browser cache's key)
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build fixture EPUBs
+        run: node tests/fixtures/make-epub.mjs
+
+      # §H's build gate, and the app suite's input in one step: out/ IS the artifact
+      # Cloudflare Pages serves, and it is what the app config drives.
+      - name: Build the static export
+        run: npx next build
         if: ${{ !cancelled() }}
 
       # R26 — THE COVER'S OWN ARRIVAL. Ikenna, 27 Aug, after R23: "the cover assembles in two
@@ -530,120 +784,3 @@ jobs:
       - name: Payload harness (cover budgets, layer ratchet, the grain's attachment)
         run: npx playwright test -c tests/bookstore/playwright.payload.config.mjs
         if: ${{ !cancelled() }}
-
-      # ── R11.17 — MEMBERSHIP AND /links ────────────────────────────────────────────────────
-      #
-      # All three run against the out/ built above. Ordered cheapest first: the deck check is
-      # node-only and finishes in ~100 ms, so "the deck and the page disagree" should not cost
-      # two browser suites to hear. It is the same order as the test:membership-copy script,
-      # which is deliberate — one chain, two places to run it, no divergence in what runs first.
-      - name: Deck parity (the copy deck vs the shipped page)
-        run: node --test tests/membership/deck-parity.test.mjs
-
-      # R24.1 — the falsifiable half of the /u check. It runs TWO real `next build`s of its
-      # own: one clean, asserting out/u is empty and the sitemap names no /u URL, and one with
-      # a canary route restored, requiring the pages to come back. Without the second, "out/u
-      # is empty" would also pass against a typo in the path or a build that emitted nothing.
-      # It rides this workflow because it is the one that budgets for builds; the cheap source
-      # half runs in rules-and-hygiene, whose filter watches app/**.
-      - name: The /u prerender stays removed — and the check is proved able to see it
-        run: npm run test:no-u-prerender
-        if: ${{ !cancelled() }}
-
-      # Its own port (4327). It claimed 4325 until R11.17 and the territory suite above has held
-      # 4325 since R8.4 — a clash that could not bite while these suites never shared a job, and
-      # this step is what would have made it bite. See the header of the copy config.
-      # W27 — the redrawn /membership: level rows, equal actions, no dash-first line and no
-      # sideways scroll at seven widths, the h1 on two lines, naira set in Cormorant.
-      - name: Membership page layout (the drawing, measured)
-        run: npx playwright test -c tests/membership/playwright.layout.config.mjs
-        if: ${{ !cancelled() }}
-
-      - name: Membership copy matrix (3 currencies × 2 intervals × 3 cards)
-        run: npx playwright test -c tests/membership/playwright.copy.config.mjs
-        if: ${{ !cancelled() }}
-
-      # No MEMBERSHIP_STATE: the spec reads the state from MEMBERSHIP_LAUNCHED in
-      # app/links/page.js, the constant that built out/ (W25). This step pinned 'pre' until W36,
-      # and the launch (1414dd72, 29 Sep) flipped the flag without moving the pin, so the step
-      # had asserted the pre-launch wording against a post-launch build ever since.
-      - name: /links harness (membership entry, readers' group)
-        run: npx playwright test -c tests/membership/playwright.links.config.mjs
-        if: ${{ !cancelled() }}
-
-      # R19.6 — THE DEPLOY HOOK, PROVEN ABSENT FROM WHAT WE SERVE.
-      #
-      # It runs HERE, after the build, and not in the hygiene job with the rest of test:ci,
-      # because the half of this suite that matters scans out/ — the sources can be perfectly
-      # clean and a bundler can still emit the value. Without a built out/ the suite says so
-      # loudly and asserts only the source half; this step is what makes it assert both.
-      #
-      # ⚠ It is currently a RATCHET, not a clean pass: two live deploy-hook URLs were already
-      # hardcoded in client components when it was written, and are already in the deployed
-      # bundle. Read the header of tests/ci/deploy-hook-secrecy.test.mjs before touching it.
-      - name: Deploy hook secrecy (sources + the built export)
-        run: node --test tests/ci/deploy-hook-secrecy.test.mjs
-        if: ${{ !cancelled() }}
-
-      # UNRELEASED-1 — a story that is not live (scheduled, held, hidden, a draft) has no page, no
-      # link and no metadata in the export. Over out/ as built above, against whatever is
-      # unreleased in cms_stories right now; it names counts only, never a slug (logs are public).
-      - name: Unreleased stories are absent from the export
-        run: npm run test:unreleased:export
-        if: ${{ !cancelled() }}
-
-      # R45 — THE QUIZ MARKER IS OFF THE CARDS, proved against what PAINTS.
-      #
-      # It runs HERE, after the build, and not in the hygiene job, for the same reason as the
-      # step above: the source half (tests/ci/quiz-marker.test.mjs, under test:ci) can be
-      # perfectly clean while a card still draws a chip. That is not hypothetical — it is the
-      # exact failure this repo has shipped twice, a census that read the CALLER rather than
-      # what the caller renders. The mutation was run: a marker assembled at runtime from
-      # String.fromCharCode passes the whole source suite and fails this one on both viewports.
-      #
-      # Six card surfaces × two viewports, plus the two surfaces that KEEP the marker, so a
-      # sweep that goes too far is caught by the same run.
-      - name: Quiz marker (no card paints it; /search and the story page still do)
-        run: npx playwright test -c tests/quizmarker/playwright.config.mjs
-        if: ${{ !cancelled() }}
-
-      # R46 — THE ISLAND'S INDEX, the half no source grep can settle.
-      #
-      # tests/ci/search-index.test.mjs (under test:ci, in the hygiene job) proves the data and
-      # the source: that the subject run is a list of labels and not a joined string, that each
-      # item is declared nowrap, that every count carries the oldstyle class. None of that is
-      # what a reader sees, and the three questions that decide this screen are all rendered
-      # ones — does a subject BREAK MID-NAME at 390 and 430, do the counts actually SET in
-      # oldstyle (font-variant-numeric is inert on a fallback and fails silently to lining),
-      # and does the Voices row hold up with six photographs and four fallback discs beside
-      # each other.
-      #
-      # The mutations were run against this suite and both were killed: restoring the violet
-      # fallback disc fails the Voices row, and pointing reader search back at the founder-only
-      # `users` root fails the signed-out reader test — the exact defect this round fixed, which
-      # every source check in the repo was blind to.
-      - name: Search index (subjects unbroken, oldstyle counts, the Voices row as a row)
-        run: npx playwright test -c tests/search/playwright.config.mjs
-        if: ${{ !cancelled() }}
-
-      # W2 — nothing that failed may look empty: every surface with the database unreachable,
-      # Retry, rendered content staying, and the house 404.
-      - name: Designed states (unreachable database, retry, content stays, the 404)
-        run: npx playwright test -c tests/states/playwright.config.mjs
-        if: ${{ !cancelled() }}
-
-      # UNRELEASED-1 — and readable the moment it goes live: two real builds from the RTDB
-      # emulator, the real /api/story Function, a story flipped live with no page built opening
-      # through the 404 and matching its built page. LAST, because it builds out/ twice (it sets
-      # the one above aside and puts it back, but nothing after it should have to trust that).
-      - name: A fresh story reads through the 404 until its page is built (emulator)
-        run: npm run test:unreleased
-        if: ${{ !cancelled() }}
-
-      # LIMITS-1 — NO ARTIFACTS. This repo is public, and anything uploaded from a run can be
-      # downloaded by anyone signed in to GitHub. No config here records a trace, a video or an
-      # HTML report, but Playwright 1.62 still writes test-results/**/error-context.md on every
-      # failure: the error, with its received values, and an accessibility snapshot of the failing
-      # page. Those pages are built from live data and show readers' public names. A failure is
-      # reproduced locally instead (the step's command, the same build). tests/ci/workflows.test.mjs
-      # fails if any workflow uploads an artifact again.

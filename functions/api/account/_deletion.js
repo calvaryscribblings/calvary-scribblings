@@ -85,6 +85,7 @@ export const OWNED_NODES = [
   'inbox',             // NOTIF-B1: their notifications list (server-written) — theirs alone
   'inbox_state',       // NOTIF-B1: when they last opened the list (ruling 326) — nothing to keep
   'notify_prefs',      // NOTIF-B1: their push switches (ruling 312) — nothing to keep
+  'listening_position', // RADIO-B1: where they stopped listening — theirs alone, nothing to keep
 ].filter((v, i, a) => a.indexOf(v) === i);
 
 // Kept on purpose, keyed by the same uid. Listed so the test can prove every uid-keyed node in

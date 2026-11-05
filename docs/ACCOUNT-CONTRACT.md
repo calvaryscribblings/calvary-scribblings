@@ -1,9 +1,10 @@
 # The Calvary account: what this repo promises
 
-> **DRAFT. Not yet reviewed.** Written in RADIO-C0 (5 Nov 2026) from the code at `aca3a176` and
-> Ikenna's ruling of one Calvary account across the website, Story Island and Calvary Radio, and
-> later Calvary Films and Calvary Prints. Nothing here is built yet. Until it has been reviewed,
-> the app chats may plan against it but must not ship against it.
+> Reviewed 5 Nov 2026. Items marked pending wait on a ruling or a measurement.
+
+Written in RADIO-C0 (5 Nov 2026) from the code at `aca3a176` and Ikenna's ruling of one Calvary
+account across the website, Story Island and Calvary Radio, and later Calvary Films and Calvary
+Prints. Corrected in RADIO-B1 after review. Nothing here is built yet.
 
 **This repo owns the account.** It's the one Firebase Authentication project the website already
 signs readers into (`calvary-scribblings`). Story Island, Radio, and later Films and Prints, sign
@@ -139,6 +140,13 @@ iPhone path is wanted later, the keychain can carry **only the display name** to
   Function, which costs no subrequest. That makes the Functions' `FIREBASE_PRIVATE_KEY` a new
   kind of consumer: a leaked key could now sign anyone in. `security/KEY-ROTATION.md`'s consumer
   map gains this line in the same round.
+- **Ruling 269's key round must leave the key able to sign custom tokens.** Firebase checks a
+  custom token's signature against the public keys of the service account named as its issuer.
+  So whatever 269 cuts from the site's key, it must remain an **active key of a service account
+  in this project**, and the Functions must still hold it. If that round moves the Functions to a
+  key-less signer instead, the account it signs as needs permission to sign
+  (`iam.serviceAccounts.signBlob`). Either way, `/api/account/redeem` is on 269's checklist, and
+  `node scripts/security/verify-admin-key.mjs` gains a custom-token check.
 - **Claims.** The custom token carries no custom claims, so it never elevates anyone. Founders
   sign in as themselves and are founders by uid, as everywhere.
 - **Disabled accounts.** A uid with a `deletions/{uid}` record, or an auth record that's
@@ -170,13 +178,31 @@ It also serves as **the deletion link Google Play requires for both apps**.
 - Neither path is ever claimed by an app (`docs/APP-DEEP-LINKS.md` §4 already says so for
   `/delete-account`; `/account` is added).
 
+### Deleting from inside the app
+
+**Apple requires an app that creates accounts to let people start deletion inside the app**
+(App Store Review Guideline 5.1.1(v)); a link out to a website alone doesn't meet it. So:
+
+- **Radio gets an in-app "Delete your Calvary account"** in its Settings. It calls
+  **`POST /api/account/delete`**, the same endpoint Story Island uses
+  (`docs/APP-HANDOFF-ACCOUNT-DELETE.md`), with the same step order and the same words.
+- It **sits alongside the link to `/account`**, not instead of it. The link is still what Google
+  Play's listing points to.
+- The endpoint needs a **recent sign-in** (`RECENT_LOGIN_S`, 5 minutes), so Radio re-asks for
+  sign-in first when the session is older.
+- It **loops on `202 { more: true }`** until the endpoint says it's done (LIMITS-1), exactly as
+  Story Island must.
+- The confirmation names every app the account reaches, because deleting the account from Radio
+  deletes it for Story Island and the website too.
+
 ---
 
 ## 6. Calvary Films and Calvary Prints
 
 When either needs sign-in, it uses the same account under this contract: the same Firebase
 project, the same three ways in, "your Calvary account", the handshake (§4), a line in
-`webcredentials` (§3), a row in "The apps you've used" (§5), and the deletion page (§5). No new
+`webcredentials` (§3), a row in "The apps you've used" (§5), the deletion page (§5), and, as an
+app that creates accounts, an in-app "Delete your Calvary account" on the same endpoint. No new
 user store.
 
 ---
@@ -224,7 +250,9 @@ user store.
   `/api/account/redeem`.
 - `LSApplicationQueriesSchemes` / `<queries>` for Story Island.
 - The words "your Calvary account".
-- A link to `/account` for deletion, in Settings and in its Play listing.
+- An in-app "Delete your Calvary account" that calls `POST /api/account/delete` (§5, "Deleting
+  from inside the app"), alongside a link to `/account`, in Settings. `/account` is also its Play
+  listing's deletion link.
 
 ## 9. What only Ikenna can set up
 

@@ -1925,6 +1925,316 @@
       "$other": {
         ".validate": false
       }
+    },
+    "radio_collections": {
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".indexOn": [
+        "releaseAtMs"
+      ],
+      "$collection": {
+        ".read": "(auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')) || (data.child('status').val() === 'scheduled' && data.child('releaseAtMs').val() <= now)",
+        ".validate": "$collection.matches(/^c[1-9][0-9]{0,5}$/) && newData.hasChildren(['number', 'releaseAtMs', 'running', 'status', 'updatedAt'])",
+        "schemaVersion": {
+          ".validate": "newData.isNumber() && newData.val() > 0"
+        },
+        "number": {
+          ".validate": "newData.isNumber() && newData.val() >= 1"
+        },
+        "releaseAtMs": {
+          ".validate": "newData.isNumber() && newData.val() > 0"
+        },
+        "running": {
+          "$o": {
+            ".validate": "$o.matches(/^o[1-9][0-9]?$/) && newData.hasChildren(['kind', 'id'])",
+            "kind": {
+              ".validate": "newData.isString() && newData.val().matches(/^(story|instalment)$/)"
+            },
+            "id": {
+              ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{1,128}$/)"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "status": {
+          ".validate": "newData.isString() && newData.val().matches(/^(draft|scheduled|withdrawn)$/)"
+        },
+        "updatedAt": {
+          ".validate": "newData.isNumber() && newData.val() > 0"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "radio_audio": {
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "stories": {
+        ".indexOn": [
+          "premiereAtMs",
+          "releaseAtMs"
+        ],
+        "$slug": {
+          ".read": "(auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')) || (data.child('status').val() === 'scheduled' && (data.child('releaseAtMs').val() <= now || (data.child('premiereAtMs').isNumber() && data.child('premiereAtMs').val() <= now))) || (auth != null && auth.uid === root.child('cms_stories').child($slug).child('authorUid').val())",
+          ".validate": "$slug.matches(/^[A-Za-z0-9_-]{1,128}$/) && newData.hasChildren(['releaseAtMs', 'durationMs', 'readAlong', 'status', 'updatedAt'])",
+          "schemaVersion": {
+            ".validate": "newData.isNumber() && newData.val() > 0"
+          },
+          "collection": {
+            ".validate": "newData.isString() && newData.val().matches(/^c[1-9][0-9]{0,5}$/)"
+          },
+          "releaseAtMs": {
+            ".validate": "newData.isNumber() && newData.val() > 0"
+          },
+          "premiereAtMs": {
+            ".validate": "newData.isNumber() && newData.val() > 0 && newData.parent().child('releaseAtMs').val() >= newData.val() + newData.parent().child('durationMs').val()"
+          },
+          "durationMs": {
+            ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 14400000"
+          },
+          "version": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 64"
+          },
+          "narrator": {
+            ".validate": "newData.hasChildren(['name'])",
+            "name": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 120"
+            },
+            "uid": {
+              ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{1,128}$/)"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "engineer": {
+            ".validate": "newData.hasChildren(['name'])",
+            "name": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 120"
+            },
+            "uid": {
+              ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{1,128}$/)"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "readAlong": {
+            ".validate": "newData.val() === '/stories/' + $slug"
+          },
+          "status": {
+            ".validate": "newData.isString() && newData.val().matches(/^(draft|scheduled|withdrawn)$/)"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber() && newData.val() > 0"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "instalments": {
+        ".indexOn": [
+          "premiereAtMs",
+          "releaseAtMs"
+        ],
+        "$id": {
+          ".read": "(auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')) || (data.child('status').val() === 'scheduled' && (data.child('releaseAtMs').val() <= now || (data.child('premiereAtMs').isNumber() && data.child('premiereAtMs').val() <= now))) || (auth != null && auth.uid === root.child('series_instalments_detail').child($id).child('authorUid').val())",
+          ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,128}$/) && newData.hasChildren(['releaseAtMs', 'durationMs', 'readAlong', 'status', 'updatedAt'])",
+          "schemaVersion": {
+            ".validate": "newData.isNumber() && newData.val() > 0"
+          },
+          "collection": {
+            ".validate": "newData.isString() && newData.val().matches(/^c[1-9][0-9]{0,5}$/)"
+          },
+          "releaseAtMs": {
+            ".validate": "newData.isNumber() && newData.val() > 0"
+          },
+          "premiereAtMs": {
+            ".validate": "newData.isNumber() && newData.val() > 0 && newData.parent().child('releaseAtMs').val() >= newData.val() + newData.parent().child('durationMs').val()"
+          },
+          "durationMs": {
+            ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 14400000"
+          },
+          "version": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 64"
+          },
+          "narrator": {
+            ".validate": "newData.hasChildren(['name'])",
+            "name": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 120"
+            },
+            "uid": {
+              ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{1,128}$/)"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "engineer": {
+            ".validate": "newData.hasChildren(['name'])",
+            "name": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 120"
+            },
+            "uid": {
+              ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{1,128}$/)"
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "readAlong": {
+            ".validate": "newData.val() === '/series/instalment/' + $id"
+          },
+          "status": {
+            ".validate": "newData.isString() && newData.val().matches(/^(draft|scheduled|withdrawn)$/)"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber() && newData.val() > 0"
+          },
+          "$other": {
+            ".validate": false
+          },
+          "access": {
+            "releaseAtMs": {
+              ".validate": "newData.isNumber() && newData.val() > 0"
+            },
+            "freeForGold": {
+              ".validate": "newData.isBoolean()"
+            },
+            "openToFree": {
+              ".validate": "newData.isBoolean() && (newData.val() === false || newData.parent().child('freeForGold').val() === true)"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        }
+      },
+      "$other": {
+        ".validate": false
+      }
+    },
+    "radio_live": {
+      "stories": {
+        "$slug": {
+          "listeners": {
+            "$uid": {
+              ".read": "auth != null && auth.uid === $uid",
+              ".write": "auth != null && auth.uid === $uid && (!newData.exists() || (root.child('radio_audio').child('stories').child($slug).child('status').val() === 'scheduled' && root.child('radio_audio').child('stories').child($slug).child('premiereAtMs').isNumber() && root.child('radio_audio').child('stories').child($slug).child('premiereAtMs').val() <= now && now < root.child('radio_audio').child('stories').child($slug).child('premiereAtMs').val() + root.child('radio_audio').child('stories').child($slug).child('durationMs').val() + 600000))",
+              ".validate": "newData.val() === true"
+            }
+          },
+          "hearts": {
+            "$uid": {
+              ".read": "auth != null && auth.uid === $uid",
+              ".write": "auth != null && auth.uid === $uid && newData.exists() && (root.child('radio_audio').child('stories').child($slug).child('status').val() === 'scheduled' && root.child('radio_audio').child('stories').child($slug).child('premiereAtMs').isNumber() && root.child('radio_audio').child('stories').child($slug).child('premiereAtMs').val() <= now && now < root.child('radio_audio').child('stories').child($slug).child('premiereAtMs').val() + root.child('radio_audio').child('stories').child($slug).child('durationMs').val() + 600000)",
+              ".validate": "newData.hasChildren(['n', 'at']) && newData.child('at').val() === now && newData.child('n').val() <= 6000 && ((!data.exists() && newData.child('n').val() === 1) || (data.exists() && newData.child('n').val() === data.child('n').val() + 1 && now >= data.child('at').val() + 1000))",
+              "n": {
+                ".validate": "newData.isNumber()"
+              },
+              "at": {
+                ".validate": "newData.isNumber()"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "counts": {
+            ".read": "auth != null"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "instalments": {
+        "$id": {
+          "listeners": {
+            "$uid": {
+              ".read": "auth != null && auth.uid === $uid",
+              ".write": "auth != null && auth.uid === $uid && (!newData.exists() || (root.child('radio_audio').child('instalments').child($id).child('status').val() === 'scheduled' && root.child('radio_audio').child('instalments').child($id).child('premiereAtMs').isNumber() && root.child('radio_audio').child('instalments').child($id).child('premiereAtMs').val() <= now && now < root.child('radio_audio').child('instalments').child($id).child('premiereAtMs').val() + root.child('radio_audio').child('instalments').child($id).child('durationMs').val() + 600000))",
+              ".validate": "newData.val() === true"
+            }
+          },
+          "hearts": {
+            "$uid": {
+              ".read": "auth != null && auth.uid === $uid",
+              ".write": "auth != null && auth.uid === $uid && newData.exists() && (root.child('radio_audio').child('instalments').child($id).child('status').val() === 'scheduled' && root.child('radio_audio').child('instalments').child($id).child('premiereAtMs').isNumber() && root.child('radio_audio').child('instalments').child($id).child('premiereAtMs').val() <= now && now < root.child('radio_audio').child('instalments').child($id).child('premiereAtMs').val() + root.child('radio_audio').child('instalments').child($id).child('durationMs').val() + 600000)",
+              ".validate": "newData.hasChildren(['n', 'at']) && newData.child('at').val() === now && newData.child('n').val() <= 6000 && ((!data.exists() && newData.child('n').val() === 1) || (data.exists() && newData.child('n').val() === data.child('n').val() + 1 && now >= data.child('at').val() + 1000))",
+              "n": {
+                ".validate": "newData.isNumber()"
+              },
+              "at": {
+                ".validate": "newData.isNumber()"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "counts": {
+            ".read": "auth != null"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "$other": {
+        ".validate": false
+      }
+    },
+    "listening_position": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "stories": {
+          "$slug": {
+            ".validate": "$slug.matches(/^[A-Za-z0-9_-]{1,128}$/) && newData.hasChildren(['positionMs', 'durationMs', 'version', 'updatedAt'])",
+            "positionMs": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= newData.parent().child('durationMs').val()"
+            },
+            "durationMs": {
+              ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 14400000"
+            },
+            "version": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 64"
+            },
+            "updatedAt": {
+              ".validate": "newData.val() === now"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "instalments": {
+          "$id": {
+            ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,128}$/) && newData.hasChildren(['positionMs', 'durationMs', 'version', 'updatedAt'])",
+            "positionMs": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= newData.parent().child('durationMs').val()"
+            },
+            "durationMs": {
+              ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 14400000"
+            },
+            "version": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 64"
+            },
+            "updatedAt": {
+              ".validate": "newData.val() === now"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
     }
   }
 }
