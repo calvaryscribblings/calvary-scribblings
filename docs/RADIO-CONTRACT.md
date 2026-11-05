@@ -5,7 +5,8 @@
 Written in RADIO-C0 (5 Nov 2026) from the code at `aca3a176` and the rulings of 4 Nov 2026
 (`docs/COPY-RULINGS.md`, 330–353), and corrected in RADIO-B1 after review. RADIO-B1 built §2, §3,
 §5's room and §9's listening position as records and database rules (`app/lib/radio/schema.js`,
-`scripts/radio/write-rules.mjs`). Everything else is still to build (§12).
+`scripts/radio/write-rules.mjs`). SAFETY-2P recorded rulings 347 and 349–354 as ruled on 5 Nov 2026;
+only 348 is still pending, on the measurement. Everything else is still to build (§12).
 
 Calvary Radio is a separate Expo app with its own repo. It carries Calvary Scribblings stories in
 audio: live premieres, then on demand, with downloads for paying members. Its chat builds against
@@ -27,7 +28,7 @@ contract terms, and nothing added to it ever may be.**
 | A story's record | `cms_stories/{slug}`, public | title, author, `authorUid`, category, `published`, `publishAt` |
 | A story's text | `story_bodies/{slug}`, founders only (ruling 255) | the production book reads it in a founder's browser, nowhere else |
 | The index | `cms_stories_index/{slug}`, public | `readTime`, `publishedAtMs`, `opening`, for pickers and cards |
-| Story access | `grantFor()` in `app/lib/storyAccess.js` | the text's access, which a story's audio follows after its first week (§3) |
+| Story access | `grantFor()` in `app/lib/storyAccess.js` | the text's access, which a story's audio follows after its release week (§3) |
 | A Series instalment | `series_instalments/{id}` (public row), `series_instalments_detail/{id}` (released only) | `releaseAtMs`, `freeForGold`, `openToFree`, and the release rule on server time |
 | Instalment access | `policyGrantForInstalment()` in `app/lib/series/access.js` | the instalment's access, which its audio defaults to |
 | The locked-file pattern | `functions/api/bookstore/stream.js`, `functions/api/series/stream.js` | identity from a verified ID token, entitlement read with an admin token, a short-lived URL, `version` from the object |
@@ -42,11 +43,15 @@ contract terms, and nothing added to it ever may be.**
 
 - Nothing here locks a downloaded Series instalment. The web never stores one (`CAPS.book` is all
   zeros in `app/lib/shelf.js`).
-- `docs/series.md` ("Cross-repo: offline entitlement re-check") leaves the decision to Story
-  Island, whose code this repo can't see. **Whether Story Island's Series downloads lock on a
-  lapse is asked as ruling 350.**
-- The one platform precedent points the other way: saves made under a day pass persist after it
-  lapses (`shelf.js`).
+- `docs/series.md` ("Cross-repo: offline entitlement re-check") left the decision to Story
+  Island, whose code this repo can't see.
+- **Ruling 350 (ruled 5 Nov 2026): Story Island's Series downloads lock on a lapse, the same way
+  as Radio's (§4, "Radio's download store").** Story Island builds it; this repo can't enforce
+  it. The access check answers `lapsed` and `download.allowed` for an instalment, so Story
+  Island can use the same call.
+- The day-pass precedent in `shelf.js` (saves made under a pass persist after it) is about the
+  web's reading shelf only. It doesn't extend to downloads: a day pass doesn't download at all
+  (ruling 351).
 
 ---
 
@@ -153,10 +158,13 @@ in this file assumes **64 kbps mono** (8,000 bytes a second; about 24 MB for 50 
 
 **Access on demand.**
 
-- **A story's audio is free to every signed-in listener for its first week on Radio**, the seven
-  days from its `releaseAtMs`. After that it has exactly its text's access: `grantFor(story,
-  { tier })`, with the free week, the archive and poetry as they stand. **(Ruling 352, pending:
-  written on the reviewer's suggestion.)** There is no per-story override.
+- **A recorded story is free to every signed-in listener in the week it comes out**, on the same
+  Monday-to-Sunday London clock as new stories: from its `releaseAtMs` until Sunday
+  23:59:59.999 London of that week. That is `londonWeekEnd(releaseAtMs)` from
+  `app/lib/londonWeek.js`, the clock `freeUntilFor()` in `app/lib/storyAccess.js` uses. A
+  collection comes out on a Thursday at 20:00, so that is Thursday evening to Sunday night. After that it has exactly its text's access:
+  `grantFor(story, { tier })`, with the free week, the archive and poetry as they stand.
+  **(Ruling 352, ruled 5 Nov 2026.)** There is no per-story override.
 - **An instalment's audio** defaults to the instalment row: `releaseAtMs`, `freeForGold`,
   `openToFree`, through `policyGrantForInstalment()`. An editor can override any of the three,
   **per instalment, in the Series admin**, as `radio_audio/instalments/{id}/access`. The
@@ -180,6 +188,7 @@ POST /api/radio/access
     listen:   { allowed: true|false, reason },
     download: { allowed: true|false, reason },
     lapsed:   true|false,
+    downloadLimit: 20 | 'unlimited' | 0,   // ruling 354
     url, expiresAt,              // only when `want` is allowed
     version, durationMs,
     premiere: { startMs, endMs, live: true|false } | null,
@@ -210,7 +219,7 @@ POST /api/radio/access
 - **During a premiere** (`premiereAtMs ≤ now < premiereAtMs + durationMs`), every signed-in
   listener may listen (`reason: 'premiere'`), whatever their tier.
 - **On demand**, from `releaseAtMs`, the item's own access decides (§3): `radio_week` (a story's
-  first week, pending 352), `free_week`, `poetry`, `tier`, `free_to_read`, `gold_taste`,
+  release week, ruling 352), `free_week`, `poetry`, `tier`, `free_to_read`, `gold_taste`,
   `platinum`, or a refusal.
 
 **Downloading.**
@@ -220,12 +229,20 @@ POST /api/radio/access
 - **Otherwise** it's allowed when listening is allowed **and** the listener holds a paying
   membership **by subscription**.
 - **A day pass doesn't download** (`day_pass`). The pass is read only to word the refusal, as in
-  the Series. **(Ruling 351, pending: written on the reviewer's suggestion.)**
+  the Series. **(Ruling 351, ruled 5 Nov 2026.)**
+- **The download limit (ruling 354, ruled 5 Nov 2026).** Radio's downloads follow the reading
+  shelf's limits: **20 at a time on Gold, unlimited on Platinum**. Those are `CAPS.story` in
+  `app/lib/shelf.js`, read through `capFor('story', tier)`, so the two can't drift. The access
+  check answers `downloadLimit` on every call: the number, `'unlimited'`, or `0` when the
+  listener can't download at all (free, a day pass, a lapse). **Radio enforces it** on the
+  device, counting the files it holds. A listener at the limit removes one before another
+  downloads. Nothing on the server counts a device's files.
 
 **`lapsed`** is true when `memberships/{uid}` shows a paid subscription that is no longer active.
 It's answered on every call, whatever `want` is.
 
-**Radio's download store (ruling 349, pending: written on the reviewer's suggestion):**
+**Radio's download store (ruling 349, ruled 5 Nov 2026; Story Island's Series downloads lock the
+same way, ruling 350):**
 
 - Radio **re-checks every downloaded item whenever the app is online**, one call per item.
 - A file whose check answers `download.allowed: false` (a lapse included) stops playing. It stays
@@ -370,7 +387,7 @@ behaves on a capped range.
 - **What Radio reports, per phone.** Requests per listener, any audible gap or stall, the time
   to first audio, and whether the player ever got ahead of the live point by more than L.
 
-**The rule (ruling 348, pending: written on the reviewer's suggestion).** If the capped
+**The rule (ruling 348, pending on the measurement only).** If the capped
 constant-bitrate MP3 costs **a few requests per listener** (at most 10 over 50 minutes, on both
 phones), with no audible gap, the **server holds the live point**. Otherwise, **Radio's player
 holds it**: the server opens the file only during the premiere (the access check mints a URL only
@@ -514,14 +531,14 @@ quizzes are.
 - It returns the draft, never the text, and logs counts only.
 - Ikenna checks every draft before it reaches a writer.
 
-**Writers confirm pronunciations and hear their recordings in Proofs (ruling 347, pending:
-written on the reviewer's suggestion).**
+**Writers confirm pronunciations and hear their recordings in Proofs (ruling 347, ruled 5 Nov
+2026).**
 
 - **Pronunciations (ruling 331).** The writer of each picked story sees the checked guide for
   their own story in `/proofs` and confirms it, or reports a correction through the existing
   report path.
 - **A writer has three days to confirm.** After that, Ikenna's checked guide stands and recording
-  goes ahead. **(Ruling 353, pending: written on the reviewer's suggestion.)**
+  goes ahead. **(Ruling 353, ruled 5 Nov 2026.)**
 - **Recordings (ruling 333).** The finished recording appears in the writer's Proofs at least
   **three days** before it goes out: its `releaseAtMs` for a story, its `premiereAtMs` for an
   instalment. It plays through the access check, which grants the item's own writer before
@@ -563,7 +580,7 @@ Each ships alone, and each leaves production working if the next never comes.
    - The test endpoint and its counts.
    - Radio runs the measurement and reports. **Ruling 348 is made on its numbers.**
 3. **RADIO-B3: the access check.**
-   - `POST /api/radio/access` with premieres, the story week (352), downloads (351) and lapse.
+   - `POST /api/radio/access` with premieres, the story week (352), downloads (351), the download limit (354) and lapse.
    - A shim test within 45 subrequests.
 4. **RADIO-B4: the admin.**
    - `/admin/radio`: collections, the picker (ruling 334), uploads with duration measured in the

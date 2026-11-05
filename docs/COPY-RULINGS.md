@@ -835,3 +835,27 @@ Recorded in RADIO-C0, the writing round for `docs/RADIO-CONTRACT.md` and `docs/A
   - **351:** A day pass doesn't download.
   - **352:** A recorded story is free to every signed-in listener for its first week on Radio, then follows its text's access.
   - **353:** A writer has three days to confirm their pronunciation guide, after which Ikenna's checked guide stands.
+
+**Ruled on 5 Nov 2026:** 338–343, 346, 347 and 349–354. See the next section (SAFETY-2P). 348 is still pending, on the measurement only.
+
+## 5 Nov 2026 (Ikenna): the bell's words, and Radio's downloads, rulings 338–354 (SAFETY-2P)
+
+Recorded in SAFETY-2P, a planning and writing round. **Nothing below is built in it.** The bell's wording ships in the next web round, not this one (the DRAFT/DESIGN marks in `app/lib/bell.js` WORDS stay until then). The Radio rulings are written into `docs/RADIO-CONTRACT.md`, which says which round builds each.
+
+- **338:** These bell drafts stay as written: "1 new response on your story", "{name} sent you a message", "{name} replied to your post", "{name} replied to you" (in a Square thread), "{name} replied to you on Open Pages", "{name} mentioned you in a response", "{name} quoted your post", "You reached a new tier".
+- **339:** Every reaction, whether a heart, fire, quill or clap, reads "liked", as in the design.
+- **340:** When exactly two people react, both are named ("{name} and {name} liked your response"), not "{name} and 1 other".
+- **341:** A new instalment reads like a new story: "New instalment by **{writer}**" over "{series}, {part}".
+- **342:** A declined Open Pages piece reads "Your piece couldn’t go live in Open Pages" over its title.
+- **343:** Badge and reward notes say what was earned, "You earned the {badge} badge" and "You earned {n} Scribbles", when the note carries it, and keep today's wording when it doesn't.
+- **346:** Ruled and held with Radio. No detail is recorded here.
+- **347:** As written in the Radio contract: writers confirm the pronunciation guide for their own story and hear their recording in Proofs (`docs/RADIO-CONTRACT.md` §10).
+- **349:** As written in the Radio contract: Radio re-checks every download whenever the app is online, and a download stops playing after 30 days without a successful check (§4).
+- **350:** Story Island's Series downloads lock when a membership lapses, the same way as Radio's.
+- **351:** As written in the Radio contract: a day pass doesn't download (§4).
+- **352:** A recorded story is free to signed-in listeners in the week it comes out, on the same Monday-to-Sunday London clock as new stories, then follows its text's access.
+- **353:** As written in the Radio contract: a writer has three days to confirm their pronunciation guide, after which Ikenna's checked guide stands (§10).
+- **354:** Radio downloads follow the reading shelf's limits: 20 at a time on Gold, unlimited on Platinum. The access check tells Radio the listener's limit, and Radio enforces it (§4).
+- **348:** Still pending, on the measurement only (RADIO-B2).
+
+Also in SAFETY-2P: the vault (rulings 267, 268, 270–273 and 275) is planned in `docs/VAULT.md`, with Ikenna's console steps for phase 1. Nothing is built yet; 269 and 274 stay their own rounds.

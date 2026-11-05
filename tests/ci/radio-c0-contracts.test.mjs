@@ -55,10 +55,30 @@ test('the RADIO-C0 rulings are logged, with the held and owed numbers', () => {
   assert.match(section, /\*\*349–353:\*\* \*\*Owed\.\*\*/);
 });
 
-test('the pending rulings the Radio contract writes are marked pending there', () => {
+// SAFETY-2P (5 Nov 2026): 347, 349–354 are ruled. Only 348 stays pending, on the measurement.
+test('the ruled Radio rulings are marked ruled in the contract, and only 348 stays pending', () => {
   const radio = read('docs/RADIO-CONTRACT.md');
-  for (const n of ['348', '349', '351', '352', '353', '347']) {
-    assert.match(radio, new RegExp(`[Rr]uling ${n}, pending`), `ruling ${n} must be marked pending`);
+  for (const n of ['347', '349', '350', '351', '352', '353', '354']) {
+    assert.match(radio, new RegExp(`[Rr]uling ${n}[,( ]+ruled 5 Nov`), `ruling ${n} must be marked ruled`);
+    assert.doesNotMatch(radio, new RegExp(`[Rr]uling ${n}, pending`), `ruling ${n} is still marked pending`);
   }
-  assert.match(radio, /asked as ruling 350/);
+  assert.match(radio, /ruling 348, pending on the measurement only/);
+  assert.doesNotMatch(radio, /asked as ruling 350/);
+  // 352: the release week is the London calendar week, not seven days from release.
+  assert.match(radio, /Monday-to-Sunday London clock/);
+  assert.doesNotMatch(radio, /seven\s+days from its `releaseAtMs`/);
+  // 354: the access check answers the limit, from the shelf's own caps.
+  assert.match(radio, /downloadLimit: 20 \| 'unlimited' \| 0/);
+  assert.match(radio, /capFor\('story', tier\)/);
+});
+
+test('the SAFETY-2P rulings are logged', () => {
+  const log = read('docs/COPY-RULINGS.md');
+  const at = log.indexOf('## 5 Nov 2026 (Ikenna): the bell\'s words, and Radio\'s downloads, rulings 338–354 (SAFETY-2P)');
+  assert.ok(at >= 0, 'the SAFETY-2P section is missing');
+  const section = log.slice(at);
+  for (const n of ['338', '339', '340', '341', '342', '343', '346', '347', '349', '350', '351', '352', '353', '354', '348']) {
+    assert.ok(section.includes(`- **${n}:**`), `ruling ${n} is missing`);
+  }
+  assert.match(section, /The bell's wording ships in the next web round, not this one/);
 });

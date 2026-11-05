@@ -48,7 +48,7 @@ export const HEART_MIN_INTERVAL_MS = 1000;
 export const HEARTS_MAX = 6000;
 /** No recording is longer than this (a sanity bound for the rules, not an editorial limit). */
 export const DURATION_MAX_MS = 4 * 60 * 60 * 1000;
-/** Ruling 349 (pending): a download that hasn't been re-checked for this long stops playing. */
+/** Ruling 349 (ruled 5 Nov 2026): a download that hasn't been re-checked for this long stops playing. */
 export const DOWNLOAD_RECHECK_MAX_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
