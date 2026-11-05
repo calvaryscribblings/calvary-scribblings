@@ -12,7 +12,7 @@
 //     and muted absent, FROM A WRITER YOU FOLLOW from the reader's own list, TODAY / THIS WEEK /
 //     EARLIER; a sender-less note is "Calvary Scribblings"; one with no profile "Reader"
 //   · the Square's bell opens the same list, with the same count; the Profile page links to it
-//   · settings: the defaults, a switch writes notify_prefs, YOUR WRITING for writers only
+//   · settings (ruling 337): only STORIES is drawn, its switch writes notify_prefs
 //
 // Invented emulator readers only, never a founder. Screenshots go to test-results/notif-b2/
 // (git-ignored) and stay local. Nothing touches production.
@@ -272,29 +272,29 @@ test('the Profile page: its panel is now a link to the one list, carrying the on
   await expect(link.locator('[data-bell-badge]')).toHaveText('3');
 });
 
-test('settings: the defaults, a switch writes notify_prefs, YOUR WRITING for writers only', async ({ page }) => {
+test('settings (ruling 337): only STORIES is drawn, its switch writes notify_prefs, writers see no more', async ({ page }) => {
   await reset({ unread: 0 });
   for (const size of Object.keys(WIDTHS)) {
     await open(page, '/notifications/settings', { size });
     await expect(page.locator('[data-pref="stories"] [role="switch"]')).toBeEnabled({ timeout: 60000 });
     await expect(page.getByRole('heading', { name: 'Push notifications' })).toBeVisible();
-    await expect(page.locator('[data-card="YOUR WRITING"]')).toHaveCount(0);
-    await expect(page.locator('[data-pref="square_opens"] [role="switch"]')).toHaveAttribute('aria-checked', 'false');
-    await expect(page.locator('[data-pref="reactions"] [role="switch"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('[data-pref="stories"] [role="switch"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('[data-card]')).toHaveCount(1);
+    for (const hidden of ['PEOPLE', 'YOUR WRITING', 'THE SQUARE']) await expect(page.locator(`[data-card="${hidden}"]`)).toHaveCount(0);
+    await expect(page.locator('main h2')).toHaveText(['STORIES']);
     await expect(page.locator('[data-quiet-hours]')).toContainText('Nothing arrives between midnight and 08:00 London.');
     await page.screenshot({ path: `${SHOTS}/settings-${size}.png`, fullPage: true });
   }
-  await page.locator('[data-pref="reactions"] [role="switch"]').click();
-  await expect.poll(() => val(`notify_prefs/${A}/reactions`)).toBe(false);
-  await page.locator('[data-pref="square_opens"] [role="switch"]').click();
-  await expect.poll(() => val(`notify_prefs/${A}/square_opens`)).toBe(true);
+  await page.locator('[data-pref="stories"] [role="switch"]').click();
+  await expect.poll(() => val(`notify_prefs/${A}/stories`)).toBe(false);
   await page.reload();
-  await expect(page.locator('[data-pref="reactions"] [role="switch"]')).toHaveAttribute('aria-checked', 'false', { timeout: 60000 });
+  await expect(page.locator('[data-pref="stories"] [role="switch"]')).toHaveAttribute('aria-checked', 'false', { timeout: 60000 });
 
   await reset({ unread: 0, writerA: true });
   await open(page, '/notifications/settings', { size: 'phone' });
-  await expect(page.locator('[data-card="YOUR WRITING"]')).toBeVisible({ timeout: 60000 });
-  await expect(page.locator('[data-pref="responses"]')).toContainText('grouped, at most once an hour for each story');
+  await expect(page.locator('[data-pref="stories"] [role="switch"]')).toBeEnabled({ timeout: 60000 });
+  await expect(page.locator('[data-card]')).toHaveCount(1);
+  await expect(page.locator('[data-card="YOUR WRITING"]')).toHaveCount(0);
   await page.screenshot({ path: `${SHOTS}/settings-writer-phone.png`, fullPage: true });
 });
 
@@ -398,5 +398,65 @@ test('geometry: the bell, the badge, the panel and the rows, measured at five wi
   }
   mkdirSync(SHOTS, { recursive: true });
   writeFileSync(`${SHOTS}/geometry.json`, JSON.stringify(table, null, 2));
+  console.log(JSON.stringify(table));
+});
+
+// ── Ruling 337: the settings page shows only what works, measured at 390 and 1180 ──────────────
+// The STORIES card's margins, radius and switch, and the gap from the last card to the moon note,
+// from the page's own boxes. The table goes to test-results/notif-b2/settings-geometry.json.
+test('settings geometry: the STORIES card and the gap below the last card, at 390 and 1180', async ({ page }) => {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const table = [];
+  for (const [width, height] of [[390, 844], [1180, 820]]) {
+    for (const writerA of [false, true]) {
+      await reset({ unread: 0, writerA });
+      await open(page, '/notifications/settings', { size: { width, height } });
+      await expect(page.locator('[data-pref="stories"] [role="switch"]')).toBeEnabled({ timeout: 60000 });
+      await page.evaluate(() => document.fonts.ready);
+      const g = await page.evaluate(() => {
+        const r = (el) => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, b: b.bottom, r: b.right }; };
+        const cards = [...document.querySelectorAll('[data-card]')];
+        const stories = document.querySelector('[data-card="STORIES"]');
+        const box = stories.querySelector(':scope > div');
+        const cs = getComputedStyle(stories), bs = getComputedStyle(box);
+        const h2 = stories.querySelector('h2');
+        const sw = stories.querySelector('[role="switch"]');
+        const note = document.querySelector('[data-quiet-hours]');
+        const last = cards[cards.length - 1].querySelector(':scope > div');
+        return {
+          cards: cards.map((c) => c.dataset.card),
+          headings: [...document.querySelectorAll('main h2')].map((h) => h.textContent),
+          section: { ...r(stories), marginBottom: cs.marginBottom },
+          heading: { ...r(h2), margin: getComputedStyle(h2).margin },
+          box: { ...r(box), radius: bs.borderRadius, border: bs.border },
+          switch: r(sw),
+          lastCardToNote: note.getBoundingClientRect().y - last.getBoundingClientRect().bottom,
+          // the column's own bottom padding below the note (main is min-height 100vh, so its edge moves with the viewport)
+          noteToEnd: note.parentElement.getBoundingClientRect().bottom - note.getBoundingClientRect().bottom,
+          pageScroll: document.documentElement.scrollWidth > window.innerWidth,
+        };
+      });
+      table.push({ width, writer: writerA, ...g });
+      // Ruling 337: one card, one heading. The STORIES card as it measured with all four drawn
+      // (x 20/330, 350/520 wide, radius 22, 22 below, switch 51×31), and the last card to the moon
+      // note still 28: no stray heading, no gap where the hidden cards were.
+      expect.soft(g.cards).toEqual(['STORIES']);
+      expect.soft(g.headings).toEqual(['STORIES']);
+      expect.soft(g.section.x).toBe(width === 390 ? 20 : 330);
+      expect.soft(g.section.w).toBe(width === 390 ? 350 : 520);
+      expect.soft(g.section.marginBottom).toBe('22px');
+      expect.soft(g.heading.margin).toBe('0px 0px 10px 6px');
+      expect.soft(g.box.radius).toBe('22px');
+      expect.soft(g.box.h).toBe(78);
+      expect.soft([g.switch.w, g.switch.h]).toEqual([51, 31]);
+      expect.soft(g.switch.r).toBe(width === 390 ? 351 : 831);
+      expect.soft(g.lastCardToNote).toBe(28);
+      expect.soft(g.noteToEnd).toBe(56);
+      expect.soft(g.pageScroll).toBe(false);
+      await page.screenshot({ path: `${SHOTS}/settings-337-${width}${writerA ? '-writer' : ''}.png`, fullPage: true });
+    }
+  }
+  mkdirSync(SHOTS, { recursive: true });
+  writeFileSync(`${SHOTS}/settings-geometry.json`, JSON.stringify(table, null, 2));
   console.log(JSON.stringify(table));
 });

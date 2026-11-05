@@ -7,11 +7,12 @@
 // The defaults are app/lib/notificationKinds.js PREFS: every switch on, "when the Square opens" off.
 //
 // YOUR WRITING shows to writers only (users/{uid}.isAuthor, the same flag the writer badge reads).
+// Ruling 337: only cards whose push is live are drawn (app/lib/notifySettings.js CARD_LIVE).
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../lib/AuthContext';
 import { PREFS } from '../../lib/notificationKinds';
-import { SETTINGS_CARDS } from '../../lib/notifySettings';
+import { visibleCards, needsWriterFlag } from '../../lib/notifySettings';
 import NotificationsHeader from '../../components/bell/NotificationsHeader';
 import { MoonGlyph } from '../../components/bell/icons';
 
@@ -50,7 +51,7 @@ export default function NotificationSettingsPage() {
       const { ref, get } = await import('firebase/database');
       const [p, a] = await Promise.all([
         get(ref(db, `notify_prefs/${user.uid}`)).then((s) => s.val()).catch(() => null),
-        get(ref(db, `users/${user.uid}/isAuthor`)).then((s) => s.val()).catch(() => null),
+        needsWriterFlag() ? get(ref(db, `users/${user.uid}/isAuthor`)).then((s) => s.val()).catch(() => null) : null,
       ]);
       if (!live) return;
       setPrefs(p && typeof p === 'object' ? p : {});
@@ -89,7 +90,7 @@ export default function NotificationSettingsPage() {
           <p data-signed-out style={{ fontFamily: SERIF, fontSize: 18, color: '#A39CB2' }}>Sign in to choose what reaches your lock screen.</p>
         ) : (
           <>
-            {SETTINGS_CARDS.filter((c) => !c.writersOnly || writer).map((card) => (
+            {visibleCards({ writer }).map((card) => (
               <section key={card.heading} data-card={card.heading} style={{ marginBottom: 22 }}>
                 <h2 style={{ fontFamily: INTER, fontWeight: 600, fontSize: 11, letterSpacing: '0.24em', color: '#C9A84C', margin: '0 0 10px 6px' }}>{card.heading}</h2>
                 <div style={{ background: '#100E19', border: '1px solid #221F2E', borderRadius: 22, overflow: 'hidden' }}>

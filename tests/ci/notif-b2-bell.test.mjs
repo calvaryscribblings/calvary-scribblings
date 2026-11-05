@@ -11,7 +11,7 @@ import {
   buildList, isUnread, unreadCount, badgeText, BADGE_CAP, ariaLabel, timeLabel, sectionOf, sections, headline, fromInbox, READ_LIMITS,
 } from '../../app/lib/bell.js';
 import { PREFS } from '../../app/lib/notificationKinds.js';
-import { SETTINGS_CARDS } from '../../app/lib/notifySettings.js';
+import { SETTINGS_CARDS, CARD_LIVE, visibleCards, needsWriterFlag } from '../../app/lib/notifySettings.js';
 
 const src = (f) => readFileSync(new URL(`../../${f}`, import.meta.url), 'utf8');
 const code = (f) => src(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -207,5 +207,15 @@ describe('settings (ruling 312)', () => {
     assert.equal(PREFS.square_opens.default, false);
     assert.deepEqual(SETTINGS_CARDS.map((c) => c.heading), ['STORIES', 'PEOPLE', 'YOUR WRITING', 'THE SQUARE']);
     assert.equal(SETTINGS_CARDS.find((c) => c.heading === 'YOUR WRITING').writersOnly, true);
+  });
+
+  test('ruling 337: only STORIES is drawn until P4 and P7; the other cards wait behind one flag each', () => {
+    assert.deepEqual(CARD_LIVE, { PEOPLE: false, 'YOUR WRITING': false, 'THE SQUARE': false });
+    assert.deepEqual(visibleCards({ writer: false }).map((c) => c.heading), ['STORIES']);
+    assert.deepEqual(visibleCards({ writer: true }).map((c) => c.heading), ['STORIES']);
+    assert.equal(needsWriterFlag(), false);
+    const page = code('app/notifications/settings/page.js');
+    assert.match(page, /visibleCards\(\{ writer \}\)\.map\(/);
+    assert.doesNotMatch(page, /SETTINGS_CARDS/);
   });
 });
