@@ -7,7 +7,7 @@
 #    everything below the first dynamic rule against the 100-rule dynamic limit and then
 #    abandons the file. The generator partitions to guarantee this; do not resort by hand.
 
-# ── Static rules (435 of 2000 permitted) ───────────────
+# ── Static rules (449 of 2000 permitted) ───────────────
 /voices/arthor-eze                                           /voices/arthur-eze                                           301
 /creative                                                    /inspiring                                                   301
 /creative.html                                               /inspiring                                                   301
@@ -35,12 +35,16 @@
 /a-broken-heart-playlist.html                                /stories/a-broken-heart-playlist                             301
 /a-daub-of-blue                                              /stories/a-daub-of-blue                                      301
 /a-daub-of-blue.html                                         /stories/a-daub-of-blue                                      301
+/a-day-in-the-life-of-an-agbero                              /stories/a-day-in-the-life-of-an-agbero                      301
+/a-day-in-the-life-of-an-agbero.html                         /stories/a-day-in-the-life-of-an-agbero                      301
 /a-heart-trained-for-battle                                  /stories/a-heart-trained-for-battle                          301
 /a-heart-trained-for-battle.html                             /stories/a-heart-trained-for-battle                          301
 /a-legacy-through-time                                       /stories/a-legacy-through-time                               301
 /a-legacy-through-time.html                                  /stories/a-legacy-through-time                               301
 /a-media-giant-takes-shapes                                  /stories/a-media-giant-takes-shapes                          301
 /a-media-giant-takes-shapes.html                             /stories/a-media-giant-takes-shapes                          301
+/a-week-made-for-giant-slayers                               /stories/a-week-made-for-giant-slayers                       301
+/a-week-made-for-giant-slayers.html                          /stories/a-week-made-for-giant-slayers                       301
 /adadiorama                                                  /stories/adadiorama                                          301
 /adadiorama.html                                             /stories/adadiorama                                          301
 /after-the-tremor                                            /stories/after-the-tremor                                    301
@@ -85,6 +89,8 @@
 /brown-skinned-girl.html                                     /stories/brown-skinned-girl                                  301
 /bruno                                                       /stories/bruno                                               301
 /bruno.html                                                  /stories/bruno                                               301
+/call-me-loathsome                                           /stories/call-me-loathsome                                   301
+/call-me-loathsome.html                                      /stories/call-me-loathsome                                   301
 /can-a-movie-be-over-marketed                                /stories/can-a-movie-be-over-marketed                        301
 /can-a-movie-be-over-marketed.html                           /stories/can-a-movie-be-over-marketed                        301
 /can-a-new-harry-potter-ever-feel-like-the-original          /stories/can-a-new-harry-potter-ever-feel-like-the-original  301
@@ -243,6 +249,8 @@
 /peekaboo.html                                               /stories/peekaboo                                            301
 /peer-pressure-from-the-dead                                 /stories/peer-pressure-from-the-dead                         301
 /peer-pressure-from-the-dead.html                            /stories/peer-pressure-from-the-dead                         301
+/peripheral                                                  /stories/peripheral                                          301
+/peripheral.html                                             /stories/peripheral                                          301
 /phantom                                                     /stories/phantom                                             301
 /phantom.html                                                /stories/phantom                                             301
 /pigment                                                     /stories/pigment                                             301
@@ -337,6 +345,8 @@
 /the-butcher-of-galilee.html                                 /stories/the-butcher-of-galilee                              301
 /the-call                                                    /stories/the-call                                            301
 /the-call.html                                               /stories/the-call                                            301
+/the-copyright-war-nobody-s-winning-who-owns-what-ai-creates /stories/the-copyright-war-nobody-s-winning-who-owns-what-ai-creates 301
+/the-copyright-war-nobody-s-winning-who-owns-what-ai-creates.html /stories/the-copyright-war-nobody-s-winning-who-owns-what-ai-creates 301
 /the-deadline                                                /stories/the-deadline                                        301
 /the-deadline.html                                           /stories/the-deadline                                        301
 /the-enabler                                                 /stories/the-enabler                                         301
@@ -379,6 +389,8 @@
 /the-songbird-s-birdsong.html                                /stories/the-songbird-s-birdsong                             301
 /therapist-s-note-on-love                                    /stories/therapist-s-note-on-love                            301
 /therapist-s-note-on-love.html                               /stories/therapist-s-note-on-love                            301
+/there-s-always-light                                        /stories/there-s-always-light                                301
+/there-s-always-light.html                                   /stories/there-s-always-light                                301
 /thief-ole-carry-am-go                                       /stories/thief-ole-carry-am-go                               301
 /thief-ole-carry-am-go.html                                  /stories/thief-ole-carry-am-go                               301
 /things-i-m-owed                                             /stories/things-i-m-owed                                     301
@@ -415,6 +427,8 @@
 /when-the-technology-becomes-the-scene-the-case-of-ai.html   /stories/when-the-technology-becomes-the-scene-the-case-of-ai 301
 /where-we-begin-the-story                                    /stories/where-we-begin-the-story                            301
 /where-we-begin-the-story.html                               /stories/where-we-begin-the-story                            301
+/white-noise                                                 /stories/white-noise                                         301
+/white-noise.html                                            /stories/white-noise                                         301
 /why-ai-will-take-your-job-and-here-s-what-you-can-do-about-it /stories/why-ai-will-take-your-job-and-here-s-what-you-can-do-about-it 301
 /why-ai-will-take-your-job-and-here-s-what-you-can-do-about-it.html /stories/why-ai-will-take-your-job-and-here-s-what-you-can-do-about-it 301
 /why-do-filmmakers-keep-working-with-the-same-actors         /stories/why-do-filmmakers-keep-working-with-the-same-actors 301
