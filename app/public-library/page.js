@@ -530,11 +530,13 @@ function StoryCard({ story, ...rest }) {
         boxShadow: '0 4px 20px rgba(107,47,173,0.15)',
       }}>
       <CoverImage fill cover={story.cover} coverSizes={story.coverSizes} coverHash={story.coverHash} alt={story.title} sizes="120px" />
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 80, background: 'linear-gradient(to top, rgba(8,6,16,0.95), transparent)' }} />
       {isNew(story) && (
         <span style={{ ...newBadgeStyle, top: 8, left: 8 }}>New</span>
       )}
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 8px 8px' }}>
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 8px 8px', zIndex: 1 }}>
+        {/* STORY-W1, ruling 324: the title and author stand on solid ground — the cover's own
+            author line, footer and frame sit exactly here — solid for 8px above them, after a 20px fade. */}
+        <div aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: -28, zIndex: -1, background: 'linear-gradient(to bottom, rgba(8,6,16,0) 0, rgb(8,6,16) 20px)' }} />
         <div style={{ fontFamily: DISPLAY, fontSize: '0.75rem', fontWeight: 600, color: '#f5f0e8', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{story.title}</div>
         <div style={{ ...cardAuthorStyle, fontSize: '0.6rem', marginTop: 2 }}>{story.author}</div>
       </div>
@@ -1835,6 +1837,13 @@ export default function Home() {
         /* Retired below the tab-bar breakpoint — see the FAB comment at the render site. */
         @media (max-width: 767px) { .sq-fab-mobile { display: none !important; } }
         @keyframes sq-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        /* STORY-W1, RULING 324 — nothing of the cover shows through the featured story's text or
+           touches it. The cover is full-bleed and its frame runs the whole height, so the card
+           stands on solid ground: opaque from 16px above the card to the foot of the hero, across
+           its whole width, after a 56px fade above that. */
+        .hero-card::before { content: ''; position: absolute; z-index: -1; pointer-events: none; left: -100vw; right: -100vw; top: -72px; bottom: -100vh; background: linear-gradient(to bottom, rgba(10,10,10,0) 0, #0a0a0a 56px); }
+        .hero-top-ground { position: absolute; left: 0; right: 0; top: 0; height: 140px; z-index: 1; pointer-events: none; background: linear-gradient(to bottom, #0a0a0a 0, #0a0a0a 84px, rgba(10,10,10,0) 140px); }
+        @media (max-width: 767px) { .hero-top-ground { height: 120px; background: linear-gradient(to bottom, #0a0a0a 0, #0a0a0a 68px, rgba(10,10,10,0) 120px); } }
         @keyframes sq-lockglow { 0%,100%{background:rgba(107,47,173,0.1)} 50%{background:rgba(107,47,173,0.22)} }
         @keyframes sq-lockglow-icon { 0%,100%{opacity:0.6} 50%{opacity:1} }
       `}</style>
@@ -1866,8 +1875,11 @@ export default function Home() {
         ))}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(105deg, rgba(10,10,10,0.85) 0%, rgba(10,10,10,0.5) 60%, transparent 100%)', zIndex: 1 }} />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, #0a0a0a 0%, transparent 45%)', zIndex: 1 }} />
+        {/* STORY-W1, ruling 324: the navbar's words never sit over the cover's frame or its
+            category line — solid under the bar, fading out below it. */}
+        <div aria-hidden="true" className="hero-top-ground" />
 
-        <div className={cardEntering ? 'hero-card-enter' : undefined} style={{
+        <div className={cardEntering ? 'hero-card hero-card-enter' : 'hero-card'} style={{
           position: 'absolute', bottom: '12%', left: '4%', maxWidth: 560, zIndex: 2,
           // Hidden while a trailer plays so it can't bleed through the layer's
           // fade-in; the hero-card-enter animation drives opacity on dissolve.

@@ -60,7 +60,11 @@ export function proseCSS(accentColor = '#6b46c1') {
            (hence !important), and a tracked one gives back the letter-space its last glyph
            carries, so the ink sits on the true centre: 0.3em, the tracking below. */
         .prose p[style*='text-align:center'], .prose p[style*='text-align: center'], .prose p.section-break, .prose p.poem-numeral { text-indent: 0 !important; padding-left: 0.3em; }
-        .prose.has-dropcap p.dropcap-target::first-letter { font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: #c9a84c; font-family: Cormorant Garamond, Georgia, serif; }
+        /* STORY-W1, ruling 289: the letter alone, on the first line's baseline. The tagger
+           (app/lib/dropcap.js) wraps the first letter in .dropcap-glyph; it is NOT floated, so it
+           sits on the baseline of the line it opens. Same size, weight, gold and face as the old
+           floated ::first-letter. line-height 1 lets the first line grow to hold it. */
+        .prose.has-dropcap p.dropcap-target .dropcap-glyph { font-size: 4.2em; font-weight: 600; line-height: 1; vertical-align: baseline; color: #c9a84c; font-family: Cormorant Garamond, Georgia, serif; }
         .prose.has-dropcap p.dropcap-target { text-indent: 0; }
         .prose.has-dropcap p.story-frontmatter { font-style: italic; font-size: 0.85em; color: rgba(26,26,26,0.55); margin-bottom: 1.5em; }
         .prose h2 { font-size: 1.45rem; font-weight: 700; color: #1a1a1a; margin: 2.2em 0 0.7em; font-family: Cormorant Garamond, Georgia, serif; line-height: 1.3; }

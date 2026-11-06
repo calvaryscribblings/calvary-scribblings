@@ -17,9 +17,11 @@ import { slugify, firstFreeSlug, newStorySlug, MAX_SUFFIX } from '../../app/lib/
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const takenBy = (...slugs) => { const set = new Set(slugs); return (s) => set.has(s); };
 
-test('slugify is the CMS rule it replaced, so no live address moves', () => {
+// STORY-W1 (ruling 304): a NEW address drops its apostrophes. The live "widow-s-fire" keeps its
+// address because nothing recomputes it — see tests/ci/story-w1-live-addresses.test.mjs.
+test('slugify is the CMS rule, with apostrophes dropped for new stories (ruling 304)', () => {
   assert.equal(slugify('Till Debt Do Us Part'), 'till-debt-do-us-part');
-  assert.equal(slugify("Widow's Fire"), 'widow-s-fire');
+  assert.equal(slugify("Widow's Fire"), 'widows-fire');
   assert.equal(slugify('  —  '), '');
   assert.equal(slugify('Ọmọ'), 'm');
 });

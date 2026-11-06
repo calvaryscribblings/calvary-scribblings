@@ -81,6 +81,11 @@ export default function ArrivalVeil({ route, rise = 'wrapper', children }) {
   const [phase, setPhase] = useState('idle');
   const startedAt = useRef(0);
   const lifted = useRef(false);
+  // STORY-W1: WHY the veil lifted — 'ready' (the page signalled its first real state) or 'cap'
+  // (ARRIVE_MAX_WAIT ran out first, on a slow connection, by design). Written on the veil as
+  // data-lift so a test can wait on what actually lifted it instead of racing the network.
+  // Changes nothing a reader sees.
+  const [liftReason, setLiftReason] = useState(null);
   const timers = useRef([]);
 
   const clearTimers = () => {
@@ -91,9 +96,10 @@ export default function ArrivalVeil({ route, rise = 'wrapper', children }) {
 
   // Lift now, or at the end of the hold if the beat hasn't been served yet. Whichever of
   // content-ready and the cap gets here first wins; the rest are no-ops.
-  const beginLift = useCallback(() => {
+  const beginLift = useCallback((reason) => {
     if (lifted.current) return;
     lifted.current = true;
+    setLiftReason(reason === 'ready' ? 'ready' : 'cap');
     const elapsed = performance.now() - startedAt.current;
     const wait = Math.max(0, ARRIVE_HOLD - elapsed);
     timers.current.push(setTimeout(() => {
@@ -118,13 +124,13 @@ export default function ArrivalVeil({ route, rise = 'wrapper', children }) {
     startedAt.current = performance.now();
     setPhase('holding');
     // Never trap anyone in the dark on a slow connection.
-    timers.current.push(setTimeout(beginLift, ARRIVE_MAX_WAIT));
+    timers.current.push(setTimeout(() => beginLift('cap'), ARRIVE_MAX_WAIT));
   }, [beginLift, route]);
 
   // Stable identity: a changing signal would re-fire the consumer's effect.
   const signalReady = useCallback(() => {
     if (startedAt.current === 0) return; // no veil in play
-    beginLift();
+    beginLift('ready');
   }, [beginLift]);
 
   const arriving = phase === 'holding' || phase === 'lifting';
@@ -160,7 +166,7 @@ export default function ArrivalVeil({ route, rise = 'wrapper', children }) {
           }
         `}</style>
       )}
-      {arriving && <div className={`cs-arrive-veil${phase === 'lifting' ? ' is-lifting' : ''}`} aria-hidden="true" />}
+      {arriving && <div className={`cs-arrive-veil${phase === 'lifting' ? ' is-lifting' : ''}`} data-lift={liftReason || undefined} aria-hidden="true" />}
       {/* Always rendered, always the same element — see STRUCTURAL RULE above. */}
       <div className={wrapperClass} data-arrival={arrived ? '' : undefined}>{children}</div>
     </RiseContext.Provider>

@@ -23,6 +23,7 @@ import ReadSeal from '../../components/ReadSeal';
 import { sendReadHit } from '../../lib/readHit';
 import { noteReadingDay, creditFirstRead, READ_NODES } from '../../lib/readCredit';
 import { attachDropcap } from '../../lib/dropcap';
+import { responsesLineText } from '../../lib/responsesLine';
 // Render-time subheading classifier. Applied HERE, in the render, rather than as a DOM pass
 // like attachDropcap — this component is what the static export renders at build time, so
 // tagging in the render is what keeps out/stories/<slug>.html identical to the hydrated
@@ -38,6 +39,8 @@ import StoryGate from '../../components/StoryGate';
 import StoryBar from '../../components/StoryBar';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, COMMENT_REACTIONS } from '../../components/conversation/ConversationKit';
 import { DELETED_RESPONSE, isTombstone } from '../../lib/deletedContent';
+import useShownResponses from '../../lib/useShownResponses';
+import { HIDDEN_RESPONSE } from '../../lib/storyResponses';
 
 
 
@@ -351,6 +354,21 @@ const CommentNode = React.memo(function CommentNode({
       </div>
   );
 
+  // STORY-W1 / ruling 328 — a reply by a reader you've muted or blocked, still drawn only because a
+  // reply you can see hangs beneath it (app/lib/storyResponses.js). No name, words or reactions.
+  if (comment.hiddenByYou) {
+    return (
+      <div style={{ marginLeft: indentPx }} data-hidden-by-you="">
+        <div className={depth === 1 ? "cs-comment" : "cs-reply"}>
+          <div className="cs-comment-body">
+            <div className={depth === 1 ? "cs-comment-text" : "cs-comment-text cs-comment-text-sm"} style={{ fontStyle: 'italic', opacity: 0.55 }}>{HIDDEN_RESPONSE}</div>
+          </div>
+        </div>
+        {replies}
+      </div>
+    );
+  }
+
   // W17 / ruling 30 — a deleted reader's comment that still has someone else's reply beneath it.
   // No name, no avatar, no reactions, no Reply: the ruled words, and the thread beneath.
   if (isTombstone(comment)) {
@@ -449,7 +467,7 @@ const CommentNode = React.memo(function CommentNode({
   );
 });
 
-function CommentsSection({ slug, onSignIn }) {
+function CommentsSection({ slug, onSignIn, onCount, openRef }) {
   // Stable across renders, so the memoised CommentNode and the reaction callback do not churn when
   // the page hands down a fresh arrow.
   const signInRef = useRef(onSignIn);
@@ -469,6 +487,13 @@ function CommentsSection({ slug, onSignIn }) {
   const [commentReactions, setCommentReactions] = useState({});
   const [expandedComment, setExpandedComment] = useState(null);
   const reactingRef = useRef(new Set());
+  // STORY-W1 (rulings 315/316): the responses line under the byline reads this section's count
+  // and asks it to open. The section owns both: it already holds the live list and the box.
+  const sectionRef = useRef(null);
+  const userRef = useRef(null);
+  useEffect(() => { userRef.current = user; }, [user]);
+  const onCountRef = useRef(onCount);
+  useEffect(() => { onCountRef.current = onCount; }, [onCount]);
 
   useEffect(() => {
     if (!expandedComment) return;
@@ -701,12 +726,29 @@ function CommentsSection({ slug, onSignIn }) {
 
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
   // No deleted-author filter: deletion is immediate and removes the comments themselves.
-  const visibleComments = comments;
+  // STORY-W1 / ruling 328 — less what this reader has muted or blocked (app/lib/storyResponses.js).
+  const { shown: visibleComments, count: shownCount } = useShownResponses(comments, user?.uid);
   const topLevel = visibleComments.filter(c => !c.parentId);
-  const liveResponses = comments.filter(c => !isTombstone(c)).length;
+  const liveResponses = shownCount;
+  useEffect(() => { if (!loading) onCountRef.current?.(liveResponses); }, [loading, liveResponses]);
+  // Go to the responses; with `compose`, open the box — the textarea for a signed-in reader,
+  // the sign-in modal for a signed-out one (the box they would see is "Sign in to add a response").
+  useEffect(() => {
+    if (!openRef) return undefined;
+    openRef.current = (compose) => {
+      const el = sectionRef.current;
+      if (!el) return;
+      const still = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      el.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' });
+      if (!compose) return;
+      if (userRef.current) el.querySelector('.cs-compose textarea')?.focus({ preventScroll: true });
+      else requireSignIn();
+    };
+    return () => { openRef.current = null; };
+  }, [openRef, requireSignIn]);
 
   return (
-    <div className="cs-section" data-reveal="up">
+    <div className="cs-section" id="responses" ref={sectionRef} data-reveal="up">
       <div className="cs-header">
         <div className="cs-title">Responses</div>
         {/* W17: a deleted reader's tombstone is not a response. */}
@@ -886,6 +928,10 @@ export default function StoryPageClient({ params, initialStory = null, proof = n
   const [hitCount, setHitCount] = useState(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  // STORY-W1 (315/316): the responses line. null until the section has its first count, and the
+  // line keeps its height meanwhile, so nothing below it moves when the number lands.
+  const [responseCount, setResponseCount] = useState(null);
+  const responsesOpenRef = useRef(null);
   const [storyUser, setStoryUser] = useState(null);
   const articleRef = useRef(null);
   const threadRef = useRef(null);
@@ -1203,6 +1249,18 @@ useEffect(() => {
         .hero-mobile-cover { display: none; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; }
         .hero-mobile-overlay { display: none; position: absolute; inset: 0; background: linear-gradient(to top, rgba(10,10,10,1) 0%, rgba(10,10,10,0.5) 50%, transparent 100%); }
         .hero-content { position: relative; z-index: 2; padding: 3rem 2rem 3.5rem; max-width: 680px; animation: heroUp 1s cubic-bezier(0.22,1,0.36,1) 0.3s both; }
+        /* STORY-W1, RULING 324 — nothing of the cover shows through the text or touches it. The
+           cover behind the header is full-bleed, and its frame runs the whole height, so a
+           gradient alone always left the frame, the author line and the footer faintly under the
+           title and byline. The text now stands on solid ground: opaque from 16px above the text
+           block to the foot of the header, across its whole width, after a 56px fade above that,
+           so the cover's furniture has faded out completely 16px BEFORE it reaches a letter. The
+           top of the header gets the same under the story bar. */
+        .hero-content::before { content: ''; position: absolute; z-index: -1; pointer-events: none; left: -100vw; right: -100vw; top: -72px; bottom: 0; background: linear-gradient(to bottom, rgba(10,10,10,0) 0, #0a0a0a 56px); }
+        .story-hero::before { content: ''; position: absolute; z-index: 1; pointer-events: none; left: 0; right: 0; top: 0; height: 120px; background: linear-gradient(to bottom, #0a0a0a 0, #0a0a0a 64px, rgba(10,10,10,0) 120px); }
+        /* …and the small cover panel never sits over or against the text: the text block stops
+           24px short of the panel's left edge (96% − 180px) at every width above the phone. */
+        @media (min-width: 641px) { .hero-content { max-width: min(680px, calc(96% - 180px - 24px)); } }
         @keyframes heroUp { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: translateY(0); } }
         .story-badge-hero { display: inline-block; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; padding: 0.3em 0.9em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; margin-bottom: 1.1rem; font-family: Cormorant Garamond, Georgia, serif; }
         .story-title { font-size: clamp(2.2rem, 5.5vw, 3.8rem); font-weight: 400; line-height: 1.1; color: #f0ead8; margin-bottom: 1.1rem; font-family: Cormorant Garamond, Georgia, serif; }
@@ -1217,6 +1275,13 @@ useEffect(() => {
         .byline-item { display: inline-flex; align-items: center; }
         .byline-dot { flex: none; width: 3px; height: 3px; margin: 0 var(--byline-gap); border-radius: 50%; background: ${accentColor}; opacity: 0.7; }
         .byline-by { font-style: italic; font-family: Cormorant Garamond, Georgia, serif; margin-right: 0.6rem; }
+        /* STORY-W1, rulings 315/316 — the responses line. The byline's own type and colour, and
+           the byline's row gap above it, so it reads as the next line of the byline, not a new
+           element. Both values follow the byline at the phone breakpoint below. */
+        .story-responses-line { --byline-gap: 1.4rem; margin-top: var(--byline-gap); font-size: 0.82rem; letter-spacing: 0.06em; color: #f5f0e8; }
+        .story-responses-link { color: inherit; text-decoration: none; cursor: pointer; }
+        .story-responses-link:hover, .story-responses-link:focus-visible { text-decoration: underline; text-underline-offset: 0.2em; }
+        .cs-section { scroll-margin-top: 72px; }
         .story-body-wrap { background: #f0ead8; opacity: 0; }
         /* Prose entrance. Deliberately NOT part of the [data-reveal] scroll system: this is
            keyed to readiness, not scroll position, so the body is already in place by the
@@ -1310,9 +1375,10 @@ useEffect(() => {
         .cs-replies { margin-top: 0.75rem; padding-left: 1rem; border-left: 1px solid rgba(107,47,173,0.25); display: flex; flex-direction: column; gap: 0.75rem; }
         .cs-reply { display: flex; gap: 10px; }
         @media (max-width: 640px) {
-          .hero-cover-panel { width: 100px; height: 145px; bottom: 0; right: 4%; z-index: 0; }
+          .hero-cover-panel { width: 100px; height: 145px; bottom: 0; right: 4%; z-index: 3; }
           .story-body { padding: 2.5rem 1.2rem 4rem; }
-          .hero-content { padding: 2rem 1.2rem 2.5rem 1.2rem; padding-right: 120px; }
+          .hero-content { padding: 2rem 1.2rem 2.5rem 1.2rem; padding-right: calc(4% + 100px + 20px); }
+          .story-hero::before { height: 96px; background: linear-gradient(to bottom, #0a0a0a 0, #0a0a0a 48px, rgba(10,10,10,0) 96px); }
           .prose { font-size: 1.05rem; }
           .story-nav-row { padding: 0.5rem 1.2rem; }
           .hit-counter-row { padding: 1.5rem 1.2rem; }
@@ -1320,6 +1386,7 @@ useEffect(() => {
           .story-badge-hero { font-size: 0.72rem; letter-spacing: 0.14em; padding: 0.22em 0.7em; margin-bottom: 0.7rem; }
           .story-title { font-size: clamp(1.75rem, 6vw, 2.5rem); line-height: 1.15; margin-bottom: 0.7rem; }
           .story-byline { --byline-gap: 0.6rem; font-size: 0.78rem; }
+          .story-responses-line { --byline-gap: 0.6rem; font-size: 0.78rem; }
         }
       .prose figure { margin: 2em 0; }
 .prose figure img { margin: 0; } @media (max-width: 600px) { .cs-textarea, .cs-textarea-sm { font-size: 16px !important; } }`}</style>
@@ -1375,6 +1442,18 @@ useEffect(() => {
                 )}
               </div>
             </div>
+            {!proof && (
+              <div className="story-responses-line">
+                {responseCount === null ? (
+                  <span aria-hidden="true" style={{ visibility: 'hidden' }}>{responsesLineText(0)}</span>
+                ) : (
+                  <a href="#responses" className="story-responses-link" data-count={responseCount}
+                    onClick={(e) => { e.preventDefault(); responsesOpenRef.current?.(responseCount === 0); }}>
+                    {responsesLineText(responseCount)}
+                  </a>
+                )}
+              </div>
+            )}
             {!proof && advertisesQuiz(story) && (
               <a
                 onClick={() => document.getElementById('quiz-card')?.scrollIntoView({ behavior: 'smooth' })}
@@ -1473,7 +1552,7 @@ useEffect(() => {
             only page that ever sold on the story shelf — so the invitation shows on every story. */}
         {!proof && <AppInvite variant="panel" />}
         {!proof && <NewsletterInvite user={storyUser} />}
-        {!proof && <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />}
+        {!proof && <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} onCount={setResponseCount} openRef={responsesOpenRef} />}
         {showAuthModal && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }} onClick={e => { if (e.target === e.currentTarget) setShowAuthModal(false); }}>
             <AuthModal onClose={() => setShowAuthModal(false)} />

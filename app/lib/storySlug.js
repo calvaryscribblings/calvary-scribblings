@@ -13,9 +13,22 @@
 
 import { isId } from './ids.js';
 
-/** The address a title would take. Unchanged from the CMS's original rule, so no live story moves. */
+// STORY-W1 (ruling 304) — A NEW ADDRESS DROPS ITS APOSTROPHES: "Nobody’s Winning" is
+// /stories/nobodys-winning, not /stories/nobody-s-winning. The straight ' , the curly ‘ ’ and the
+// modifier-letter apostrophe ʼ are removed BEFORE the collapse below, which would otherwise turn
+// each into a hyphen.
+//
+// NO EXISTING ADDRESS CHANGES, and that holds because nothing re-derives one: this function is
+// asked only for a NEW story (app/admin/page.js, under `!editingId`). An edit keeps its slug, and
+// every path that turns a stored record into an address (the static pages, the index's url, the
+// sitemap, the redirects, the scheduled-publish Worker) uses the record's KEY. 19 live addresses
+// carry an apostrophe's hyphen ("widow-s-fire") and would come out differently from this rule;
+// tests/ci/story-w1-live-addresses.test.mjs pins every live address and proves none is recomputed.
+const APOSTROPHES = /['\u2018\u2019\u02BC]/g;
+
+/** The address a NEW story's title would take (ruling 304: apostrophes dropped). */
 export function slugify(title) {
-  return String(title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  return String(title || '').toLowerCase().replace(APOSTROPHES, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
 /** How many numbered addresses to try before giving up and asking for a different title. */

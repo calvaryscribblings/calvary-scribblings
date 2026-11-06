@@ -11,8 +11,8 @@
 // ── WHAT IT DOES ─────────────────────────────────────────────────────────────────────────
 // The CSS ::first-letter rule cannot tell front-matter (content notes, epigraphs, section
 // numerals) from the story proper, so the decision is made here: walk the body, pick the
-// first paragraph that is genuinely opening prose, tag it .dropcap-target, and let
-// app/lib/proseCSS.js hook `p.dropcap-target::first-letter`. Selects with querySelectorAll
+// first paragraph that is genuinely opening prose, tag it .dropcap-target, and wrap its first
+// LETTER in <span class="dropcap-glyph">, which app/lib/proseCSS.js styles (STORY-W1, below). Selects with querySelectorAll
 // scoped to the prose container (so a story whose opening <p> is nested in a wrapper div is
 // still found), and keeps a MutationObserver on the article: if React re-applies the body
 // HTML (which would wipe the class) or the content arrives after the first pass, it re-tags.
@@ -127,6 +127,75 @@ const blockFromElement = (p) => {
 // these eight stories. The measurements stay here, next to the drop cap they were taken
 // for.
 
+// ── STORY-W1, RULING 289: THE LETTER ALONE, ON THE BASELINE ─────────────────────────────
+// Ikenna, 4 Nov 2026: "The website's drop cap matches the app's: the letter alone, sitting on
+// the baseline." Until this round the cap was `::first-letter`, floated at 4.2em with a
+// line-height of 0.78, so it dropped into the lines below and its own baseline sat on none of
+// them; and `::first-letter` also takes the punctuation that touches the letter ("I." caps
+// both). The app sets the letter as one larger run inside the first line, which is the only
+// thing React Native text can do, and so it sits on that line's baseline.
+//
+// Here: the tagger wraps the target's first LETTER — one grapheme, nothing before it (the
+// guard above has already refused any opener that isn't a letter) and nothing after it — in
+// <span class="dropcap-glyph">. proseCSS styles the span inline: same size, weight, gold and
+// face as before, no float, so the browser puts its baseline on the first line's. Which
+// paragraphs get a cap is unchanged: poetry and the guard's openers still get none.
+//
+// IDEMPOTENT UNDER ITS OWN OBSERVER. Wrapping is a childList mutation, so the observer below
+// fires once more; that pass finds the span already on the right letter and changes nothing,
+// and the observer goes quiet. A span left on a paragraph that is no longer the target is
+// unwrapped and its text node re-joined (normalize), so a re-render converges.
+export const GLYPH_CLASS = 'dropcap-glyph';
+
+// The first text node in `p` that has non-whitespace content, in document order.
+function firstTextNode(p) {
+  const doc = p.ownerDocument;
+  const walker = doc.createTreeWalker(p, 4 /* NodeFilter.SHOW_TEXT */);
+  let n;
+  while ((n = walker.nextNode())) if (/\S/.test(n.nodeValue)) return n;
+  return null;
+}
+
+// The span already wrapping p's first letter, if there is one and it is exactly that letter.
+function firstGlyphSpan(p) {
+  const t = firstTextNode(p);
+  const span = t && t.parentNode;
+  if (!span || span.nodeType !== 1 || !span.classList.contains(GLYPH_CLASS)) return null;
+  return span.textContent === firstGrapheme(t.nodeValue.replace(/^\s+/, '')) ? span : null;
+}
+
+// One user-perceived character: a letter plus any combining marks.
+function firstGrapheme(s) {
+  if (!s) return '';
+  if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+    const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(s)[Symbol.iterator]().next();
+    if (!seg.done) return seg.value.segment;
+  }
+  return Array.from(s)[0] || '';
+}
+
+function wrapFirstLetter(p) {
+  const t = firstTextNode(p);
+  if (!t) return;
+  const lead = t.nodeValue.match(/^\s*/)[0].length;
+  const letter = firstGrapheme(t.nodeValue.slice(lead));
+  if (!letter) return;
+  const letterNode = lead ? t.splitText(lead) : t;
+  letterNode.splitText(letter.length);
+  const span = p.ownerDocument.createElement('span');
+  span.className = GLYPH_CLASS;
+  letterNode.parentNode.replaceChild(span, letterNode);
+  span.appendChild(letterNode);
+}
+
+function unwrapGlyph(span) {
+  const parent = span.parentNode;
+  if (!parent) return;
+  while (span.firstChild) parent.insertBefore(span.firstChild, span);
+  parent.removeChild(span);
+  parent.normalize();
+}
+
 // One tagging pass over an article element. Exported for callers that render prose once
 // and know it will not change; most callers want attachDropcap instead.
 export function tagDropcap(article) {
@@ -138,6 +207,10 @@ export function tagDropcap(article) {
   if (!paras.length) return;
   // Clear any tags from a prior pass so re-runs converge on the same state.
   paras.forEach((p) => p.classList.remove('dropcap-target', 'story-frontmatter'));
+  // The glyph wrap is cleared too, except where it already sits on the right letter (below) —
+  // unwrapping and re-wrapping the same letter would be a childList mutation every pass, and
+  // the MutationObserver would never settle.
+  const stale = Array.from(container.querySelectorAll(`span.${GLYPH_CLASS}`));
 
   // Structurally excluded paragraphs are dropped BEFORE the front-matter walk, and are never
   // given .story-frontmatter: an .intro-note already carries its own presentation from
@@ -148,7 +221,7 @@ export function tagDropcap(article) {
   // deliberate trade: such a paragraph cannot carry a sane floated cap anyway, and the walk
   // simply moves to the next one.
   const candidates = paras.filter((p) => !p.closest(EXCLUDED_SELECTOR) && !p.querySelector('img'));
-  if (!candidates.length) return;
+  if (!candidates.length) { stale.forEach(unwrapGlyph); return; }
 
   // The walk itself is prosePredicate.js:walkToProse, run over adapted blocks. Same
   // heuristics, same order, same answer — the indices come back and map 1:1 onto
@@ -161,15 +234,18 @@ export function tagDropcap(article) {
   //
   // The old code fell back to paras[0] here, which is precisely how a section numeral got
   // capped — the fallback re-introduced the bug the walk had just avoided.
-  if (targetIndex === null) return;
+  if (targetIndex === null) { stale.forEach(unwrapGlyph); return; }
   const target = candidates[targetIndex];
 
   frontmatter.forEach((i) => candidates[i].classList.add('story-frontmatter'));
 
   // Opens on punctuation or a digit — see the guard's note above. No drop cap.
-  if (!OPENS_ON_LETTER.test((target.textContent || '').trim())) return;
+  if (!OPENS_ON_LETTER.test((target.textContent || '').trim())) { stale.forEach(unwrapGlyph); return; }
 
   target.classList.add('dropcap-target');
+  const keep = firstGlyphSpan(target);
+  stale.forEach((span) => { if (span !== keep) unwrapGlyph(span); });
+  if (!keep) wrapFirstLetter(target);
 }
 
 // Tag now, and keep tagging if the body is replaced. Returns the cleanup function an
