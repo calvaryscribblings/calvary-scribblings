@@ -127,6 +127,9 @@ export const INBOX_KINDS = Object.freeze({
   response: { pref: 'responses', push: PUSH.GROUPED_HOURLY, group: 'story', written: 'P1', ruling: '307, 318' },
   story_reaction: { pref: 'reactions', push: PUSH.GROUPED_HOURLY, group: 'story', written: 'P1', ruling: '307, 310' },
   new_story: { pref: 'stories', push: PUSH.ANNOUNCER, group: null, written: 'P3 (one shared record, no fan-out)', ruling: '308, 323' },
+  // What the bell draws from the P7 kinds' `subject` (app/lib/bell.js, rulings 342–343), when a
+  // writer sets it: badge → { badge: name }, reward → { amount: whole Scribbles }, tier_up →
+  // { tier }, open_pages_declined → { title } (a declined piece is stored nowhere to read it from).
   badge: { pref: null, push: PUSH.LIST_ONLY, group: null, written: 'P7', ruling: '309' },
   tier_up: { pref: null, push: PUSH.LIST_ONLY, group: null, written: 'P7', ruling: '309' },
   reward: { pref: null, push: PUSH.LIST_ONLY, group: null, written: 'P7', ruling: '309' },
