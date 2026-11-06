@@ -1252,11 +1252,11 @@ useEffect(() => {
         /* STORY-W1, RULING 324 — nothing of the cover shows through the text or touches it. The
            cover behind the header is full-bleed, and its frame runs the whole height, so a
            gradient alone always left the frame, the author line and the footer faintly under the
-           title and byline. The text now stands on solid ground: opaque from 56px above the
-           text block to the foot of the header, across its whole width, fading in over those
-           56px so the cover's furniture fades out BEFORE it reaches a letter. The top of the
-           header gets the same under the story bar. */
-        .hero-content::before { content: ''; position: absolute; z-index: -1; pointer-events: none; left: -100vw; right: -100vw; top: -56px; bottom: 0; background: linear-gradient(to bottom, rgba(10,10,10,0) 0, #0a0a0a 56px); }
+           title and byline. The text now stands on solid ground: opaque from 16px above the text
+           block to the foot of the header, across its whole width, after a 56px fade above that,
+           so the cover's furniture has faded out completely 16px BEFORE it reaches a letter. The
+           top of the header gets the same under the story bar. */
+        .hero-content::before { content: ''; position: absolute; z-index: -1; pointer-events: none; left: -100vw; right: -100vw; top: -72px; bottom: 0; background: linear-gradient(to bottom, rgba(10,10,10,0) 0, #0a0a0a 56px); }
         .story-hero::before { content: ''; position: absolute; z-index: 1; pointer-events: none; left: 0; right: 0; top: 0; height: 120px; background: linear-gradient(to bottom, #0a0a0a 0, #0a0a0a 64px, rgba(10,10,10,0) 120px); }
         /* …and the small cover panel never sits over or against the text: the text block stops
            24px short of the panel's left edge (96% − 180px) at every width above the phone. */

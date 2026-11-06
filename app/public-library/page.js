@@ -535,8 +535,8 @@ function StoryCard({ story, ...rest }) {
       )}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 8px 8px', zIndex: 1 }}>
         {/* STORY-W1, ruling 324: the title and author stand on solid ground — the cover's own
-            author line, footer and frame sit exactly here — fading in over the 20px above them. */}
-        <div aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: -20, zIndex: -1, background: 'linear-gradient(to bottom, rgba(8,6,16,0) 0, rgb(8,6,16) 20px)' }} />
+            author line, footer and frame sit exactly here — solid for 8px above them, after a 20px fade. */}
+        <div aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: -28, zIndex: -1, background: 'linear-gradient(to bottom, rgba(8,6,16,0) 0, rgb(8,6,16) 20px)' }} />
         <div style={{ fontFamily: DISPLAY, fontSize: '0.75rem', fontWeight: 600, color: '#f5f0e8', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{story.title}</div>
         <div style={{ ...cardAuthorStyle, fontSize: '0.6rem', marginTop: 2 }}>{story.author}</div>
       </div>
@@ -1839,9 +1839,9 @@ export default function Home() {
         @keyframes sq-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
         /* STORY-W1, RULING 324 — nothing of the cover shows through the featured story's text or
            touches it. The cover is full-bleed and its frame runs the whole height, so the card
-           stands on solid ground: opaque from 56px above the card to the foot of the hero, across
-           its whole width, fading in over those 56px. */
-        .hero-card::before { content: ''; position: absolute; z-index: -1; pointer-events: none; left: -100vw; right: -100vw; top: -56px; bottom: -100vh; background: linear-gradient(to bottom, rgba(10,10,10,0) 0, #0a0a0a 56px); }
+           stands on solid ground: opaque from 16px above the card to the foot of the hero, across
+           its whole width, after a 56px fade above that. */
+        .hero-card::before { content: ''; position: absolute; z-index: -1; pointer-events: none; left: -100vw; right: -100vw; top: -72px; bottom: -100vh; background: linear-gradient(to bottom, rgba(10,10,10,0) 0, #0a0a0a 56px); }
         .hero-top-ground { position: absolute; left: 0; right: 0; top: 0; height: 140px; z-index: 1; pointer-events: none; background: linear-gradient(to bottom, #0a0a0a 0, #0a0a0a 84px, rgba(10,10,10,0) 140px); }
         @media (max-width: 767px) { .hero-top-ground { height: 120px; background: linear-gradient(to bottom, #0a0a0a 0, #0a0a0a 68px, rgba(10,10,10,0) 120px); } }
         @keyframes sq-lockglow { 0%,100%{background:rgba(107,47,173,0.1)} 50%{background:rgba(107,47,173,0.22)} }

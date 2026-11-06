@@ -772,8 +772,8 @@ Recorded in NOTIF-B1, which builds stage one: the security stopgap on the two ol
 - **312:** Settings has a push switch per kind. The list always shows everything.
 - **313:** The app icon shows the unread count.
 - **314:** No new emails.
-- **315:** A responses line sits under the story's byline, date and read time, on the web and in the app, and tapping it goes to the responses.
-- **316:** With no responses, the line reads "Be the first to respond" and opens the response box.
+- **315:** A responses line sits under the story's byline, date and read time, on the web and in the app, and tapping it goes to the responses. **Built (web) in STORY-W1, 6 Nov 2026:** `app/lib/responsesLine.js`, under the byline in `app/stories/[slug]/page-client.js`, in the byline's type, colour and row gap; its count is the Responses section's own. The app's half is the app's round.
+- **316:** With no responses, the line reads "Be the first to respond" and opens the response box. **Built (web) in STORY-W1, 6 Nov 2026:** signed in, it focuses the box; signed out, the box is the sign-in prompt, so it opens that.
 - **317:** Nothing in the faded story cover hides behind the Dynamic Island. It is placed from the safe area.
 - **318:** Writers get a push for new responses on their stories, grouped per story, at most once an hour.
 - **319:** Muting someone also stops their notifications reaching you, silently.
@@ -781,7 +781,7 @@ Recorded in NOTIF-B1, which builds stage one: the security stopgap on the two ol
 - **321:** When an Open Pages piece is declined, its writer is told kindly in the list, with no push.
 - **322:** Old notifications move across if they are unread or from the last 90 days. The rest stay in the backup only.
 - **323:** A new story from a writer you follow carries "from a writer you follow" in the list.
-- **324:** Wherever text lies over a cover, nothing of the cover (frame, emblem, author line, category) shows through it or touches it.
+- **324:** Wherever text lies over a cover, nothing of the cover (frame, emblem, author line, category) shows through it or touches it. **Built (web) in STORY-W1, 6 Nov 2026:** the story page's header and its top bar, the Library's featured hero and the navbar over it, the Library's small story cards, the Series instalment header (solid ground under the text, solid for 8–16px beyond it, after a fade), the story header's cover panel (the text stops 24px short of it, 20px on a phone), and the quiz pill on `/quizzes` and `/search` (it sits on the row, not the thumbnail). Measured: no pixel under any of that text, or within 8px of it, changes when the cover is swapped from white to black.
 - **325:** The unread count is a small violet badge with the number.
 - **326:** Opening the list clears the count, and dots show what's new since the last look.
 - **267–275, 289 and 304:** ruled on 4 Nov 2026; see the next section (NOTIF-B2).
@@ -793,10 +793,10 @@ At ship (4 Nov 2026, the app session's A57): the app's kinds are confirmed, and 
 Recorded in NOTIF-B2, which builds the web bell (rulings 305, 325, 326, 327), new stories as one shared item (P3, ruling 308) and the web's writers moving onto `POST /api/notify`. These were owed above and are ruled now. **Built** means in this round; the rest are recorded here and built in their own rounds.
 
 - **327:** The Square keeps its bell, and it opens the same single list as the Home bell. **Built:** `app/components/bell/Bell.js` in the Square's header, as the panel on iPad and desktop and `/notifications` on a phone, with the one count.
-- **328:** Blocking or muting someone also hides their responses under stories, as it already does in the Square. The bell already leaves them out (`app/lib/bell.js`). **Owed:** the responses themselves, under stories.
+- **328:** Blocking or muting someone also hides their responses under stories, as it already does in the Square. The bell already leaves them out (`app/lib/bell.js`). **Built (web) in STORY-W1, 6 Nov 2026:** `app/lib/storyResponses.js` + `useShownResponses.js` (the Square's own safety hook) on the story page and the story reader: a hidden reader's response goes with its thread; their reply under someone else's goes, or stands as "A reply you've hidden." where a visible reply sits beneath it; the counts leave them out.
 - **329:** The leftovers of the two accounts deleted before the deletion tool existed (one with push token rows, one with an old library inbox) are cleared, after a backup, under the 26 Sept deletion policy. **At ship:** those two leftovers only, through the SAFETY-1 guard (dry run, verified backup, apply, verify). Nothing else the scrub's dry run found is touched without a separate ruling.
-- **304:** New story addresses drop apostrophes ("nobodys-winning", not "nobody-s-winning"). Existing addresses stay as they are. **Owed.**
-- **289:** The website's drop cap matches the app's: the letter alone, sitting on the baseline. **Owed.**
+- **304:** New story addresses drop apostrophes ("nobodys-winning", not "nobody-s-winning"). Existing addresses stay as they are. **Built (web) in STORY-W1, 6 Nov 2026:** `slugify()` in `app/lib/storySlug.js`, asked only for a NEW story. `tests/ci/story-w1-live-addresses.test.mjs` pins all 218 live addresses (19 of them would be written differently today) and proves every path from a record to an address uses its key.
+- **289:** The website's drop cap matches the app's: the letter alone, sitting on the baseline. **Built (web) in STORY-W1, 6 Nov 2026:** the tagger (`app/lib/dropcap.js`) wraps the first letter alone in `.dropcap-glyph`, which `app/lib/proseCSS.js` sets inline, not floated, at the old size, weight and gold, so its baseline is the first line's. Which paragraphs get one is unchanged: poetry and openers on punctuation or a digit still get none.
 - **267:** Backups go to a vault: a separate Google Cloud project Ikenna owns, in Belgium, that the site's key can't reach. **Owed.**
 - **268:** Nothing in the vault can be deleted until it is 30 days old, by anyone, Ikenna included. It is trialled for two weeks, then locked for good. **Owed.**
 - **269:** The site's key is cut down to what the site uses, and replaced if it has been exposed since its last change, in its own round. **Owed.**
@@ -840,7 +840,7 @@ Recorded in RADIO-C0, the writing round for `docs/RADIO-CONTRACT.md` and `docs/A
 
 ## 5 Nov 2026 (Ikenna): the bell's words, and Radio's downloads, rulings 338–354 (SAFETY-2P)
 
-Recorded in SAFETY-2P, a planning and writing round. **Nothing below is built in it.** The bell's wording ships in the next web round, not this one (the DRAFT/DESIGN marks in `app/lib/bell.js` WORDS stay until then). The Radio rulings are written into `docs/RADIO-CONTRACT.md`, which says which round builds each.
+Recorded in SAFETY-2P, a planning and writing round. **Nothing below is built in it.** The bell's wording ships in the next web round, not this one (the DRAFT/DESIGN marks in `app/lib/bell.js` WORDS stay until then). **338–343 built (web) in STORY-W1, 6 Nov 2026:** `app/lib/bell.js` WORDS, marked RULED, pinned by `tests/ci/notif-b2-words.test.mjs`. 343's named badge and amount show once a writer puts `subject.badge` / `subject.amount` on the note; none does yet, so today's wording shows meanwhile, as ruled. The Radio rulings are written into `docs/RADIO-CONTRACT.md`, which says which round builds each.
 
 - **338:** These bell drafts stay as written: "1 new response on your story", "{name} sent you a message", "{name} replied to your post", "{name} replied to you" (in a Square thread), "{name} replied to you on Open Pages", "{name} mentioned you in a response", "{name} quoted your post", "You reached a new tier".
 - **339:** Every reaction, whether a heart, fire, quill or clap, reads "liked", as in the design.
