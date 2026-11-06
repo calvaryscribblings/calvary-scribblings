@@ -43,6 +43,9 @@ export const BADGE_CAP = 99;
 const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 const str = (v) => (typeof v === 'string' && v ? v : null);
+const words = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+/** A whole, positive number of Scribbles, or null. */
+const amountOf = (v) => (Number.isInteger(v) && v > 0 ? v : null);
 
 // ── the kinds, as the rows draw them ──────────────────────────────────────────────────────────
 // badge: the 18px (16px in the panel) circle on the avatar. tile: a sender-less item drawn as a
@@ -61,43 +64,44 @@ const LEGACY_REACTIONS = new Set(['heart', 'fire', 'clap', 'quill', 'like']);
  * comes from:
  *   DESIGN   a line Ikenna's approved design shows (rulings 305–327; NOTIF-B2 ship, 4 Nov 2026)
  *   PUSH     the push wording ruled 25 Sep 2026 (docs/PUSH-GO-LIVE.md, scripts/push/forms.mjs)
- *   DRAFT    not shown in the design; for Ikenna's ruling in the next web round
+ *   RULED n  ruled on 5 Nov 2026 (docs/COPY-RULINGS.md, rulings 338–343; built in STORY-W1)
  * A row's first line is `{name}` + the words, the name at weight 600; where the design sets other
  * words in bold, the entry says which. Its second line is a title (#D8D0C2) or quoted words
  * (#A39CB2, inside “ ”).
  */
 export const WORDS = Object.freeze({
   reply_story: 'replied to your response',                           // DESIGN, then “quoted words”
-  reply_square: 'replied to your post',                              // DRAFT
-  reply_square_you: 'replied to you',                                // DRAFT
-  reply_open_pages: 'replied to you on Open Pages',                  // DRAFT
-  mention_story: 'mentioned you in a response',                      // DRAFT
+  reply_square: 'replied to your post',                              // RULED 338
+  reply_square_you: 'replied to you',                                // RULED 338 (in a Square thread)
+  reply_open_pages: 'replied to you on Open Pages',                  // RULED 338
+  mention_story: 'mentioned you in a response',                      // RULED 338
   mention_square: 'mentioned you in the Square',                     // DESIGN, then “quoted words”
-  quote: 'quoted your post',                                         // DRAFT
-  message_one: 'sent you a message',                                 // DRAFT
+  quote: 'quoted your post',                                         // RULED 338
+  message_one: 'sent you a message',                                 // RULED 338
   message_many: (count) => `sent you ${count} messages`,             // DESIGN
   follow: 'started following you',                                   // DESIGN
-  reaction_response: 'liked your response',                         // DESIGN, then “on {title}”
+  reaction_response: 'liked your response',                         // DESIGN, then “on {title}” (every reaction: RULED 339)
   reaction_on: (title) => `on ${title}`,                             // DESIGN (the second line)
-  reaction_post: 'liked your post',                                  // DRAFT
-  story_reaction: 'liked your story',                                // DRAFT
-  responses: (n) => (n === 1 ? '1 new response' : `${n} new responses`), // DESIGN, bold (“1 new response”: DRAFT)
+  reaction_post: 'liked your post',                                  // RULED 339
+  story_reaction: 'liked your story',                                // RULED 339
+  responses: (n) => (n === 1 ? '1 new response' : `${n} new responses`), // DESIGN, bold (“1 new response”: RULED 338)
   responses_tail: 'on your story',                                   // DESIGN, then {title}
   new_story: (form) => `New ${form} by`,                             // DESIGN + PUSH ({form}), then {writer} bold, {title}
   new_story_unknown: 'New story by',                                 // PUSH (FALLBACK_FORM: the story’s form not yet read)
-  new_instalment: (part) => `${part} by`,                            // PUSH, then {writer} bold, {series}
-  new_instalment_unknown: 'A new instalment by',                     // DRAFT (the part’s title not yet read)
+  new_instalment: 'New instalment by',                               // RULED 341, then {writer} bold, “{series}, {part}”
   from_followed: 'FROM A WRITER YOU FOLLOW',                         // DESIGN, the third line
-  badge: 'You earned a new badge',                                   // DRAFT
+  badge: 'You earned a new badge',                                   // RULED 343 (the note names no badge)
+  badge_named: (badge) => `You earned the ${badge} badge`,           // RULED 343
   tier_up: 'You’re now a',                                           // DESIGN, then {tier} bold
-  tier_up_unnamed: 'You reached a new tier',                         // DRAFT (no tier named)
+  tier_up_unnamed: 'You reached a new tier',                         // RULED 338 (no tier named)
   open_pages_live: 'Your piece is live in',                          // DESIGN, then “Open Pages” bold, {title}
   open_pages_name: 'Open Pages',                                     // DESIGN (bold)
-  open_pages_declined: 'Your Open Pages piece wasn’t published',     // DRAFT
+  open_pages_declined: 'Your piece couldn’t go live in Open Pages',  // RULED 342, then {title}
   square_opens: 'The Square is open.',                               // DESIGN (bold)
   square_opens_tail: 'Tonight’s question is waiting.',               // DESIGN
-  reward: 'You earned Scribbles',                                    // DRAFT (the house’s note, when it carries no words)
-  others: (n) => (n === 1 ? '1 other' : `${n} others`),              // DESIGN (“and {n} others”; “1 other”: DRAFT)
+  reward: 'You earned Scribbles',                                    // RULED 343 (the note carries no amount and no words)
+  reward_amount: (n) => `You earned ${n} Scribbles`,                 // RULED 343
+  others: (n) => (n === 1 ? '1 other' : `${n} others`),              // DESIGN (“and {n} others”); two are both named (RULED 340), “1 other” only when the second is unknown
 });
 
 // ── normalising the four sources into rows ────────────────────────────────────────────────────
@@ -150,13 +154,20 @@ export function fromInbox(id, r) {
       return row({ ...base, badge: 'heart', verb: WORDS.story_reaction, slug: s.slug, href: storyHref(s.slug), needsTitle: s.slug || null });
     case 'response':
       return row({ ...base, badge: 'violet', verb: WORDS.responses_tail, slug: s.slug, href: storyHref(s.slug), needsTitle: s.slug || null });
+    // Ruling 343: say what was earned when the record carries it (subject.badge, subject.amount),
+    // today's words when it doesn't. No writer sets these yet (P7); see notificationKinds.js.
     case 'badge':
-      return row({ ...base, actor: null, actors: [], tile: 'star', verb: WORDS.badge, href: '/profile' });
+      return row({ ...base, actor: null, actors: [], tile: 'star', verb: words(s.badge) ? WORDS.badge_named(words(s.badge)) : WORDS.badge, href: '/profile' });
+    case 'reward':
+      return row({ ...base, actor: null, actors: [], tile: 'star', verb: amountOf(s.amount) ? WORDS.reward_amount(amountOf(s.amount)) : WORDS.reward, href: '/profile' });
     case 'tier_up':
       return row({ ...base, actor: null, actors: [], tile: 'star', verb: WORDS.tier_up, tier: str(s.tier), href: '/profile' });
     case 'open_pages_live':
+      return row({ ...base, actor: null, actors: [], tile: 'feather', verb: WORDS.open_pages_live, needsPiece: str(s.pieceId), href: s.pieceId ? `/open-pages/${encodeURIComponent(s.pieceId)}` : '/open-pages' });
     case 'open_pages_declined':
-      return row({ ...base, actor: null, actors: [], tile: 'feather', verb: WORDS[r.kind], needsPiece: r.kind === 'open_pages_live' ? str(s.pieceId) : null, href: s.pieceId ? `/open-pages/${encodeURIComponent(s.pieceId)}` : '/open-pages' });
+      // Ruling 342: over its title. A declined piece is stored nowhere public (moderate.js), so its
+      // title can only come from the record itself (subject.title); without it, no second line.
+      return row({ ...base, actor: null, actors: [], tile: 'feather', verb: WORDS.open_pages_declined, title: words(s.title), href: '/open-pages' });
     case 'square_opens':
       return row({ ...base, actor: null, actors: [], tile: 'diamond', verb: WORDS.square_opens, href: '/square' });
     default:
@@ -216,7 +227,10 @@ export function fromLegacy(node, id, n) {
       return row({ ...base, kind: 'new_story', badge: 'gold', verb: WORDS.new_story, writer: from, actor: null, actors: [], actorCount: 0, slug, title: str(n.storyTitle), href: storyHref(slug), needsStory: slug });
     }
     case 'reward':
-      // The house's own note: never a stored name. The words are the reader's own milestone.
+      // The house's own note: never a stored name. The words are the reader's own milestone. Ruling
+      // 343: every writer (readCredit.js, the story page, the app) puts what was earned in
+      // `message` (“You earned 5 Scribbles — 10 stories read milestone!”) and no amount field, so
+      // the message stands; a note with no message keeps today's words.
       return row({ ...base, actor: null, actors: [], actorCount: 0, house: true, verb: str(n.message) || WORDS.reward, quote: null, href: '/profile' });
     default:
       if (LEGACY_REACTIONS.has(n.type)) {
@@ -359,9 +373,7 @@ export function storyBits(r, d = {}) {
 export function headline(r, users, d = {}) {
   if (r.kind === 'new_story') {
     const b = storyBits(r, d);
-    const lead = r.instalmentId
-      ? (b.part ? WORDS.new_instalment(b.part) : WORDS.new_instalment_unknown)
-      : (b.form ? WORDS.new_story(b.form) : WORDS.new_story_unknown);
+    const lead = r.instalmentId ? WORDS.new_instalment : (b.form ? WORDS.new_story(b.form) : WORDS.new_story_unknown);
     return [{ text: `${lead} ` }, { name: nameOf(r.writer, users) }];
   }
   if (r.kind === 'response') return [{ name: WORDS.responses(Math.max(1, r.count || 1)) }, { text: ` ${WORDS.responses_tail}` }];
@@ -372,6 +384,10 @@ export function headline(r, users, d = {}) {
   if (r.tile) return [{ text: r.verb }];
   const first = nameOf(r.actor, users);
   const others = Math.max(0, (r.actorCount || 1) - 1);
+  // Ruling 340: exactly two are both named. The second is the record's next most recent actor; a
+  // record that somehow lacks one falls back to the count rather than drawing a name it can't know.
+  const second = r.actors?.[1] && r.actors[1] !== r.actor ? r.actors[1] : null;
+  if (others === 1 && second) return [{ name: first }, { text: ' and ' }, { name: nameOf(second, users) }, { text: ` ${r.verb}` }];
   return others > 0
     ? [{ name: first }, { text: ` and ${WORDS.others(others)} ${r.verb}` }]
     : [{ name: first }, { text: ` ${r.verb}` }];
@@ -382,7 +398,13 @@ export function headline(r, users, d = {}) {
  * inside “ ” (#A39CB2). `d` getters return undefined while a read is in flight, null for none.
  */
 export function secondLine(r, d = {}) {
-  if (r.kind === 'new_story') { const t = storyBits(r, d).title; return t ? { text: t, quoted: false } : null; }
+  if (r.kind === 'new_story') {
+    const b = storyBits(r, d);
+    // Ruling 341: an instalment's second line is “{series}, {part}”, whichever of the two is known.
+    const t = r.instalmentId ? [b.title, b.part].filter(Boolean).join(', ') : b.title;
+    return t ? { text: t, quoted: false } : null;
+  }
+  if (r.kind === 'open_pages_declined') return r.title ? { text: r.title, quoted: false } : null;
   const storyTitle = r.needsTitle ? (d.story?.(r.needsTitle)?.title || null) : null;
   if (r.kind === 'reaction' && r.slug) return storyTitle ? { text: WORDS.reaction_on(storyTitle), quoted: false } : null;
   if (r.kind === 'response' || r.kind === 'story_reaction') return storyTitle ? { text: storyTitle, quoted: false } : null;
