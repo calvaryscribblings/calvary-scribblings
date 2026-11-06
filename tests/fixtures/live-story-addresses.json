@@ -1,0 +1,878 @@
+{
+ "readAt": "2026-11-06",
+ "source": "cms_stories_index (keys, with each record title), one read-only Admin SDK read; every url field was /stories/<key>",
+ "addresses": [
+  {
+   "slug": "1967",
+   "title": "1967"
+  },
+  {
+   "slug": "47-sessions",
+   "title": "47 Sessions"
+  },
+  {
+   "slug": "5-to-9",
+   "title": "5-To-9"
+  },
+  {
+   "slug": "50-lines-of-war",
+   "title": "50 lines of war"
+  },
+  {
+   "slug": "7am-an-american-pulp-classic",
+   "title": "7AM: An American Pulp Classic"
+  },
+  {
+   "slug": "a-broken-heart-playlist",
+   "title": "A Broken-Heart Playlist"
+  },
+  {
+   "slug": "a-daub-of-blue",
+   "title": "A Daub of Blue"
+  },
+  {
+   "slug": "a-day-in-the-life-of-an-agbero",
+   "title": "A Day in the Life of an Agbero"
+  },
+  {
+   "slug": "a-heart-trained-for-battle",
+   "title": "A Heart Trained for Battle"
+  },
+  {
+   "slug": "a-legacy-through-time",
+   "title": "A Legacy Through Time"
+  },
+  {
+   "slug": "a-media-giant-takes-shapes",
+   "title": "A Media Giant Takes Shape"
+  },
+  {
+   "slug": "a-week-made-for-giant-slayers",
+   "title": "A Week Made for Giant Slayers"
+  },
+  {
+   "slug": "adadiorama",
+   "title": "Adadiorama"
+  },
+  {
+   "slug": "after-the-tremor",
+   "title": "After the Tremor"
+  },
+  {
+   "slug": "alive",
+   "title": "Alive"
+  },
+  {
+   "slug": "almost-like-her",
+   "title": "Almost Like Her"
+  },
+  {
+   "slug": "amor-s-cage",
+   "title": "Amoré’s Cage"
+  },
+  {
+   "slug": "amvca-an-opinion-feature",
+   "title": "AMVCA: An Opinion Feature"
+  },
+  {
+   "slug": "anomaly",
+   "title": "Anomaly"
+  },
+  {
+   "slug": "apple-s-foldable-arrives-the-iphone-18-doesn-t",
+   "title": "Apple’s Foldable Arrives. The iPhone 18 Doesn’t."
+  },
+  {
+   "slug": "apple-s-quiet-health-overhaul",
+   "title": "Apple's Quiet Health Overhaul"
+  },
+  {
+   "slug": "arrival-again",
+   "title": "Arrival: Again"
+  },
+  {
+   "slug": "asake-m-ney-album-review",
+   "title": "Asake: M$NEY - Album Review"
+  },
+  {
+   "slug": "at-the-table",
+   "title": "At the Table"
+  },
+  {
+   "slug": "beautifully-blue",
+   "title": "Beautifully Blue"
+  },
+  {
+   "slug": "become-a-content-creator-the-step-by-step-guide",
+   "title": "Become a Content Creator: The Step-by-Step Guide"
+  },
+  {
+   "slug": "beyond-saving",
+   "title": "Beyond Saving"
+  },
+  {
+   "slug": "beyond-the-metered-grid",
+   "title": "Beyond the Metered Grid"
+  },
+  {
+   "slug": "blaqbonez-s-nomadinho-4th-prime",
+   "title": "Blaqbonez’s NOMADINHO: 4TH PRIME"
+  },
+  {
+   "slug": "boomerang",
+   "title": "Boomerang"
+  },
+  {
+   "slug": "borderline",
+   "title": "Borderline"
+  },
+  {
+   "slug": "brenda",
+   "title": "Brenda"
+  },
+  {
+   "slug": "brown-skinned-girl",
+   "title": "Brown-Skinned Girl"
+  },
+  {
+   "slug": "bruno",
+   "title": "Bruno"
+  },
+  {
+   "slug": "call-me-loathsome",
+   "title": "Call Me Loathsome"
+  },
+  {
+   "slug": "can-a-movie-be-over-marketed",
+   "title": "Can A Movie Be Over-marketed?"
+  },
+  {
+   "slug": "can-a-new-harry-potter-ever-feel-like-the-original",
+   "title": "Can a New Harry Potter Ever Feel Like the Original?"
+  },
+  {
+   "slug": "can-marvel-s-new-x-men-escape-the-shadow-of-hugh-jackman-and-the-original-cast",
+   "title": "Can Marvel's New X-Men Escape the Shadow of Hugh Jackman and the Original Cast?"
+  },
+  {
+   "slug": "can-t-challa-s-son-carry-wakanda",
+   "title": "Can T’Challa’s Son Carry Wakanda?"
+  },
+  {
+   "slug": "chaff",
+   "title": "Chaff"
+  },
+  {
+   "slug": "chernobyl",
+   "title": "Chernobyl"
+  },
+  {
+   "slug": "chinedu-philip-onoyima-i-want-you-to-know-that-i-m-coming",
+   "title": "SPOTLIGHT: Chinedu Philip Onoyima — ‘I want you to know that I’m coming’"
+  },
+  {
+   "slug": "cinema-vs-tv-the-difference",
+   "title": "Cinema vs TV: The Difference"
+  },
+  {
+   "slug": "clarity-of-mind-omah-lay-s-introspective-return-album-review",
+   "title": "Clarity of Mind: Omah Lay’s Introspective Return (Album Review)"
+  },
+  {
+   "slug": "completely-alone",
+   "title": "Completely Alone"
+  },
+  {
+   "slug": "creativity-is-an-unfortunate-blessing",
+   "title": "Creativity is an Unfortunate Blessing"
+  },
+  {
+   "slug": "cybercrime-has-a-calendar",
+   "title": "Cybercrime Has a Calendar"
+  },
+  {
+   "slug": "death-by-a-thousand-apps",
+   "title": "Death By A Thousand Apps"
+  },
+  {
+   "slug": "did-you-enjoy-it",
+   "title": "Did You Enjoy It?"
+  },
+  {
+   "slug": "die-empty",
+   "title": "Die Empty"
+  },
+  {
+   "slug": "dinner-at-my-family-table",
+   "title": "Dinner at My Family Table"
+  },
+  {
+   "slug": "dinner-is-served",
+   "title": "Dinner Is Served"
+  },
+  {
+   "slug": "disillusionment",
+   "title": "Disillusionment"
+  },
+  {
+   "slug": "dont-worry",
+   "title": "Don't Worry"
+  },
+  {
+   "slug": "drip-drip-drip",
+   "title": "Drip. Drip. Drip."
+  },
+  {
+   "slug": "each-time-i-disappear",
+   "title": "Each Time I Disappear"
+  },
+  {
+   "slug": "early",
+   "title": "Early"
+  },
+  {
+   "slug": "encore",
+   "title": "Encore"
+  },
+  {
+   "slug": "enough-of-you",
+   "title": "Enough of You"
+  },
+  {
+   "slug": "final-boarding-call",
+   "title": "Final Boarding Call"
+  },
+  {
+   "slug": "football-delivered-a-weekend-of-madness",
+   "title": "Football Delivered a Weekend of Madness"
+  },
+  {
+   "slug": "free-will",
+   "title": "Free Will"
+  },
+  {
+   "slug": "freezer-34",
+   "title": "Freezer 34"
+  },
+  {
+   "slug": "from-scratch",
+   "title": "From Scratch"
+  },
+  {
+   "slug": "full",
+   "title": "Full"
+  },
+  {
+   "slug": "him-vs-her",
+   "title": "Him vs Her"
+  },
+  {
+   "slug": "hold-your-breath-and-count-to-ten",
+   "title": "Hold Your Breath and Count to Ten"
+  },
+  {
+   "slug": "how-are-you-my-friend",
+   "title": "How Are You, My Friend?"
+  },
+  {
+   "slug": "how-to-make-peppersoup",
+   "title": "How to Make Peppersoup"
+  },
+  {
+   "slug": "i-dey-your-back",
+   "title": "I Dey Your Back"
+  },
+  {
+   "slug": "i-told-you",
+   "title": "I Told You"
+  },
+  {
+   "slug": "in-case-of-emergency",
+   "title": "In Case of Emergency"
+  },
+  {
+   "slug": "in-your-20-s",
+   "title": "In Your 20’s"
+  },
+  {
+   "slug": "it-can-never-be-me",
+   "title": "It Can Never Be Me"
+  },
+  {
+   "slug": "kill-the-mockingbird",
+   "title": "Kill the Mockingbird"
+  },
+  {
+   "slug": "knicks-in-5",
+   "title": "Knicks In 5"
+  },
+  {
+   "slug": "ladies-diaries",
+   "title": "Ladies’ Diaries"
+  },
+  {
+   "slug": "lagos-friendship",
+   "title": "Lagos Fiendship"
+  },
+  {
+   "slug": "life-will-be-hard",
+   "title": "Life Will Be Hard"
+  },
+  {
+   "slug": "london-tube-strike",
+   "title": "Another London Underground Strike!"
+  },
+  {
+   "slug": "love-it-enough",
+   "title": "Love It Enough"
+  },
+  {
+   "slug": "lust-is-a-symphony-of-colours",
+   "title": "Lust Is A Symphony of Colours"
+  },
+  {
+   "slug": "maid-of-honour",
+   "title": "Maid of Honour"
+  },
+  {
+   "slug": "manage-it",
+   "title": "Manage It"
+  },
+  {
+   "slug": "mango-season",
+   "title": "Mango Season"
+  },
+  {
+   "slug": "mask-with-no-memory",
+   "title": "Mask with No Memory"
+  },
+  {
+   "slug": "mast-014",
+   "title": "MAST 014"
+  },
+  {
+   "slug": "may-nigeria-never-happen-to-you",
+   "title": "May Nigeria Never Happen To You"
+  },
+  {
+   "slug": "meet-the-top-readers",
+   "title": "Meet the Top Readers"
+  },
+  {
+   "slug": "midday-in-peckham",
+   "title": "Midday in Peckham"
+  },
+  {
+   "slug": "miss-lady",
+   "title": "Miss Lady"
+  },
+  {
+   "slug": "mother-and-other-poems",
+   "title": "Mother and Other Poems"
+  },
+  {
+   "slug": "mr-potential",
+   "title": "Mr Potential"
+  },
+  {
+   "slug": "murdoch-s-torment",
+   "title": "Murdoch's Torment"
+  },
+  {
+   "slug": "my-best-friend-is-an-algorithm",
+   "title": "My Best Friend Is An Algorithm"
+  },
+  {
+   "slug": "my-daddy-is-a-superhero",
+   "title": "My Daddy is a Superhero"
+  },
+  {
+   "slug": "my-dream-man",
+   "title": "My Dream Man"
+  },
+  {
+   "slug": "my-life-at-39",
+   "title": "My Life at 39"
+  },
+  {
+   "slug": "netflix-harry-styles",
+   "title": "Netflix to Stream Harry Styles' New Album"
+  },
+  {
+   "slug": "neverland",
+   "title": "Neverland"
+  },
+  {
+   "slug": "new-alliances-and-old-tactics-inside-nigeria-s-shifting-political-landscape",
+   "title": "New Alliances and Old Tactics: Inside Nigeria’s Shifting Political Landscape"
+  },
+  {
+   "slug": "nollywood-on-youtube-new-era-or-creative-decline",
+   "title": "Nollywood on YouTube: New Era or Creative Decline?"
+  },
+  {
+   "slug": "nostalgia-still-sells",
+   "title": "Nostalgia Still Sells"
+  },
+  {
+   "slug": "notes",
+   "title": "Notes"
+  },
+  {
+   "slug": "notting-hill-carnival-a-new-spin",
+   "title": "Notting Hill Carnival: A New Spin"
+  },
+  {
+   "slug": "odds-and-ends",
+   "title": "Odds and Ends"
+  },
+  {
+   "slug": "odeluwa",
+   "title": "Odeluwa"
+  },
+  {
+   "slug": "one-day-for-the-thief",
+   "title": "One Day for the Thief"
+  },
+  {
+   "slug": "one-photo",
+   "title": "One Photo"
+  },
+  {
+   "slug": "one-scan-can-cost-you-everything",
+   "title": "One Scan Can Cost You Everything"
+  },
+  {
+   "slug": "oriad-good-but-not-great",
+   "title": "Oriadé: Good, But Not Great"
+  },
+  {
+   "slug": "otu-obi",
+   "title": "Otu Obi"
+  },
+  {
+   "slug": "peekaboo",
+   "title": "Peekaboo"
+  },
+  {
+   "slug": "peer-pressure-from-the-dead",
+   "title": "Peer Pressure From the Dead"
+  },
+  {
+   "slug": "peripheral",
+   "title": "Peripheral"
+  },
+  {
+   "slug": "phantom",
+   "title": "Phantom"
+  },
+  {
+   "slug": "pigment",
+   "title": "Pigment"
+  },
+  {
+   "slug": "proof-of-life",
+   "title": "Proof of Life"
+  },
+  {
+   "slug": "public-wi-fi-is-a-trap",
+   "title": "Public Wi-Fi Is a Trap"
+  },
+  {
+   "slug": "puppy-love",
+   "title": "Puppy Love"
+  },
+  {
+   "slug": "purple",
+   "title": "Purple"
+  },
+  {
+   "slug": "purple-rain",
+   "title": "Purple Rain"
+  },
+  {
+   "slug": "racial-representation-in-film",
+   "title": "Racial Representation In Film"
+  },
+  {
+   "slug": "real-heartbreak",
+   "title": "Real Heartbreak"
+  },
+  {
+   "slug": "records-fell-at-the-emmys-one-didn-t",
+   "title": "Records Fell at the Emmys. One Didn’t."
+  },
+  {
+   "slug": "red-nails-theory",
+   "title": "Red Nails Theory"
+  },
+  {
+   "slug": "red-white-red",
+   "title": "Red-White-Red"
+  },
+  {
+   "slug": "release-the-footage-how-the-henry-nowak-case-became-an-international-debate",
+   "title": "'Release the Footage': How the Henry Nowak Case Became an International Debate"
+  },
+  {
+   "slug": "rise-and-shine",
+   "title": "Rise and Shine"
+  },
+  {
+   "slug": "room-14",
+   "title": "Room 14"
+  },
+  {
+   "slug": "safety-net",
+   "title": "Safety Net"
+  },
+  {
+   "slug": "sapiosexual",
+   "title": "Sapiosexual"
+  },
+  {
+   "slug": "scandalous",
+   "title": "Scandalous"
+  },
+  {
+   "slug": "seat-14b",
+   "title": "Seat 14B"
+  },
+  {
+   "slug": "seven-metres-and-four-years-of-silence",
+   "title": "Seven Metres and Four Years of Silence"
+  },
+  {
+   "slug": "sharing-your-hotspot-is-a-trap",
+   "title": "Sharing Your Hotspot Is a Trap"
+  },
+  {
+   "slug": "sim-swapping",
+   "title": "Sim Swapping"
+  },
+  {
+   "slug": "sixth-cycle",
+   "title": "Sixth Cycle"
+  },
+  {
+   "slug": "skin-eater",
+   "title": "Skin Eater"
+  },
+  {
+   "slug": "small-permissions",
+   "title": "Small Permissions"
+  },
+  {
+   "slug": "soft-launch",
+   "title": "Soft Launch"
+  },
+  {
+   "slug": "spotlight-collins-c-oparaocha-underneath-we-are-all-the-same-people",
+   "title": "Spotlight: Collins C. Oparaocha — ‘Underneath we are all the same people’"
+  },
+  {
+   "slug": "spotlight-ikenna-okeh-i-usually-write-about-realities-not-really-talked-about",
+   "title": "SPOTLIGHT: Ikenna Okeh — ‘I usually write about realities not really talked about’"
+  },
+  {
+   "slug": "spotlight-nneka-faith-abanum-four-books-this-november",
+   "title": "Spotlight: Nneka Faith Abanum — Four Books This November"
+  },
+  {
+   "slug": "starmer-steps-down",
+   "title": "Starmer Steps Down"
+  },
+  {
+   "slug": "starrgirl-album-review",
+   "title": "Starrgirl - Album Review"
+  },
+  {
+   "slug": "stars-vs-franchises",
+   "title": "Stars vs Franchises"
+  },
+  {
+   "slug": "still-becoming",
+   "title": "Still Becoming"
+  },
+  {
+   "slug": "stuck-on-rewind",
+   "title": "Stuck On Rewind"
+  },
+  {
+   "slug": "success-wears-many-faces",
+   "title": "Success Wears Many Faces"
+  },
+  {
+   "slug": "suffering-grass",
+   "title": "Suffering Grass"
+  },
+  {
+   "slug": "super-el-ni-o-the-weather-changes-to-watch-around-the-world",
+   "title": "Super El Niño: The Weather Changes to Watch Around the World"
+  },
+  {
+   "slug": "sweet-16",
+   "title": "Sweet 16"
+  },
+  {
+   "slug": "terms-and-conditions",
+   "title": "Terms and Conditions"
+  },
+  {
+   "slug": "the-2026-emmy-nominations",
+   "title": "The 2026 Emmy Nominations"
+  },
+  {
+   "slug": "the-48-team-gamble-paid-off",
+   "title": "The 48-Team Gamble Paid Off"
+  },
+  {
+   "slug": "the-ad-tug-of-war",
+   "title": "The Ad Tug-of-War"
+  },
+  {
+   "slug": "the-age-of-agentic-ai-when-machines-start-hacking-without-permission-or-a-human",
+   "title": "The Age of Agentic AI: when machines start hacking without permission — or a human"
+  },
+  {
+   "slug": "the-apps-know-more-than-your-closest-friend",
+   "title": "The Apps Know More Than Your Closest Friend"
+  },
+  {
+   "slug": "the-bots-are-reading-your-cv-before-any-human-does-here-s-how-to-beat-them",
+   "title": "The Bots Are Reading Your CV Before Any Human Does. Here’s How to Beat Them"
+  },
+  {
+   "slug": "the-butcher-of-galilee",
+   "title": "The Butcher of Galilee"
+  },
+  {
+   "slug": "the-call",
+   "title": "The Call"
+  },
+  {
+   "slug": "the-copyright-war-nobody-s-winning-who-owns-what-ai-creates",
+   "title": "The Copyright War Nobody’s Winning: Who Owns What AI Creates?"
+  },
+  {
+   "slug": "the-deadline",
+   "title": "The Deadline"
+  },
+  {
+   "slug": "the-enabler",
+   "title": "The Enabler"
+  },
+  {
+   "slug": "the-falling-out-behind-children-of-blood-and-bone",
+   "title": "The Falling Out Behind ‘Children of Blood and Bone’"
+  },
+  {
+   "slug": "the-frictionless-trap",
+   "title": "The Frictionless Trap"
+  },
+  {
+   "slug": "the-ghost-at-the-dinning-table",
+   "title": "The Ghost At the Dinning Table"
+  },
+  {
+   "slug": "the-girl-who-sang-through-the-dark",
+   "title": "The Girl Who Sang Through the Dark"
+  },
+  {
+   "slug": "the-iron-and-the-wood",
+   "title": "The Iron and the Wood"
+  },
+  {
+   "slug": "the-last-shared-second",
+   "title": "The Last Shared Second"
+  },
+  {
+   "slug": "the-man-i-met-at-nineteen",
+   "title": "The Man I Met At Nineteen"
+  },
+  {
+   "slug": "the-monday-i-grew-up",
+   "title": "The Monday I Grew Up"
+  },
+  {
+   "slug": "the-most-dangerous-job-in-nigeria",
+   "title": "The Most Dangerous Job in Nigeria"
+  },
+  {
+   "slug": "the-number-thirteen",
+   "title": "The Number Thirteen"
+  },
+  {
+   "slug": "the-odyssey",
+   "title": "The Odyssey"
+  },
+  {
+   "slug": "the-other-woman",
+   "title": "The Other Woman"
+  },
+  {
+   "slug": "the-outrage-is-never-equal",
+   "title": "The Outrage is Never Equal"
+  },
+  {
+   "slug": "the-pig-butchering-scam",
+   "title": "The Pig Butchering Scam"
+  },
+  {
+   "slug": "the-pill",
+   "title": "The Pill"
+  },
+  {
+   "slug": "the-real-reason-your-internet-slows-down-at-9-p-m",
+   "title": "The Real Reason Your Internet Slows Down at 9 p.m."
+  },
+  {
+   "slug": "the-resistance-of-the-worn-strap",
+   "title": "The Resistance of the Worn Strap"
+  },
+  {
+   "slug": "the-songbird-s-birdsong",
+   "title": "The Songbird’s Birdsong"
+  },
+  {
+   "slug": "therapist-s-note-on-love",
+   "title": "Therapist’s Note on Love"
+  },
+  {
+   "slug": "there-s-always-light",
+   "title": "There’s Always Light"
+  },
+  {
+   "slug": "thief-ole-carry-am-go",
+   "title": "Thief! Ole! Carry Am Go!"
+  },
+  {
+   "slug": "things-i-m-owed",
+   "title": "Things I'm Owed"
+  },
+  {
+   "slug": "this-is-nigeria",
+   "title": "This is Nigeria"
+  },
+  {
+   "slug": "threshold",
+   "title": "Threshold"
+  },
+  {
+   "slug": "till-debt-do-us-part",
+   "title": "Till Debt Do Us Part"
+  },
+  {
+   "slug": "tilting-scales",
+   "title": "Tilting Scales"
+  },
+  {
+   "slug": "trash",
+   "title": "Trash"
+  },
+  {
+   "slug": "trouble-shooting",
+   "title": "Trouble Shooting"
+  },
+  {
+   "slug": "unstoppabbl",
+   "title": "unstoppaBBL"
+  },
+  {
+   "slug": "village-people",
+   "title": "Village People"
+  },
+  {
+   "slug": "what-are-cookies-and-should-you-accept-them",
+   "title": "What Are Cookies and Should You Accept Them?"
+  },
+  {
+   "slug": "what-makes-horror-so-addictive",
+   "title": "What Makes Horror So Addictive?"
+  },
+  {
+   "slug": "what-the-light-remembers",
+   "title": "What the Light Remembers"
+  },
+  {
+   "slug": "whatsapp-hides-your-number",
+   "title": "WhatsApp Hides Your Number"
+  },
+  {
+   "slug": "when-ai-detection-puts-a-literary-prize-under-suspicion",
+   "title": "When AI Detection Puts a Literary Prize Under Suspicion"
+  },
+  {
+   "slug": "when-the-basket-bleeds",
+   "title": "When the Basket Bleeds"
+  },
+  {
+   "slug": "when-the-technology-becomes-the-scene-the-case-of-ai",
+   "title": "When the Technology Becomes the Scene: the Case of AI"
+  },
+  {
+   "slug": "where-we-begin-the-story",
+   "title": "Where We Begin the Story"
+  },
+  {
+   "slug": "white-noise",
+   "title": "White Noise"
+  },
+  {
+   "slug": "why-ai-will-take-your-job-and-here-s-what-you-can-do-about-it",
+   "title": "Why AI Will Take Your Job and Here’s What You Can Do About It"
+  },
+  {
+   "slug": "why-do-filmmakers-keep-working-with-the-same-actors",
+   "title": "Why Do Filmmakers Keep Working With the Same Actors?"
+  },
+  {
+   "slug": "widow-s-fire",
+   "title": "Widow’s Fire"
+  },
+  {
+   "slug": "witness-me",
+   "title": "Witness Me"
+  },
+  {
+   "slug": "you",
+   "title": "You"
+  },
+  {
+   "slug": "you-clicked-remember-password-now-what",
+   "title": "You Clicked “Remember Password.” Now What?"
+  },
+  {
+   "slug": "you-didnt-ask",
+   "title": "You Didn't Ask"
+  },
+  {
+   "slug": "you-ve-been-using-ai-wrong",
+   "title": "You’ve Been Using AI Wrong"
+  },
+  {
+   "slug": "you-will-love-it",
+   "title": "You Will Love It"
+  },
+  {
+   "slug": "your-camera-is-on",
+   "title": "Your Camera Is On"
+  },
+  {
+   "slug": "your-device-has-an-addrrss",
+   "title": "Your Device Has an Address"
+  },
+  {
+   "slug": "your-money-cannot-save-you",
+   "title": "Your Money Cannot Save You"
+  },
+  {
+   "slug": "zee-a-love-letters-story",
+   "title": "Zee (a Love Letters story)"
+  },
+  {
+   "slug": "zikoko-short-films-why-these-30-minute-stories-keep-you-watching",
+   "title": "Zikoko Short Films: Why These 30-Minute Stories Keep You Watching"
+  }
+ ]
+}
