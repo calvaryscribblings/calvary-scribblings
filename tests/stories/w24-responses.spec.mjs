@@ -84,3 +84,16 @@ test('the prompt closes back to the story', async ({ page }) => {
   await expect(prompt(page)).toHaveCount(0);
   await expect(first).toBeVisible();
 });
+
+// STORY-W1 / ruling 328 — muting or blocking hides a reader's responses for the reader who did it
+// (app/lib/storyResponses.js, unit-tested in tests/ci/story-w1-block.test.mjs). Signed out there is
+// nobody to hide from, so the page must draw no stand-in and count every response that is not a
+// tombstone, as before. The signed-in half needs a mute list on a live account, which this suite
+// may not write; the filter itself is proven without a browser.
+test('signed out, nothing is hidden: no stand-in, and the count is every live response', async ({ page }) => {
+  await openResponses(page);
+  const all = await (await fetch(`${DB}/comments/${encodeURIComponent(SLUG)}.json`)).json();
+  const live = Object.values(all || {}).filter((c) => c && c.deleted !== true).length;
+  await expect(page.locator('.cs-count')).toHaveText(`${live} ${live === 1 ? 'response' : 'responses'}`);
+  await expect(page.locator('[data-hidden-by-you]')).toHaveCount(0);
+});

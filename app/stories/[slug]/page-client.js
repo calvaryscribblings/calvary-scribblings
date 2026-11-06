@@ -39,6 +39,8 @@ import StoryGate from '../../components/StoryGate';
 import StoryBar from '../../components/StoryBar';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, COMMENT_REACTIONS } from '../../components/conversation/ConversationKit';
 import { DELETED_RESPONSE, isTombstone } from '../../lib/deletedContent';
+import useShownResponses from '../../lib/useShownResponses';
+import { HIDDEN_RESPONSE } from '../../lib/storyResponses';
 
 
 
@@ -351,6 +353,21 @@ const CommentNode = React.memo(function CommentNode({
         ))}
       </div>
   );
+
+  // STORY-W1 / ruling 328 — a reply by a reader you've muted or blocked, still drawn only because a
+  // reply you can see hangs beneath it (app/lib/storyResponses.js). No name, words or reactions.
+  if (comment.hiddenByYou) {
+    return (
+      <div style={{ marginLeft: indentPx }} data-hidden-by-you="">
+        <div className={depth === 1 ? "cs-comment" : "cs-reply"}>
+          <div className="cs-comment-body">
+            <div className={depth === 1 ? "cs-comment-text" : "cs-comment-text cs-comment-text-sm"} style={{ fontStyle: 'italic', opacity: 0.55 }}>{HIDDEN_RESPONSE}</div>
+          </div>
+        </div>
+        {replies}
+      </div>
+    );
+  }
 
   // W17 / ruling 30 — a deleted reader's comment that still has someone else's reply beneath it.
   // No name, no avatar, no reactions, no Reply: the ruled words, and the thread beneath.
@@ -709,9 +726,10 @@ function CommentsSection({ slug, onSignIn, onCount, openRef }) {
 
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
   // No deleted-author filter: deletion is immediate and removes the comments themselves.
-  const visibleComments = comments;
+  // STORY-W1 / ruling 328 — less what this reader has muted or blocked (app/lib/storyResponses.js).
+  const { shown: visibleComments, count: shownCount } = useShownResponses(comments, user?.uid);
   const topLevel = visibleComments.filter(c => !c.parentId);
-  const liveResponses = comments.filter(c => !isTombstone(c)).length;
+  const liveResponses = shownCount;
   useEffect(() => { if (!loading) onCountRef.current?.(liveResponses); }, [loading, liveResponses]);
   // Go to the responses; with `compose`, open the box — the textarea for a signed-in reader,
   // the sign-in modal for a signed-out one (the box they would see is "Sign in to add a response").

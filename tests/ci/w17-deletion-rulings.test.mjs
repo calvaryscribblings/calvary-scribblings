@@ -44,7 +44,11 @@ describe('ruling 30 · every thread surface draws the tombstone', () => {
       assert.match(branch, /\{DELETED_RESPONSE\}/, p);
       assert.match(branch, /\{replies\}/, p);
       assert.doesNotMatch(branch, /Avatar|ReactionRow|cs-reply-btn|CommentName/, p);
-      assert.match(s, /const liveResponses = comments\.filter\(c => !isTombstone\(c\)\)\.length;/, p);
+      // STORY-W1 (ruling 328): the count now comes from shownResponses(), which with nobody muted
+      // or blocked is exactly comments.filter(c => !isTombstone(c)).length
+      // (tests/ci/story-w1-block.test.mjs proves it).
+      assert.match(s, /const \{ shown: visibleComments, count: shownCount \} = useShownResponses\(comments, user\?\.uid\);/, p);
+      assert.match(s, /const liveResponses = shownCount;/, p);
     }
   });
   test('Open Pages: tombstones survive the parse while a reply hangs beneath, and draw no author', () => {
