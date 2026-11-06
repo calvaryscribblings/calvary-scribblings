@@ -178,11 +178,16 @@ async function render(page, html, { dropcap = true } = {}) {
     // What Chromium actually drew: the height of the first character's box. ~20px is body
     // text at this size; the 4.2em cap measures ~86px. Anything oversized ANYWHERE in the
     // body is a rendered drop cap, whoever asked for it.
+    // STORY-W1: the first non-blank CHARACTER in document order, wherever it sits. Since
+    // ruling 289 the cap is a span around the first letter, so p.firstChild is an element.
     const firstCharHeight = (p) => {
-      const node = p.firstChild;
-      if (!node || node.nodeType !== Node.TEXT_NODE || !node.length) return 0;
+      const w = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = w.nextNode()) && !/\S/.test(node.nodeValue));
+      if (!node) return 0;
+      const i = node.nodeValue.search(/\S/);
       const r = document.createRange();
-      r.setStart(node, 0); r.setEnd(node, 1);
+      r.setStart(node, i); r.setEnd(node, i + 1);
       return Math.round(r.getBoundingClientRect().height);
     };
     const oversized = paras.filter((p) => firstCharHeight(p) > 40).map((p) => p.textContent.trim().slice(0, 30));
@@ -267,5 +272,103 @@ test.describe('structural guarantees', () => {
     const sels = await page.evaluate(() => window.DROPCAP_EXCLUDED_SELECTORS);
     expect(sels).toContain('.intro-note');
     expect(sels).toContain('blockquote');
+  });
+});
+
+
+// ── STORY-W1, RULING 289: THE LETTER ALONE, SITTING ON THE BASELINE ─────────────────────
+// The cap is the first letter and nothing else, it is not floated, and its baseline is the
+// first line's baseline. Baselines are read from zero-size inline-block probes, which the
+// browser places ON the baseline of the run they sit in: one inside the glyph's span, one in
+// the text that follows it on the same line.
+async function glyphFacts(page, html, { poetry = false } = {}) {
+  await page.setContent('<!doctype html><meta charset="utf-8"><div id="root"></div>');
+  await page.addScriptTag({ content: PROSECSS_JS });
+  await page.addScriptTag({ content: DROPCAP_JS });
+  return page.evaluate(({ html, poetry }) => {
+    const root = document.getElementById('root');
+    root.innerHTML = `<style>${window.proseCSS('#6b46c1')}</style>`
+      + `<article id="art" style="max-width:680px"><div class="prose${poetry ? '' : ' has-dropcap'}">${html}</div></article>`;
+    const art = document.getElementById('art');
+    window.tagDropcap(art);
+    window.tagDropcap(art); // a second pass must change nothing
+    const spans = Array.from(art.querySelectorAll('span.dropcap-glyph'));
+    if (!spans.length) return { count: 0 };
+    const span = spans[0];
+    const probe = () => { const b = document.createElement('span'); b.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline'; return b; };
+    const a = probe(); span.appendChild(a);
+    // the next text node after the span, split after its first character, with a probe there
+    const w = document.createTreeWalker(span.parentNode.closest('p'), NodeFilter.SHOW_TEXT);
+    let n; while ((n = w.nextNode()) && (span.contains(n) || !/\S/.test(n.nodeValue)));
+    const b = probe(); const rest = n.splitText(1); rest.parentNode.insertBefore(b, rest);
+    const capBaseline = a.getBoundingClientRect().top, lineBaseline = b.getBoundingClientRect().top;
+    a.remove(); b.remove(); rest.parentNode.normalize();
+    return {
+      count: spans.length,
+      text: span.textContent,
+      float: getComputedStyle(span).float,
+      capPx: parseFloat(getComputedStyle(span).fontSize),
+      bodyPx: parseFloat(getComputedStyle(span.parentNode).fontSize),
+      baselineDelta: Math.abs(capBaseline - lineBaseline),
+      paraText: span.closest('p').textContent,
+    };
+  }, { html, poetry });
+}
+
+test.describe('ruling 289 — the letter alone, on the baseline', () => {
+  for (const width of [360, 390, 820, 1180, 1440]) {
+    test(`@${width}: one letter, not floated, its baseline is the first line's`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const f = await glyphFacts(page, '<p>Nnamdi stole a glance at the clock, and then at the door, and then at nobody at all, because there was nobody there to look at.</p><p>Second.</p>');
+      expect(f.count).toBe(1);
+      expect(f.text).toBe('N');
+      expect(f.paraText.startsWith('Nnamdi stole')).toBe(true); // nothing lost or duplicated
+      expect(f.float).toBe('none');
+      expect(f.capPx / f.bodyPx).toBeCloseTo(4.2, 1);
+      expect(f.baselineDelta, 'cap baseline vs first-line baseline, px').toBeLessThanOrEqual(1);
+    });
+  }
+
+  test('the letter only: punctuation touching it stays in the run', async ({ page }) => {
+    const f = await glyphFacts(page, '<p>I, too, was there that night, though nobody remembers it now and I would rather they did not.</p>');
+    expect(f.text).toBe('I');
+    expect(f.paraText.startsWith('I, too')).toBe(true);
+  });
+
+  test('a letter inside markup is found, and the markup is kept', async ({ page }) => {
+    const f = await glyphFacts(page, '<p><em>Once</em> there was a house at the end of the road that nobody had lived in for years.</p>');
+    expect(f.text).toBe('O');
+    expect(f.paraText.startsWith('Once there')).toBe(true);
+  });
+
+  test('poetry stays without a drop cap', async ({ page }) => {
+    const f = await glyphFacts(page, '<p>The body forgets what it once could hold.</p>', { poetry: true });
+    expect(f.count).toBe(0);
+  });
+
+  test('a story opening on a quote mark stays without one', async ({ page }) => {
+    const f = await glyphFacts(page, '<p>‘You can have it,’ she said, and pushed the plate across the table towards him without looking up.</p>');
+    expect(f.count).toBe(0);
+  });
+
+  test('attachDropcap settles: its own wrap does not keep the observer busy', async ({ page }) => {
+    await page.setContent('<!doctype html><meta charset="utf-8"><div id="root"></div>');
+    await page.addScriptTag({ content: PROSECSS_JS });
+    await page.addScriptTag({ content: DROPCAP_JS.replace("window.tagDropcap = tagDropcap;", "window.tagDropcap = tagDropcap; window.attachDropcap = attachDropcap;") });
+    const r = await page.evaluate(async () => {
+      document.getElementById('root').innerHTML = '<article id="art"><div class="prose has-dropcap" id="b"></div></article>';
+      const art = document.getElementById('art');
+      let mutations = 0;
+      new MutationObserver((l) => { mutations += l.length; }).observe(art, { childList: true, subtree: true });
+      const stop = window.attachDropcap(art);
+      document.getElementById('b').innerHTML = '<p>Nnamdi stole a glance at the clock.</p>'; // React replaces the body
+      await new Promise((r) => setTimeout(r, 200));
+      const settled = mutations; await new Promise((r) => setTimeout(r, 300));
+      const out = { spans: art.querySelectorAll('span.dropcap-glyph').length, text: art.querySelector('p').textContent, stillMutating: mutations !== settled };
+      stop(); return out;
+    });
+    expect(r.spans).toBe(1);
+    expect(r.text).toBe('Nnamdi stole a glance at the clock.');
+    expect(r.stillMutating).toBe(false);
   });
 });

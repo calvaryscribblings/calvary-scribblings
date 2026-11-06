@@ -611,6 +611,8 @@ export default function SearchPage() {
         .ix-cover { width: 46px; min-width: 46px; height: 62px; object-fit: cover;
                     background: ${RULE_07}; flex: 0 0 auto; display: block; }
         .ix-res-b { min-width: 0; flex: 1 1 auto; }
+        .ix-res { position: relative; }
+        .ix-res-quiz .ix-res-b { padding-right: 5.25rem; }
         .ix-res-t { font-size: 1.12rem; font-weight: 500; color: ${CREAM}; line-height: 1.3; }
         /* ⭑ THE REAL OPENING LINE, in a fixed two-line box. When prose search lands, a
            matched SENTENCE takes this line's place — same field, same budget, same box — so
@@ -759,15 +761,15 @@ export default function SearchPage() {
                 <>
                   <Kicker count={storyHits.length}>Stories</Kicker>
                   {capGroup(storyHits).shown.map((s) => (
-                    <a key={s.id} className="ix-res ix-press ix-anim" href={s.url || `/stories/${s.id}`}>
-                      <Cover src={s.coverSizes?.w360 || s.cover}>
-                        <QuizPill
-                          hasQuiz={advertisesQuiz(s)}
-                          userTier={userTiers[s.id]?.tier ?? null}
-                          scribblesReward={(s.quiz || s.quizMeta)?.scribblesReward || 50}
-                          scorePct={userTiers[s.id]?.scorePct}
-                        />
-                      </Cover>
+                    <a key={s.id} className={`ix-res ix-press ix-anim${advertisesQuiz(s) ? ' ix-res-quiz' : ''}`} href={s.url || `/stories/${s.id}`}>
+                      <Cover src={s.coverSizes?.w360 || s.cover} />
+                      {/* STORY-W1, ruling 324: the pill sits on the row, never on the cover. */}
+                      <QuizPill
+                        hasQuiz={advertisesQuiz(s)}
+                        userTier={userTiers[s.id]?.tier ?? null}
+                        scribblesReward={(s.quiz || s.quizMeta)?.scribblesReward || 50}
+                        scorePct={userTiers[s.id]?.scorePct}
+                      />
                       <span className="ix-res-b">
                         <span className="ix-res-t"><Marked text={s.title} query={query} /></span>
                         {s.opening && (

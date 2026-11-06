@@ -57,41 +57,59 @@ test.describe('at 402x874, where the tab bar is drawn', () => {
 test.use({ viewport: { width: 402, height: 874 } });
 test('the Book Store door walks through with the flag "/bookstore", and the storefront holds the veil until it is drawn', async ({ page }) => {
   await mute(page);
-  await page.goto('/');
-  const lib = page.locator('a.cs-gw-door[href="/public-library"]');
-  const door = page.locator('a.cs-gw-door[href="/bookstore"]');
-  await expect(door).toBeVisible();
-  await spyFlag(page);
-  await page.evaluate(() => {
-    window.__arr = [];
-    const f = () => {
-      const v = document.querySelector('.cs-arrive-veil');
-      const tb = document.querySelector('.cs-tabbar');
-      window.__arr.push({ path: location.pathname, veil: !!v, lifting: !!(v && v.classList.contains('is-lifting')), skeleton: !!document.querySelector('.skeleton'), nav: !!document.querySelector('.cs-nav'), gw: !!document.querySelector('.cs-gw-veil'), tabBottom: tb ? Math.round(tb.getBoundingClientRect().bottom) : null, h: window.innerHeight });
+  // STORY-W1 — WAIT ON WHAT LIFTS THE VEIL. The veil has two lifts (app/components/ArrivalVeil.js):
+  // 'ready', when the shop signals its first real state (the skeleton goes in that same render),
+  // and 'cap', when ARRIVE_MAX_WAIT (1400ms) runs out first so a slow connection can't trap
+  // anyone. The shop's reads come from the LIVE database over its WebSocket, which page.route
+  // cannot stub, so on a slow CI runner the cap sometimes wins and the veil lifts onto the
+  // skeleton — by design. The assertion this test exists for is about the READY lift, so it
+  // reads the veil's data-lift on the first lifting frame: a ready lift must find no skeleton
+  // (exactly as strict as before); a cap lift means the network was slow, and the walk is made
+  // again, up to three times. No ready lift in three walks fails the test.
+  let onStore, firstLift, lib, door, reasons = [];
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await page.goto('/');
+    lib = page.locator('a.cs-gw-door[href="/public-library"]');
+    door = page.locator('a.cs-gw-door[href="/bookstore"]');
+    await expect(door).toBeVisible();
+    await spyFlag(page);
+    await page.evaluate(() => {
+      window.__arr = [];
+      const f = () => {
+        const v = document.querySelector('.cs-arrive-veil');
+        const tb = document.querySelector('.cs-tabbar');
+        window.__arr.push({ path: location.pathname, veil: !!v, lifting: !!(v && v.classList.contains('is-lifting')), lift: v ? v.getAttribute('data-lift') : null, skeleton: !!document.querySelector('.skeleton'), nav: !!document.querySelector('.cs-nav'), gw: !!document.querySelector('.cs-gw-veil'), tabBottom: tb ? Math.round(tb.getBoundingClientRect().bottom) : null, h: window.innerHeight });
+        requestAnimationFrame(f);
+      };
       requestAnimationFrame(f);
-    };
-    requestAnimationFrame(f);
-  });
-  await door.click();
-  // The chosen door swells; the other falls away with the room; the veil closes.
-  await expect(door).toHaveClass(/is-entering/);
-  await expect(lib).toHaveClass(/cs-gw-fade/);
-  await expect(page.locator('.cs-gw-veil .cs-gw-hairline')).toBeAttached();
-  await expect(page.locator('#cs-gw-store')).toHaveCount(0);
-  await page.waitForURL('**/bookstore', { timeout: 15000 });
-  const writes = await page.evaluate(() => window.__flagWrites);
-  expect(writes, 'the Book Store door must hand the storefront its arrival').toEqual(['/bookstore']);
-  // The storefront's own veil takes over and then lifts.
-  await expect(page.locator('[data-arrival]')).toBeAttached();
-  await expect(page.locator('.cs-arrive-veil')).toHaveCount(0, { timeout: 8000 });
-  const log = await page.evaluate(() => window.__arr);
-  const onStore = log.filter((e) => e.path === '/bookstore');
-  expect(onStore.length).toBeGreaterThan(0);
-  // Every frame on /bookstore until the lift begins is veiled — no frame of the shop in pieces.
-  const firstLift = onStore.findIndex((e) => e.lifting);
-  expect(firstLift, 'the veil never lifted').toBeGreaterThanOrEqual(0);
-  const before = onStore.slice(0, firstLift);
-  expect(before.every((e) => e.veil), `an unveiled frame on /bookstore before the lift: ${JSON.stringify(before.find((e) => !e.veil))}`).toBe(true);
+    });
+    await door.click();
+    // The chosen door swells; the other falls away with the room; the veil closes.
+    await expect(door).toHaveClass(/is-entering/);
+    await expect(lib).toHaveClass(/cs-gw-fade/);
+    await expect(page.locator('.cs-gw-veil .cs-gw-hairline')).toBeAttached();
+    await expect(page.locator('#cs-gw-store')).toHaveCount(0);
+    await page.waitForURL('**/bookstore', { timeout: 15000 });
+    const writes = await page.evaluate(() => window.__flagWrites);
+    expect(writes, 'the Book Store door must hand the storefront its arrival').toEqual(['/bookstore']);
+    // The storefront's own veil takes over and then lifts.
+    await expect(page.locator('[data-arrival]')).toBeAttached();
+    await expect(page.locator('.cs-arrive-veil')).toHaveCount(0, { timeout: 8000 });
+    const log = await page.evaluate(() => window.__arr);
+    onStore = log.filter((e) => e.path === '/bookstore');
+    expect(onStore.length).toBeGreaterThan(0);
+    // Every frame on /bookstore until the lift begins is veiled — no frame of the shop in pieces.
+    firstLift = onStore.findIndex((e) => e.lifting);
+    expect(firstLift, 'the veil never lifted').toBeGreaterThanOrEqual(0);
+    const before = onStore.slice(0, firstLift);
+    expect(before.every((e) => e.veil), `an unveiled frame on /bookstore before the lift: ${JSON.stringify(before.find((e) => !e.veil))}`).toBe(true);
+    const reason = onStore[firstLift].lift;
+    expect(['ready', 'cap'], `the veil lifted without saying why: ${JSON.stringify(onStore[firstLift])}`).toContain(reason);
+    reasons.push(reason);
+    if (reason === 'ready') break;
+    console.log(`walk ${attempt}: the cap lifted the veil (the live reads took longer than ARRIVE_MAX_WAIT); walking in again`);
+  }
+  expect(reasons.at(-1), `the shop never signalled ready in ${reasons.length} walks (${reasons.join(', ')})`).toBe('ready');
   // It lifted onto the shop's first real state: no skeleton left standing when the fade began.
   expect(onStore[firstLift].skeleton, 'the veil lifted onto the skeleton shelf').toBe(false);
   // The fixed chrome stays on the glass through the lift: a transform on an ancestor of the tab

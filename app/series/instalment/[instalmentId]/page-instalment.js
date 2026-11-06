@@ -249,7 +249,10 @@ function Hero({ coverUrl, eyebrow, title, logline }) {
           background: `linear-gradient(180deg, rgba(8,6,16,0.10) 0%, rgba(8,6,16,0.40) 42%, rgba(8,6,16,0.88) 74%, ${PAGE} 100%)`,
         }}
       />
-      <div style={{ position: 'relative', padding: '0 6% 0.25rem' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: '0 6% 0.25rem' }}>
+        {/* STORY-W1, ruling 324: the eyebrow, title and logline stand on solid ground, fading in
+            over the 56px above them, so nothing of the poster's own lettering sits behind them. */}
+        <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: -56, bottom: 0, zIndex: -1, background: `linear-gradient(to bottom, rgba(8,6,16,0) 0, ${PAGE} 56px)` }} />
         {/* THE ONE PLACE CAPS ARE USED ON THIS PAGE. */}
         <span style={{
           display: 'block', fontFamily: LABEL, fontSize: 9.5, letterSpacing: '0.3em',

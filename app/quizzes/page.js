@@ -121,8 +121,9 @@ export default function QuizzesPage() {
                 return (
                   <a key={s.slug} href={`/stories/${s.slug}`}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: '1rem',
-                      textDecoration: 'none', padding: '0.75rem',
+                      display: 'flex', alignItems: 'center', gap: '1rem', position: 'relative',
+                      // STORY-W1, ruling 324: the pill sits on the row, never on the cover.
+                      textDecoration: 'none', padding: '0.75rem', paddingRight: '5.5rem',
                       borderRadius: 10, background: 'rgba(255,255,255,0.03)',
                       border: '1px solid rgba(255,255,255,0.07)',
                       transition: 'background 0.2s, border-color 0.2s',
@@ -133,9 +134,9 @@ export default function QuizzesPage() {
                     <div style={{ position: 'relative', flexShrink: 0 }}>
                       <img src={s.cover} alt={s.title}
                         style={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 6, display: 'block' }} />
-                      <QuizPill hasQuiz={true} userTier={userTier} scorePct={scorePct}
-                        scribblesReward={reward} locked={locked} />
                     </div>
+                    <QuizPill hasQuiz={true} userTier={userTier} scorePct={scorePct}
+                      scribblesReward={reward} locked={locked} />
 
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff',
