@@ -2,8 +2,10 @@
 
 What the backup recovers, what it does not, and exactly what to do when it matters.
 
-Read this **before** you need it. The one thing that cannot be recovered later is the piece
-that has to be recorded now — see [What only Ikenna can do](#what-only-ikenna-can-do).
+Read this **before** you need it. There are two places to restore from: the site's own daily
+database archive (the everyday case, below), and **the vault**, a separate project the site's key
+can't reach, for the day that archive is gone, wrong or untrusted. See [From the vault](#from-the-vault)
+and `docs/VAULT.md`.
 
 ---
 
@@ -99,25 +101,22 @@ by hand.
 
 ## Taking a backup
 
-```bash
-node scripts/backup/export.mjs                  # → backups/<utc-timestamp>/
-firebase emulators:exec --only database --project demo-calvary-restore \
-  "node scripts/backup/rehearse.mjs backups/<utc-timestamp>"
-```
+**Nothing to run.** Since SAFETY-2B every copy is taken by something scheduled, and none of them
+lands on this machine:
 
-The second command is not optional. A backup nobody has restored is a hope. The rehearsal
-restores the tree into a scratch node **in the database emulator**, reads it back, compares it,
-deletes it, and checks the three things that break on restored data even when every byte is
-perfect. Add `--offline` for an integrity-only pass with no emulator.
+- **The database and its rules**: Firebase's daily archive (above), and the vault's copy of it.
+- **Everything else**: the vault's puller, daily (`docs/VAULT.md` §3): every file in the file bucket
+  by generation with a daily manifest, the private copies bucket weekly, every account with the
+  password hash parameters (encrypted with age to a key only Ikenna holds), each Worker's code,
+  and the live Storage rules.
 
-(Until SAFETY-1 the round trip wrote the whole tree, every reader record included, under
-`_restore_rehearsal/<stamp>` in the **live** database. A failed delete there would have left a
-full copy of the database in production. Run without the emulator, it now skips the round trip
-and says so.)
+**`scripts/backup/export.mjs` is retired** (ruling 275, `scripts/RETIRED-SCRIPTS.md`). It never
+ran, and it would have written every reader's email and password hash into the Codespace. A
+backup nobody has restored is still a hope: the rehearsals are `npm run backup:restore-drill`
+(the database, in the emulator) and the accounts test ([below](#the-accounts-test-the-drill-project)).
+`scripts/backup/rehearse.mjs` read `export.mjs`'s output, so it has nothing to read now.
 
-**Keep the backups off this machine.** A backup that lives only in the Codespace dies with
-the Codespace. `backups/` is gitignored — it holds every reader's email address and password
-hash, and it must never enter git.
+`backups/` stays gitignored: anything in it would hold readers' emails and password hashes.
 
 ---
 
@@ -142,27 +141,26 @@ like the daily archives.
 
 ## What is in it
 
-> Note: this section describes `export.mjs`, the PORTABLE off-Google copy. The automated
-> Firebase backup above covers the database and rules only — `export.mjs` exists for the two
-> things it does **not** cover, **auth accounts** and **the EPUBs**.
-
-| Part | Size today | Recovers |
+| What | Where | Recovers |
 |---|---|---|
-| `rtdb.json.gz` | 13.3 MB → 4.0 MB | Every reader record, purchase, comment, point, quiz submission, the whole catalogue |
-| `auth-users.json` | 339 accounts | Identities, emails, provider links, password hashes and salts |
-| `epubs/` | 13 files, 7.2 MB | The master EPUBs — the sellable inventory — each verified against Cloud Storage's own MD5 |
-| `MANIFEST.json` | — | Checksums, counts, and each EPUB's Cloud Storage **generation** |
+| Firebase's daily archive (`…_data.json.gz`, `…_rules.json.gz`) | the database-backup bucket, 30 days; and the vault's `database/` | every record in the database, and its rules |
+| `files/<generation>/<path>` + `files-manifest/<date>.json` | the vault | every object in the file bucket (covers, EPUBs, Series art, avatars, Open Pages images, the unused files), and which generation was live on which day |
+| `manual/…` | the vault, weekly | the private copies bucket (GATE-01, the W27 removed works, the EPUB replacements) |
+| `accounts/<stamp>.json.age` | the vault, daily | every account (uid, email, providers, password hash and salt) **and the password hash parameters**, in one file only Ikenna's key opens |
+| `workers/<name>/<sha256>.js` | the vault, when changed | each Cloudflare Worker's code |
+| `rules/<date>/…` | the vault | the live Storage rules |
+
+**How many accounts, and how many with a password?** Don't trust a number written here (this file
+said 339 and 159; by 31 Oct they were 364 and 166). Count where they are: the puller's log for each
+run prints `accounts`, `passwordAccounts` and `withPasswordHash` (Cloud Run → the job → **Logs**),
+and Firebase console → Authentication → Users shows the total.
 
 ## What is **not** in it
 
-- **Password hash parameters.** See below. Without them the 159 password accounts cannot be
-  re-imported and every one of those readers must reset.
-- **The other ~774 MB of Storage** — covers, avatars, open-pages images. Covers regenerate
-  from `scripts/covers/`; nothing else here is irreplaceable.
-- **The five Cloudflare Worker sources.** They live in a dashboard. See
-  `workers-external/README.md`.
-- **Every secret** — Cloudflare Pages env, GitHub Actions secrets, `FIREBASE_SECRET`. Left
-  out deliberately: a backup carrying live credentials is a breach waiting for a lost disk.
+- **Every secret** — Cloudflare Pages env, GitHub Actions secrets, the Workers' binding values,
+  the site's keys. Left out deliberately: a backup carrying live credentials is a breach waiting to
+  happen, and each can be reissued (`security/KEY-ROTATION.md`).
+- **Cloudflare's zone settings** (DNS, the cache rule, routes). The vault's token can't read them.
 
 ---
 
@@ -185,9 +183,8 @@ undone with `scripts/safety/restore.mjs`. Rehearse the same command in the emula
 usage is at the top of the script). SAFETY-1 ran it there on 31 Oct: 101 of 101 nodes read back
 identical to the archive.
 
-From an `export.mjs` copy, the same applies: the write goes through the guard. Put the copy's
-`rtdb.json.gz` where the script can read it, or open a guard yourself (`openGuard` →
-`guard.update({ <node>: value, … })`).
+From the vault, the same command, after the archive is copied back under `from-vault/`: see
+[From the vault → The database](#the-database-from-the-vault).
 
 **The old instruction here was a raw `curl -X PUT` of the whole file at the database root, with
 an access token minted on the command line. Never do that.** It replaces the root without a
@@ -206,19 +203,8 @@ Two minutes, and the most reliable part of the whole system.
 
 ### 3. The accounts
 
-```bash
-npx firebase auth:import backups/<stamp>/auth-users.json \
-  --hash-algo=SCRYPT \
-  --hash-key=<from the console> \
-  --salt-separator=<from the console> \
-  --rounds=<from the console> \
-  --mem-cost=<from the console> \
-  --project calvary-scribblings
-```
-
-Flags verified against `firebase auth:import --help` (firebase-tools 15.24). **Without the
-four console values the password hashes are inert.** Federated accounts (180 of 339 — Google
-and Apple) re-link on their own and do not need them.
+From the vault only: see [From the vault → The accounts](#the-accounts-from-the-vault). The hash
+parameters travel inside every accounts file, so there is nothing to copy from the console.
 
 > ⚠ Restoring accounts into a **new** project mints new uids. Every record in the database is
 > keyed by uid, so purchases, points and comments would no longer match their owners. Restore
@@ -272,7 +258,8 @@ The rehearsal checks all four.
    unpublished until `.github/workflows/covers.yml` next runs (every 15 minutes) — by design,
    because publication and cover land in one atomic patch. A restore is not "live again" the
    instant the data is back.
-4. **Password accounts.** Inert without the hash parameters. 159 readers.
+4. **Password accounts.** Inert without the hash parameters. Those are inside every vault
+   accounts file, and `accounts-select.mjs` turns them into the CLI's flags.
 
 ---
 
@@ -280,14 +267,13 @@ The rehearsal checks all four.
 
 Everything above is a script. These are not, and none of them can be done from this repo.
 
-### Record the password hash parameters — **do this today**
+### The password hash parameters — in every accounts backup now
 
-Firebase console → **Authentication** → **Users** → the **⋮** menu above the user list →
-**Password hash parameters**. Copy `hash_config` — algorithm, base64 signer key, salt
-separator, rounds, memory cost — and store it wherever the backups are stored.
-
-This is the single highest-value five minutes in this document. It cannot be read through
-any API, and without it the account export is a list of names.
+This section used to say to copy them from the console by hand, because they "cannot be read
+through any API". That was wrong: on 31 Oct 2026 the site's admin key read them through the
+Identity Toolkit admin API (`projects.getConfig`, `signIn.hashConfig`). The vault's puller reads
+them the same way, with its own read-only role, and stores them **inside the encrypted accounts
+file**, beside the hashes they unlock. Nothing to record by hand.
 
 ### Turn on automated database backups — DONE (23 Aug 2026)
 
@@ -316,18 +302,137 @@ That stopped being true the day it was written.)
   lifecycle rule in the project is the `age: 30` Delete on `calvary-scribblings-default-rtdb-backups`,
   and a lifecycle rule acts on its own bucket only. This bucket's lifecycle is `null`.
 
-### Put a copy somewhere that is not Google
+### A copy the site's key can't reach — the vault
 
-The 13 master EPUBs are 7.2 MB and they are the inventory. One copy in the live bucket plus
-a 30-day undo window (7 days before W5) is still not a backup of a business asset.
+This section used to say "put a copy somewhere that is not Google". The answer built is **the
+vault** (`docs/VAULT.md`): another project, another owner boundary and a 30-day retention lock,
+though still Google. Phase 1 (Ikenna, in the console) copies the database daily and seeded the
+files; phase 2 (the puller) copies everything in the table above. Whether a second, non-Google copy
+is wanted as well is a later ruling.
 
 ---
 
-## Automating it
+## From the vault
 
-`export.mjs` needs a service account and nothing else, so it fits the pattern
-`.github/workflows/covers.yml` already uses: materialise the key from
-`secrets.FIREBASE_SERVICE_ACCOUNT`, run, shred the key. The one thing to settle first is
-*where the output goes* — a GitHub Actions artifact is capped and expires, and the file
-contains every reader's email address and password hash. That is a decision about where
-reader data may live, not a scripting problem, which is why this round stops at the script.
+The vault is for the day the site's own archive is gone, wrong or untrusted (`docs/VAULT.md` §7).
+**The site's key never touches the vault.** Each restore has two halves: Ikenna, signed in as
+himself in Cloud Shell (he is Owner of both projects), copies what is needed from the vault into
+the site's database-backup bucket under `from-vault/`; then the site's own scripts put it back,
+through the guard, exactly as for a daily archive. `from-vault/` copies expire with the rest of
+that bucket after 30 days, and nothing that checks the backup counts them as one
+(`scripts/backup/archives.mjs`).
+
+The names below (*the vault bucket* and so on) are in `~/calvary-private/vault/NAMES.md`. Set them
+once at the top of the Cloud Shell session:
+
+```bash
+VAULT_BUCKET='<the vault bucket>'
+SITE_BACKUPS='<the database-backup bucket>'
+```
+
+### The database, from the vault
+
+```bash
+# Cloud Shell, the vault project: pick the archive by its date, then copy it in.
+gcloud storage ls "gs://$VAULT_BUCKET/database/" | grep _data.json.gz | tail -n 5
+gcloud storage cp "gs://$VAULT_BUCKET/database/<archive>" "gs://$SITE_BACKUPS/from-vault/<archive>"
+```
+
+```bash
+# The Codespace, with the site's key: the same restore as any archive.
+node scripts/backup/restore-archive.mjs --list                                          # vault copies listed separately
+node scripts/backup/restore-archive.mjs --object from-vault/<archive> --path <path>    # dry run
+node scripts/backup/restore-archive.mjs --object from-vault/<archive> --path <path> --apply
+```
+
+### The files, from the vault
+
+One file: copy `files/<generation>/<path>` in, then restore it with `--only <path>`. Everything as
+it was on a date: copy that date's manifest and every generation it lists.
+
+```bash
+# Cloud Shell, the vault project.
+DAY='<YYYY-MM-DD>'
+gcloud storage cp "gs://$VAULT_BUCKET/files-manifest/$DAY.json" "gs://$SITE_BACKUPS/from-vault/files-manifest/$DAY.json"
+gcloud storage cat "gs://$VAULT_BUCKET/files-manifest/$DAY.json" | jq -r '.objects[] | "\(.generation)/\(.name)"' > /tmp/want.txt
+wc -l < /tmp/want.txt
+while IFS= read -r p; do gcloud storage cp "gs://$VAULT_BUCKET/files/$p" "gs://$SITE_BACKUPS/from-vault/files/$p" --quiet; done < /tmp/want.txt
+rm /tmp/want.txt
+```
+
+```bash
+# The Codespace, with the site's key. Dry by default; --only <path> or --prefix <p> to narrow it.
+node scripts/backup/restore-files.mjs --manifest from-vault/files-manifest/<date>.json
+node scripts/backup/restore-files.mjs --manifest from-vault/files-manifest/<date>.json --apply
+```
+
+`restore-files.mjs` skips what is already identical, refuses bytes whose MD5 doesn't match the
+manifest, puts each object back with its content type, cache headers and **download token** (so
+stored URLs work again), and never deletes: a file newer than the manifest is counted and left. Each
+batch goes through the guard's Storage half, so what it overwrites is backed up first. ⚠ As §4 says,
+a restored object is a **new generation**: a restored master EPUB moves every reader's position pin.
+
+### The accounts, from the vault
+
+Same project only (§3 above, the uid warning). Import **only the accounts that need it**: importing
+over a live uid replaces that account.
+
+```bash
+# Cloud Shell, the vault project. The key is typed from the card and never stored.
+sudo apt-get install -y age jq
+gcloud storage ls "gs://$VAULT_BUCKET/accounts/" | tail -n 3
+gcloud storage cp "gs://$VAULT_BUCKET/accounts/<stamp>.json.age" /tmp/
+read -rs AGE_KEY                     # type the AGE-SECRET-KEY-1… line from the card, then Enter
+age -d -i <(printf '%s\n' "$AGE_KEY") -o /tmp/accounts.json /tmp/<stamp>.json.age; unset AGE_KEY
+# /tmp/uids.txt: one uid per line, the accounts to put back.
+git clone --depth 1 https://github.com/calvaryscribblings/calvary-scribblings.git ~/site && cd ~/site
+node scripts/backup/accounts-select.mjs --accounts /tmp/accounts.json --uids /tmp/uids.txt --out /tmp/import.json
+npx -y firebase-tools@15.24.0 login --no-localhost
+npx -y firebase-tools@15.24.0 auth:import /tmp/import.json $(cat /tmp/import.json.flags) --project <the site project ID>
+rm -f /tmp/accounts.json /tmp/import.json /tmp/import.json.flags /tmp/uids.txt /tmp/*.json.age
+```
+
+`accounts-select.mjs` reshapes the vault's records to the keys `auth:import` accepts (it refuses
+anything else, and prints the whole record, hash included, when it does) and writes the hash flags
+to a file, so the signer key is never typed or shown. Federated accounts (Google, Apple) re-link on
+their own; password accounts need the hash flags.
+
+### The Workers and the rules
+
+**A Worker:** `gcloud storage cat "gs://$VAULT_BUCKET/workers/<name>/<sha256>.js"`, then paste it
+into the Cloudflare dashboard (or upload it with the content API, as `scripts/workers/upload-newsletter.mjs`
+does). Its bindings' values are re-entered from where they're kept; they aren't in the vault.
+**The rules:** `npm run rules:check`, then `npm run rules:deploy`, as §2. The vault's
+`rules/<date>/` copy is for the day git and the live rules both disagree with what was running.
+
+### The accounts test (the drill project)
+
+Once in the vault's two-week trial, before the lock, and then each quarter (`docs/VAULT.md` §7,
+ruling 271). **One account only: the flagged live test reader** (`ops/live_test_reader`), and **never
+the live site**: the test imports into a second, empty project, *the drill project* (its setup is
+`docs/VAULT.md` §12, steps D.1–D.5), signs in with the test reader's password, and deletes it again.
+
+**Why not the Auth emulator?** It proves the file decrypts, parses and imports, and the script runs
+that half in CI (`npm run test:vault:emulator`). It **can't** prove the password: the emulator stores
+an imported hash but never verifies one. Only a real project checks a password against an imported
+hash, which is the whole point of the test.
+
+```bash
+# Cloud Shell. Decrypt as above, to /tmp/accounts.json. Then:
+cd ~/site
+read -rs DRILL_PASSWORD; export DRILL_PASSWORD     # the test reader's password, from ~/calvary-private
+export DRILL_API_KEY='<the drill project Web API key>'
+node scripts/backup/accounts-drill.mjs --accounts /tmp/accounts.json --target drill --drill-project '<the drill project ID>'
+rm -f /tmp/accounts.json /tmp/*.json.age; unset DRILL_PASSWORD DRILL_API_KEY
+```
+
+It reads the test reader's uid from `ops/live_test_reader` (a read of one value), refuses any other
+account, a founder, a missing or duplicated record, the site's own project, and a record with no
+password hash; imports the one record with the file's hash parameters; checks uid, email and
+providers; signs in; and deletes the imported account whatever happened. `DRILL PASSED` is the
+result. It prints no uid, email or hash.
+
+⚠ **The test reader has no password yet** (W17 made it sign-in-by-custom-token only, and
+`tests/live/test-reader.mjs` refuses an account with any sign-in method). Giving it one is the first
+step of the first drill, and that step must also change `ensureTestReader()`'s check to allow
+exactly the password provider, or every live browser harness will refuse to start.
