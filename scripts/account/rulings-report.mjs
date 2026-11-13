@@ -21,6 +21,7 @@ import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { planScrub, SCAN_NODES } from './scrub-plan.mjs';
 import { mintToken } from '../rules-pull.mjs';
+import { isScheduledArchive } from '../backup/archives.mjs';
 import { readOnlyDb } from '../safety/guard.mjs'; // SAFETY-1: read-only, enforced (any write throws)
 
 const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
@@ -34,7 +35,7 @@ await Promise.all(SCAN_NODES.map(async (n) => { today[n] = (await db.ref(n).get(
 
 const token = await mintToken();
 const list = await (await fetch(`https://storage.googleapis.com/storage/v1/b/${BUCKET}/o?maxResults=500`, { headers: { Authorization: `Bearer ${token}` } })).json();
-const archives = (list.items || []).filter((o) => o.name.endsWith('_data.json.gz')).map((o) => ({ name: o.name, at: Date.parse(o.timeCreated) })).sort((a, b) => a.at - b.at);
+const archives = (list.items || []).filter((o) => isScheduledArchive(o.name)).map((o) => ({ name: o.name, at: Date.parse(o.timeCreated) })).sort((a, b) => a.at - b.at);
 const cache = new Map();
 async function archive(name) {
   if (!cache.has(name)) {

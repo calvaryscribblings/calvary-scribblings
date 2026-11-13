@@ -105,9 +105,9 @@ covers-migration/*
 covers-descriptors/*
 !covers-descriptors/RATIFIED.md
 
-# scripts/backup/export.mjs writes here. NEVER commit: these archives contain every
-# reader's email address and password hash, plus the master EPUBs. Keep them off this
-# machine entirely — see scripts/backup/RESTORE.md.
+# scripts/backup/export.mjs wrote here until SAFETY-2B retired it (the vault replaces it,
+# docs/VAULT.md). Still ignored: anything in it would hold readers' emails and password
+# hashes, and must never enter git.
 backups/
 
 # R18 — the JSX render harness in tests/bookstore/author-render.test.mjs transforms a component
