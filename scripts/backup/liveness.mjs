@@ -32,6 +32,7 @@
 import { gunzipSync } from 'node:zlib';
 import { mintToken } from '../rules-pull.mjs';
 import { assess, MAX_AGE_HOURS, MUST_CARRY } from './assess.mjs';
+import { isScheduledArchive } from './archives.mjs';
 
 const BUCKET = 'calvary-scribblings-default-rtdb-backups';
 const maxAgeHours = Number(process.env.BACKUP_MAX_AGE_HOURS || MAX_AGE_HOURS);
@@ -62,7 +63,7 @@ do {
 
 // Open the newest archive before deciding, so "it exists" and "it is usable" are
 // different findings rather than the same one.
-const sortedArchives = items.filter((o) => o.name.endsWith('_data.json.gz'))
+const sortedArchives = items.filter((o) => isScheduledArchive(o.name))
   .sort((a, b) => (a.timeCreated < b.timeCreated ? 1 : -1));
 if (!sortedArchives.length) {
   console.error('::error::THE BACKUP BUCKET IS EMPTY. Scheduled backups are not running.');
