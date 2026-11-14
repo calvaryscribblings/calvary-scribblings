@@ -18,8 +18,8 @@ import { FOUNDER_UIDS } from './founders.js';
 
 /** Until switch-on, the drain sends only to the founders' own devices (P4-B1 item 9). */
 export const FOUNDERS_ONLY = true;
-/** Switch-on: the launch check expects the drain's heartbeat (scripts/launch-check.mjs). */
-export const P4_ARMED = false;
+/** Armed in P4-B3 (14 Nov), with the Worker's cron: the launch check expects the drain's heartbeat, and notify and /api/push/seen send at once. Founders only until switch-on. */
+export const P4_ARMED = true;
 /**
  * P4-B3: whether a call that queued a push (notify, /api/push/seen) sends it itself, at once. Only
  * once armed (the cron's own switch), and only where the drain could run at all: both its secrets

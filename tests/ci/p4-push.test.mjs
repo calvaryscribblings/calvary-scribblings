@@ -18,9 +18,9 @@ const A = 'adaInvented000000000000001', B = 'benInvented000000000000002', C = 'c
 const TOKEN = (n) => `ExponentPushToken[invented-${n}]`;
 
 describe('the switches stand as built for this round', () => {
-  test('founders only, not armed, quoted words on, cards held', () => {
+  test('founders only, armed, quoted words on, cards held', () => {
     assert.equal(FOUNDERS_ONLY, true, 'until switch-on the drain sends only to founders');
-    assert.equal(P4_ARMED, false, 'the launch check expects no drain heartbeat until switch-on');
+    assert.equal(P4_ARMED, true, 'armed in P4-B3 (founders only): the launch check watches the drain heartbeat, notify and seen send at once');
     assert.equal(PUSH_QUOTED_WORDS, true, 'ruling 365 as written');
     assert.equal(CARD_LIVE.PEOPLE, false);
     assert.equal(CARD_LIVE['YOUR WRITING'], false);

@@ -2,7 +2,7 @@
 
 **Status (14 Nov 2026, P4-B3).**
 - **Rules: live** since 04:09 London (P4-B2, `npm run rules:deploy:db`).
-- **Code: live and dormant.** P4-B1 is on main, and P4-B3 adds the instant send, priority, threads and the badge-only push. Nothing sends while `P4_ARMED` is false. The drain refuses without its secret, and notify and `/api/push/seen` only queue.
+- **Code: live.** P4-B1 is on main, and P4-B3 adds the instant send, priority, threads and the badge-only push (`a1e99d48`). **Armed in P4-B3, founders only**: `PUSH_DRAIN_SECRET` is set on the Worker and on Pages Production, `P4_ARMED = true`, and the Worker's `* * * * *` cron is on.
 - **The app: A60 live** since 05:38 London. It writes `pushCaps` and `installHash`, calls release, and creates the two channels. **One difference from this doc's plan:** for replies and mentions, A60 writes both `notify_prefs/{uid}/replies_mentions` and the old `users/{uid}/mentionNotifications`. The read (`prefOn`) agrees either way: notify_prefs's own value wins when present, and the old field is consulted only without one, so two equal values read the same.
 - **Rulings 365–369: ruled yes** on 14 Nov (`docs/COPY-RULINGS.md`).
 - **Founders only** (`FOUNDERS_ONLY`) until switch-on.
