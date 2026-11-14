@@ -167,6 +167,7 @@
     "eslint-config-next": "16.4.3",
     "firebase-admin": "^14.2.0",
     "firebase-tools": "^15.24.0",
+    "globals": "14.0.0",
     "opentype.js": "2.0.0",
     "tailwindcss": "^4"
   },
