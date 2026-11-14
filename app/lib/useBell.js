@@ -85,7 +85,10 @@ function createStore(uid, joinedAt) {
       const { ref, update, serverTimestamp } = await import('firebase/database');
       // P4-B1: the server's clock, as the app writes it, so the badge a push carries counts from the
       // same instant whichever device last looked (the page keeps `now` for its own dots).
-      try { await update(ref(db, `inbox_state/${uid}`), { seenAt: serverTimestamp() }); } catch (e) { console.error('[bell] seenAt not saved:', e?.code || e?.message || e); }
+      let saved = false;
+      try { await update(ref(db, `inbox_state/${uid}`), { seenAt: serverTimestamp() }); saved = true; } catch (e) { console.error('[bell] seenAt not saved:', e?.code || e?.message || e); }
+      // P4-B3: read here, the number clears on the reader's phones too (POST /api/push/seen).
+      if (saved) import('./pushSeenClient').then(({ tellSeen }) => tellSeen()).catch(() => {});
       // The app's two old bells read each note's own `read`: mark the ones shown, as the old panels did.
       const lib = {}, sq = {};
       for (const r of snapshot.list) {

@@ -874,3 +874,13 @@ Recorded in P4-B1, all ruled yes on 14 Nov. **Built** means in P4-B1; the rest a
 - **362:** Readers who turned off the app's old mention notifications start with replies and mentions off when personal pushes arrive. **Built (web) in P4-B1:** read live, not copied. With no value of its own in `notify_prefs`, replies and mentions read off when `users/{uid}/mentionNotifications` is false, on the settings page and in the drain (`prefOn`).
 - **363:** Wherever the app meant Inter but shows the phone's own font, it switches to Inter in its own round, walked screen by screen.
 - **364:** Replies to replies look the same on both. The app shows the website's in their response's thread, and the website nests the app's under the reply they answer.
+
+## 14 Nov 2026 (Ikenna): rulings 365–369
+
+Personal pushes. Built in P4-B1 as written, all ruled yes on 14 Nov, recorded in P4-B3. Each is one constant in `app/lib/pushP4.js`.
+
+- **365:** A personal push reads exactly as its row in the bell. Replies, mentions and quotes carry their quoted words. A message push names only the sender, never the message's words. **Built:** `PUSH_QUOTED_WORDS = true`; the words come from the bell's own `headline` and `secondLine` (`app/lib/pushWords.js`), and a message row has no second line.
+- **366:** At 08:00 London, at most three of the night's waiting pushes per reader, oldest first. The rest stay in the list. **Built:** `MORNING_CAP = 3`.
+- **367:** A conversation pushes at once, then at most once every two minutes. **Built:** `CONVERSATION_INTERVAL_MS`.
+- **368:** The Android channels are the app's: `people` for replies, mentions, messages, followers and reactions, and `your_writing` for responses and Open Pages. **Built:** `CHANNEL_FOR_PREF`.
+- **369:** At most twenty personal pushes per reader per London day. **Built:** `DAILY_CAP = 20`. A badge-only push (P4-B3) does not count toward the twenty.

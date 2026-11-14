@@ -1,21 +1,22 @@
 # Personal pushes (P4)
 
-**Status (14 Nov 2026, P4-B1): BUILT, NOT DEPLOYED.** Built and tested on branch `p4-b1`. Nothing is
-on main, no rules are deployed, nothing has been sent. The drain sends only to the founders' own
-devices until switch-on (`FOUNDERS_ONLY`), and the launch check expects nothing of it until the
-Worker's cron is on (`P4_ARMED`).
+**Status (14 Nov 2026, P4-B3).**
+- **Rules: live** since 04:09 London (P4-B2, `npm run rules:deploy:db`).
+- **Code: live and dormant.** P4-B1 is on main, and P4-B3 adds the instant send, priority, threads and the badge-only push. Nothing sends while `P4_ARMED` is false. The drain refuses without its secret, and notify and `/api/push/seen` only queue.
+- **The app: A60 live** since 05:38 London. It writes `pushCaps` and `installHash`, calls release, and creates the two channels. **One difference from this doc's plan:** for replies and mentions, A60 writes both `notify_prefs/{uid}/replies_mentions` and the old `users/{uid}/mentionNotifications`. The read (`prefOn`) agrees either way: notify_prefs's own value wins when present, and the old field is consulted only without one, so two equal values read the same.
+- **Rulings 365–369: ruled yes** on 14 Nov (`docs/COPY-RULINGS.md`).
+- **Founders only** (`FOUNDERS_ONLY`) until switch-on.
 
-Replies, mentions, quotes, messages and follows reach the reader's phone within about a minute.
-Reactions and responses arrive as one grouped line per post or story, at most hourly, and the first
-of a group goes at once. Nothing arrives between 00:00 and 08:00 London: what falls due then waits
+Replies, mentions, quotes, messages and follows leave for the reader's phone the moment the event
+lands, as a standard app's do: the notify call sends its own push (P4-B3). Reactions and responses arrive as one grouped line per post or story, at most hourly, and the first
+of a group goes at once. Every personal push is high priority, so a sleeping Android phone wakes for it. Nothing arrives between 00:00 and 08:00 London: what falls due then waits
 for 08:00, at most three per reader, oldest first (366). A conversation pushes at once, then at most
 every two minutes (367). No reader gets more than twenty a London day (369). Every push obeys the
 reader's switch for its kind, their mutes and blocks, and a muted conversation. It reads exactly as
 its row in the bell (365) and opens what the row opens. Story pushes are unchanged
 (`docs/PUSH-GO-LIVE.md`, their 25 Sept rules, their */15 job).
 
-Rulings 365–369 are built as written and await Ikenna's word. Each is one constant in
-`app/lib/pushP4.js`: `PUSH_QUOTED_WORDS` (365), `MORNING_CAP` (366), `CONVERSATION_INTERVAL_MS` (367),
+Rulings 365–369 (ruled yes 14 Nov) are each one constant in `app/lib/pushP4.js`: `PUSH_QUOTED_WORDS` (365), `MORNING_CAP` (366), `CONVERSATION_INTERVAL_MS` (367),
 `CHANNEL_FOR_PREF` (368, the app's names) and `DAILY_CAP` (369).
 
 ---
@@ -24,10 +25,16 @@ Rulings 365–369 are built as written and await Ikenna's word. Each is one cons
 
 ```
 reader acts ─► /api/notify ─► inbox/{uid}/{id}            (as before)
-                         └──► push_queue/{uid}~{id}       (same PATCH as the old notes: no new subrequest)
+                         ├──► push_queue/{uid}~{id}       (same PATCH as the old notes: no new subrequest)
+                         └──► after the response (waitUntil): drainNow, the drain's own pass over
+                              exactly what was just queued, with the budget left   (P4-B3, at once)
+
+a list writes seenAt ─► /api/push/seen ─► push_queue/{uid}~_badge ─► drainNow     (P4-B3, badge-only)
 
 push-drain-ping Worker, cron * * * * *  ──►  POST /api/push/drain  (Bearer PUSH_DRAIN_SECRET)
-     calls again while { more: true }, at most 20 times a minute
+     THE BACKSTOP: held pushes (08:00), the hourly groups, 367's two minutes, the badge's minute,
+     and whatever the instant send's budget couldn't fit. Calls again while { more: true }, at most
+     20 times a minute
                          │ reads the due entries, decides each (app/lib/pushP4.js decide)
                          │ CLAIM: one PATCH (push_state, the queue marks) before Expo
                          │ one Expo request (EXPO_ACCESS_TOKEN); tickets → push_receipts
@@ -46,7 +53,9 @@ launch check           ─► red when ops/push_drain/lastRunAt is > 5 min old, 
 | `app/lib/pushWords.js` | The words, the bell's own (`fromInbox`, `headline`, `secondLine`); the money guard; the badge (`buildList` + `unreadCount`) |
 | `functions/api/_notify.js` | `deliver` enqueues each delivered pushing record in its one PATCH, reserved before admission (`patchCost`) |
 | `functions/api/notify.js` | The comment event tells the author of the reply answered (`replyToId`), falling back to `parentId` |
-| `functions/api/push/drain.js` | The sender. `?dry=1`: reads and decides, writes nothing, calls nobody |
+| `functions/api/push/drain.js` | The sender, one pass (`drainPass`) behind two doors: the cron's `POST /api/push/drain` and the instant `drainNow`. `?dry=1`: reads and decides, writes nothing, calls nobody. `personalMessage`, `badgeMessage`, `pushIds` |
+| `functions/api/push/seen.js` | `POST /api/push/seen` (ID token): queues the reader's badge-only push and sends it at once (P4-B3) |
+| `app/lib/pushSeenClient.js` | The web's call to it, after `useBell` saves `seenAt` |
 | `functions/api/push/release.js` | `POST /api/push/release { installId }`: a phone gives up every row carrying its hash |
 | `scripts/notify/write-rules.mjs` → `database.rules.json` | `push_queue`, `push_state` (no client), `ops/push_drain` (founders read), `pushCaps` and `installHash` on a device row |
 | `scripts/push/{lib,run,store}.mjs` | `everyRowFor`, receipts expanded to every account, `prunePersonal` |
@@ -116,8 +125,10 @@ number when it opens).
 | notify, a message (no old note) | **11**: the one PATCH, reserved |
 | notify, 8 recipients (a reply to a reply naming 6, on a writer's story) | **39**, as before |
 | drain, empty queue | ≤ 3 (token, query, heartbeat) |
-| drain, 1 push | **20** |
-| drain, 8 readers due at once | 3 sent in 40, 3 in 40, 2 in 30 (`more` carries the rest) |
+| drain, 1 push | **21** (the lease before the read, P4-B3) |
+| drain, 8 readers due at once | 3 sent in 41, 3 in 41, 2 in 31 (`more` carries the rest) |
+| notify + its instant send, 1 recipient | **29** in one request |
+| seen + its badge-only send | **17** |
 | release | ≤ 3 |
 
 Throughput is about **3 readers per drain call**: each reader costs about 7 reads (switches, old
@@ -132,14 +143,74 @@ Cloudflare: 1,440 Worker invocations and 1,440+ drain requests a day, about 3% o
 
 ---
 
-## The wake-up (P4-B1 item 4): left out
+## Instant (P4-B3 item 1)
 
-Not built. Whether a Pages Function can `fetch` its own hostname, and whether that request reaches the
-drain, can't be proved without a deploy, and this round deploys nothing. It would also cost one
-subrequest and one request per event. The minute cron already meets "about a minute" (worst ~60 s,
-typically ~30 s). Measure it in the ship round with one founder push if seconds matter.
+When notify's writes are done, it hands the keys it just queued to `drainNow`, inside
+`context.waitUntil`, so the response goes first and the event isn't slowed. `drainNow` is the
+drain's own pass (`drainPass`): the same lease, the same reads, the same `decide`, the same claim
+before Expo, the same finish. There is no second sender. It reads only what this call queued (one
+indexed query: those entries carry `dueAt` = the call's own clock), and it spends only the budget
+notify left. It starts only with room for one whole entry (`INSTANT_FLOOR`, 22). Whatever it can't
+fit, or finds the lease held for, stays queued for the cron. It never writes `lastRunAt`, which
+stays the proof that the cron runs. It writes `ops/push_drain/lastInstant` instead.
 
----
+**The lease now comes before the read**, in both doors. Two passes can now start in the same second,
+and a pass that read first could act on entries another pass finished while it waited. The cron
+pays one more query for it when the queue isn't empty (a 1-push drain is now 21 subrequests, not 20).
+`tests/notify/p4-instant.emulator.mjs` runs notify's instant send and the cron together, five
+times, and gets exactly one push each time.
+
+Dormant until `P4_ARMED`, and only where both drain secrets are set (`sendsNow`). A preview
+deployment has neither, so it never sends.
+
+**Measured** (emulator, Expo stand-in, 2 s chosen bound):
+
+| Event | At once | By the cron |
+|---|---|---|
+| 1 recipient (a Square reply) | **1**, ~0.1–0.4 s from the notify call to the push leaving; 29 subrequests in all | none |
+| A Square post mentioning 2–4 readers | the first reader | the rest, within the minute |
+| 5–6 mentions | none (notify leaves < 22) | all |
+| 8 recipients (reply-to-reply + 6 mentions + the writer) | none (notify uses 39, leaving 6) | all 8: 3 + 3 + 2 per call |
+
+Most events have one recipient (a reply, a message, a reaction, a follow), so they go at once.
+One event that tells several readers sends to the first at once, and the cron takes the rest
+within a minute.
+
+## On the phone (P4-B3 items 2 and 3)
+
+- **`priority: 'high'`** on every personal push. Expo's docs say normal-priority messages "won't open
+  network connections on sleeping devices" on Android. iOS's default was already high.
+- **`threadId`** per thread, by what the record opens: a conversation, a Square post's thread, an Open
+  Pages piece, a story (follows share one thread). iOS stacks a thread's pushes together.
+- **`collapseId` and `tag`** (the same value) per **grouped** record only (`INBOX_KINDS[kind].group`:
+  messages per conversation, reactions per post, responses and story reactions per story, follows).
+  On iOS, `collapseId` replaces the line already shown. On Android, `tag` does. So "Ada and 4 others
+  liked your post" replaces the earlier line. A reply, a mention or a quote never replaces another.
+- All three ids are hashed (`t…`/`g…` + 32 hex). They pass through Apple and Google, and a
+  conversation id holds two uids.
+
+## Read once, the number clears everywhere (P4-B3 item 4)
+
+`POST /api/push/seen` with the reader's ID token, called after a list writes `seenAt`. It writes
+`push_queue/{uid}~_badge` (kind `_badge`, not an inbox kind) and sends it at once through
+`drainNow`. The drain counts the reader's unread rows as they stand (`badgeFor`, the bell's own
+count) and sends `{ to, badge, priority }`. There is no title, no body and no sound.
+
+- **iOS devices only.** Expo's request format lists `badge` as iOS only, so an Android row gets nothing.
+- **At most one a minute per reader** (a chosen number, `BADGE_INTERVAL_MS`). A read inside the minute
+  rewrites the entry, the drain moves it to the minute's end, and the cron sends the count as it
+  stands then.
+- **Not held for 00:00–08:00** (it shows nothing and only clears a number), and **not one of the
+  twenty** (369). A reader who has never opened a list gets none (`never_seen`). A reader whose
+  ordinary push goes in the same pass gets that push's badge instead (`covered`).
+- Dormant until armed; founders only while `FOUNDERS_ONLY` (nothing is written for anyone else).
+- The web calls it from `useBell.markSeen`, after `seenAt` saves. The app calls it in A61.
+
+**Checked against Expo's docs:** they list `badge` (iOS) and say only `to` is required, but they
+don't say what a message with neither title nor body does. Apple's documentation for an `aps`
+payload holding only `badge` (the number changes, nothing is shown) couldn't be read from here.
+**The founder test must confirm it on the phone:** the number changes, and no banner, sound or
+blank notification appears.
 
 ## Founders only (on until switch-on)
 
@@ -156,13 +227,13 @@ switch-on: anything more than two hours past due is stale.
 
 ## Order of go-live
 
-1. **Rules** (`npm run rules:deploy:db`) **before A60 ships.** Today's device rule refuses any child it
-   doesn't list, so A60's `pushCaps` and `installHash` writes would be refused until then.
-2. **Web** (merge `p4-b1`): notify enqueues, the drain and release go live. Without their secrets
-   the drain answers 503.
-3. **Ikenna's manual steps**, below.
-4. **Cron on** (the Worker's `* * * * *`), founders only. In the same commit, `P4_ARMED = true`, so the
-   launch check watches the heartbeat from then on.
+1. **Rules**: DONE, live 04:09 London 14 Nov (P4-B2).
+2. **Web**: DONE. P4-B1 is on main, and P4-B3 adds instant, priority, threads and seen. All of it is dormant.
+   **A60**: DONE, live 05:38 London.
+3. **Secrets**: `EXPO_ACCESS_TOKEN` was set by Ikenna. `PUSH_DRAIN_SECRET` is set in P4-B3 on the Worker
+   and on Pages Production.
+4. **Cron on** (the Worker's `* * * * *`), founders only. `P4_ARMED = true` is committed first, which also wakes
+   the instant send and `/api/push/seen`, then the cron is added. The launch check watches the heartbeat from then on.
 5. **Founder test**: a reply, a mention, a message, a reaction twice within the hour, and one at
    night (the 08:00 hold), on Ikenna's A60 phone. Check: the words, the route opened, the badge, the
    channel.

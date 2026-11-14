@@ -288,7 +288,7 @@ export async function deliver(db, { actor, recipients, now }) {
     try {
       await db.patch({ ...legacy, ...queue });
       if (notes) stats.mirrored = notes;
-      if (queued) stats.queued = queued;
+      if (queued) { stats.queued = queued; stats.queuedKeys = Object.keys(queue).map((k) => k.slice(QUEUE.length + 1)); }
     } catch (e) {
       if (notes) stats.mirrorFailed = notes;
       if (queued) stats.queueFailed = queued;

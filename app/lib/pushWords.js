@@ -1,4 +1,4 @@
-// P4-B1 — A PERSONAL PUSH READS EXACTLY AS ITS ROW (ruling 365, awaiting).
+// P4-B1 — A PERSONAL PUSH READS EXACTLY AS ITS ROW (ruling 365, ruled 14 Nov).
 //
 // The words are the bell's own: fromInbox makes the row, headline() its first line, secondLine() its
 // second (app/lib/bell.js). Nothing here writes a word of its own, so a ruling on the bell's words

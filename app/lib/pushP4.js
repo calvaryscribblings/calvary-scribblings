@@ -4,8 +4,8 @@
 // is here, so tests/ci/p4-push.test.mjs can hand it a world and a clock and watch. The plan is
 // docs/PUSH-P4.md (P4-R0, option d).
 //
-// THE SWITCHES. Rulings 365–369 await Ikenna's word and are built as written; each is one constant
-// below. Switch-on (docs/PUSH-P4.md, "Switch-on") flips FOUNDERS_ONLY and P4_ARMED, in one commit
+// THE SWITCHES. Rulings 365–369 were ruled yes on 14 Nov (docs/COPY-RULINGS.md); each is one
+// constant below. Switch-on (docs/PUSH-P4.md, "Switch-on") flips FOUNDERS_ONLY and P4_ARMED, in one commit
 // with CARD_LIVE in app/lib/notifySettings.js, the day the Worker's cron is added.
 //
 // Plain data and arithmetic, no network: the client, the Functions (bundled) and node --test all
@@ -20,18 +20,24 @@ import { FOUNDER_UIDS } from './founders.js';
 export const FOUNDERS_ONLY = true;
 /** Switch-on: the launch check expects the drain's heartbeat (scripts/launch-check.mjs). */
 export const P4_ARMED = false;
-/** Ruling 365 (awaiting): a push reads exactly as its row, quoted words included. false: titles only. */
+/**
+ * P4-B3: whether a call that queued a push (notify, /api/push/seen) sends it itself, at once. Only
+ * once armed (the cron's own switch), and only where the drain could run at all: both its secrets
+ * set, so a preview deployment, which has neither, never sends.
+ */
+export const sendsNow = (env, armed = P4_ARMED) => !!(armed && env?.PUSH_DRAIN_SECRET && env?.EXPO_ACCESS_TOKEN);
+/** Ruling 365 (ruled 14 Nov): a push reads exactly as its row, quoted words included; a message names only the sender. false: titles only. */
 export const PUSH_QUOTED_WORDS = true;
 
 // ── the numbers ──────────────────────────────────────────────────────────────────────────────
 
-/** Ruling 366 (awaiting): at 08:00, at most this many waiting pushes per reader, oldest first. */
+/** Ruling 366 (ruled 14 Nov): at 08:00, at most this many waiting pushes per reader, oldest first. */
 export const MORNING_CAP = 3;
-/** Ruling 367 (awaiting): a conversation pushes at once, then at most once in this long. */
+/** Ruling 367 (ruled 14 Nov): a conversation pushes at once, then at most once in this long. */
 export const CONVERSATION_INTERVAL_MS = 2 * 60 * 1000;
-/** Ruling 369 (awaiting): at most this many personal pushes per reader per London day. */
+/** Ruling 369 (ruled 14 Nov): at most this many personal pushes per reader per London day. */
 export const DAILY_CAP = 20;
-/** Ruling 368 (awaiting; the names are the app's): the Android channel each switch's pushes use. */
+/** Ruling 368 (ruled 14 Nov; the names are the app's): the Android channel each switch's pushes use. */
 export const CHANNEL_FOR_PREF = Object.freeze({
   replies_mentions: 'people', messages: 'people', followers: 'people', reactions: 'people',
   responses: 'your_writing', open_pages: 'your_writing',
@@ -48,6 +54,15 @@ export const LEASE_MS = 55 * 1000;
 export const QUEUE_READ_LIMIT = 200;
 /** Expo's per-request message cap. */
 export const EXPO_BATCH = 100;
+
+/**
+ * P4-B3 item 4: a badge-only push (the reader read their list somewhere; their phones' number
+ * follows). Its queue entry is {uid}~_badge, its kind '_badge' (not an inbox kind: 'badge' is one).
+ */
+export const BADGE_KIND = '_badge';
+export const BADGE_KEY = '_badge';
+/** A chosen number: at most one badge-only push a minute per reader. The last read inside it wins. */
+export const BADGE_INTERVAL_MS = 60 * 1000;
 
 export const QUEUE = 'push_queue';
 export const STATE = 'push_state';
@@ -217,6 +232,19 @@ export function decide(e, record, state, reader, now, counts = {}, { foundersOnl
   if ((day.n || 0) + c.n >= DAILY_CAP) return { action: 'drop', reason: 'daily_cap' };
   if (held && (day.morning || 0) + c.morning >= MORNING_CAP) return { action: 'drop', reason: 'morning_cap' };
   return { action: 'send', held, dueAt };
+}
+
+/**
+ * A badge-only entry, decided: at most one a minute per reader (a later one waits for the minute,
+ * and carries the count as it stands when it goes); none for a reader who has never opened a list.
+ * Not held for the quiet hours: it shows nothing and makes no sound, it only clears a number.
+ * Not one of the twenty a day.
+ */
+export function decideBadge(e, state, seenAt, now) {
+  if (!(typeof seenAt === 'number' && seenAt > 0)) return { action: 'drop', reason: 'never_seen' };
+  const last = Number(state?.[BADGE_KEY]?.pushedAt) || 0;
+  if (last && now < last + BADGE_INTERVAL_MS) return { action: 'later', dueAt: last + BADGE_INTERVAL_MS };
+  return { action: 'send' };
 }
 
 /** The day counter after `sent` pushes (of which `morning` were held for 08:00) went out today. */

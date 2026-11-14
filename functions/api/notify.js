@@ -34,6 +34,7 @@
 import { lookupUser, mintAccessToken, SCOPES } from './bookstore/_lib.js';
 import { deliver, notifyDb, newBudget, recordId } from './_notify.js';
 import { SUBREQUEST_BUDGET } from './_budget.js';
+import { P4_ARMED, FOUNDERS_ONLY, sendsNow } from '../../app/lib/pushP4.js';
 import { isId } from '../../app/lib/ids.js';
 import { INDEX_PATH } from '../../app/lib/storyIndex.js';
 import { mentionHandles } from '../../app/lib/squareHandles.js';
@@ -245,7 +246,7 @@ export const EVENT_NAMES = Object.freeze(Object.keys(EVENTS));
  * @param opts.limit   the budget (SUBREQUEST_BUDGET, 45)
  * @param opts.stats   an object the call fills with what happened, for tests: never sent to the client
  */
-export async function handleNotify(context, { now = Date.now(), limit = SUBREQUEST_BUDGET, stats = null } = {}) {
+export async function handleNotify(context, { now = Date.now(), limit = SUBREQUEST_BUDGET, stats = null, armed = P4_ARMED, foundersOnly = FOUNDERS_ONLY } = {}) {
   const { request, env } = context;
   let body;
   try {
@@ -281,7 +282,17 @@ export async function handleNotify(context, { now = Date.now(), limit = SUBREQUE
       for (const r of recipients) if (r.legacy) r.legacy = { node: r.legacy.node, record: { ...r.legacy.record, ...senderFields(uid, user, r.legacy.node) } };
     }
     const result = await deliver(db, { actor: uid, recipients, now });
-    if (stats) Object.assign(stats, result, { used: budget.used });
+    const { queuedKeys, ...counts } = result;
+    if (stats) Object.assign(stats, counts, { used: budget.used });
+    // P4-B3: the push leaves now, not on the next minute. After the response, with what's left of
+    // this call's budget: the drain's own pass over exactly what was just queued (drainNow).
+    if (queuedKeys?.length && sendsNow(env, armed) && typeof context.waitUntil === 'function') {
+      const instant = stats ? (stats.instant = {}) : null;
+      // Imported here, not at the top: the drain brings the bell's words with it, and notify's own
+      // importers (the Square write route in the Playwright suites) needn't load them. The bundler
+      // still bundles it (a literal path), so it is the same code in the same Function.
+      context.waitUntil(import('./push/drain.js').then(({ drainNow }) => drainNow(db, env, { now, keys: queuedKeys, stats: instant, foundersOnly })));
+    }
     return reply({ ok: true });
   } catch (e) {
     if (stats) stats.used = budget.used;
