@@ -108,11 +108,6 @@ on:
       - 'docs/foliate-web-list.txt'
       - 'package.json'
       - 'package-lock.json'
-      # SAFETY-2B — the vault's puller and its tests, the restore scripts' emulator config.
-      - 'vault/**'
-      - 'tests/vault/**'
-      - 'docs/VAULT.md'
-      - 'firebase.vault-test.json'
       - 'scripts/lint-baseline.json'
       # R9.2 (c): the whole directory, not just this file. test:ci below asserts over EVERY
       # workflow, so an edit to reader-tests.yml has to be able to make this job run.
@@ -134,8 +129,8 @@ jobs:
   rules:
     name: rules assertions (emulator)
     runs-on: ubuntu-latest
-    # Raised from 10 in R12.4 for the browser suites. SAFETY-2B moved those to the two jobs
-    # below, so this job installs no browser; it finishes in about three minutes.
+    # Raised from 10 in R12.4: this job now also installs Chromium and boots `next dev` for
+    # the Series admin suite. The rules half alone still finishes in about two minutes.
     timeout-minutes: 25
     steps:
       # R9.2 (c) — action majors pinned off the deprecated node20 runtime. The bump is
@@ -192,69 +187,6 @@ jobs:
       - name: Readers' Notes — contract + endpoint
         run: npm run test:series-notes
 
-      # SAFETY-1 — the bulk-write guard against the database AND storage emulators: dry by default,
-      # backup of exactly the touched paths, verified, no write when the backup fails, the root and a
-      # blank id refused, the firebase-admin wrappers, and a restore. Then the account scrub and the
-      # push announcer run their own suites with the database handed through the guard, as in production.
-      - name: SAFETY-1 — the bulk-write guard, end to end
-        run: npm run test:safety-guard:emulator && npm run test:safety-guard:wrapped
-
-      # SAFETY-2B — THE VAULT. The puller against fakes (every part lands where docs/VAULT.md §3
-      # says, it only ever creates, a dry run writes nothing, its age output opens with the reference
-      # library, Cloudflare is asked for script content only, the logs carry counts only), the
-      # bootstrap the Cloud Run job runs, and the accounts converter checked against firebase-tools'
-      # own validators. Then, against the auth, database and storage emulators: the files restore
-      # through the guard, and the accounts restore test (the flagged test reader only). Nothing
-      # reaches production, and no vault exists here: it is all fakes and emulators.
-      - name: SAFETY-2B — the vault's puller, offline
-        run: npm run test:vault
-      - name: SAFETY-2B — restores from the vault, and the accounts test, in the emulators
-        run: npm run test:vault:emulator
-
-  # ───────────────────────────────────────────────────────────────────────────
-  # 1b. THE BROWSER SUITES THAT NEED THE EMULATORS: the Series admin, the Square
-  #     room, W5 safety and the bell (Chromium).
-  #
-  #     SAFETY-2B split these out of `rules`. On 6 Nov (cd3eb6e0) that job was
-  #     cancelled at its 25-minute limit: `playwright install --with-deps` for
-  #     Chromium took 9m50s and for WebKit 10m20s, both stalled fetching OS
-  #     packages from the Ubuntu mirror (gaps of 1½–3½ minutes between packages),
-  #     not on a test. They normally take ~20s each. Now each browser job installs
-  #     once, restores the browsers from the same cache reader-tests uses, and has
-  #     its own 25 minutes, so one stalled mirror costs one job ten minutes, not
-  #     the whole gate; and the rules assertions no longer wait on a browser at all.
-  # ───────────────────────────────────────────────────────────────────────────
-  rules-browsers:
-    name: rules — Series admin, Square room, safety, bell (Chromium)
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '21'
-      - run: npm ci
-      - name: Throwaway edge-ledger key (this job's builds only)
-        run: node scripts/ci/edge-ledger-throwaway.mjs
-      # The browsers are kept between runs, as in reader-tests.yml: ~/.cache/ms-playwright keyed
-      # on the exact Playwright version. The install step below still runs, for the OS packages
-      # (never cached), and skips any browser already present in the restored cache.
-      - name: Playwright version (the browser cache's key)
-        id: playwright
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-      - name: Restore the Playwright browsers
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-browsers-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-      - name: Chromium (and its OS packages)
-        run: npx playwright install --with-deps chromium
-
       # R12.4 — THE SERIES ADMIN, DRIVEN IN A BROWSER AGAINST THE SAME EMULATORS.
       #
       # It rides this job rather than reader-tests.yml because of which expensive input it
@@ -266,6 +198,8 @@ jobs:
       # It exists because a control can be correctly wired, correctly keyed and correctly
       # validated and still be DEAD on every record in the database. That is what shipped in
       # R12.4 and no unit test on this platform could have seen it.
+      - name: Chromium for the Series admin and Square room suites
+        run: npx playwright install --with-deps chromium
 
       # R43.1 — THE SQUARE ACTUALLY LOADS. The step that would have caught the hang.
       #
@@ -299,6 +233,21 @@ jobs:
       # emulators. One read-only GET of the public instalment rows borrows an id; nothing writes.
       - name: Series — "Free to read" on the reader surfaces
         run: npm run test:series-free
+      # W46 — READERS' NOTES in a browser, against the same emulators, with the endpoint stubbed:
+      # the door and the room in every state (a sealed room fetches no gated path), the composer,
+      # the last-page sheet, the admin's three slots and review list, and the reader's line chip
+      # and finished write — each with the flag on (preview build) and off. One signed-out GET of
+      # the public series rows borrows a slug; nothing writes to production.
+      - name: WebKit for the line-chip frame suite
+        run: npx playwright install --with-deps webkit
+      - name: Readers' Notes — the door, the room, the composer, the sheet
+        run: npm run test:series-notes:ui
+      - name: Readers' Notes — the admin's questions and review list
+        run: npm run test:series-notes-admin
+      - name: Readers' Notes — the last page and "This is my line"
+        env:
+          GALLIUM_DRIVER: softpipe
+        run: npm run test:series-notes:reader
       # W5 — the report queue page, the under-18 check and the save toast, against the same
       # emulators. This job's path list names suites one by one, so tests/safety/** is in it too.
       - name: W5 safety — /admin/reports, the under-18 check, the save toast
@@ -310,55 +259,12 @@ jobs:
       # the Function itself (tests/square/write-route.mjs). Nothing reaches production.
       - name: NOTIF-B2 — the bell, the panel, the page and settings
         run: npm run test:notify:bell
-
-  # ───────────────────────────────────────────────────────────────────────────
-  # 1c. READERS' NOTES IN A BROWSER (Chromium + WebKit). See 1b for why it is
-  #     its own job: the WebKit install alone took 10m20s on 6 Nov.
-  # ───────────────────────────────────────────────────────────────────────────
-  rules-notes:
-    name: rules — Readers' Notes in a browser (Chromium + WebKit)
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '21'
-      - run: npm ci
-      - name: Throwaway edge-ledger key (this job's builds only)
-        run: node scripts/ci/edge-ledger-throwaway.mjs
-      # The browsers are kept between runs, as in reader-tests.yml: ~/.cache/ms-playwright keyed
-      # on the exact Playwright version. The install step below still runs, for the OS packages
-      # (never cached), and skips any browser already present in the restored cache.
-      - name: Playwright version (the browser cache's key)
-        id: playwright
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-      - name: Restore the Playwright browsers
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-browsers-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-      - name: Chromium and WebKit (and their OS packages), in one install
-        run: npx playwright install --with-deps chromium webkit
-
-      # W46 — READERS' NOTES in a browser, against the same emulators, with the endpoint stubbed:
-      # the door and the room in every state (a sealed room fetches no gated path), the composer,
-      # the last-page sheet, the admin's three slots and review list, and the reader's line chip
-      # and finished write — each with the flag on (preview build) and off. One signed-out GET of
-      # the public series rows borrows a slug; nothing writes to production.
-      - name: Readers' Notes — the door, the room, the composer, the sheet
-        run: npm run test:series-notes:ui
-      - name: Readers' Notes — the admin's questions and review list
-        run: npm run test:series-notes-admin
-      - name: Readers' Notes — the last page and "This is my line"
-        env:
-          GALLIUM_DRIVER: softpipe
-        run: npm run test:series-notes:reader
+      # SAFETY-1 — the bulk-write guard against the database AND storage emulators: dry by default,
+      # backup of exactly the touched paths, verified, no write when the backup fails, the root and a
+      # blank id refused, the firebase-admin wrappers, and a restore. Then the account scrub and the
+      # push announcer run their own suites with the database handed through the guard, as in production.
+      - name: SAFETY-1 — the bulk-write guard, end to end
+        run: npm run test:safety-guard:emulator && npm run test:safety-guard:wrapped
 
   # ───────────────────────────────────────────────────────────────────────────
   # 2. DRIFT. Proves the console has not been edited behind the repo (RULES.md).

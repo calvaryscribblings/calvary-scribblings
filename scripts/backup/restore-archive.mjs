@@ -7,12 +7,6 @@
 //
 // <archive> is a name from --list (…_data.json.gz in calvary-scribblings-default-rtdb-backups).
 //
-// SAFETY-2B: or an archive copied back from the vault. Ikenna copies it, from the vault's
-// `database/` into this bucket under `from-vault/` (docs/VAULT.md §7), and then it is restored
-// exactly like any other:  --object from-vault/<archive> --path …  (dry), then --apply.
-// --list shows the vault copies separately; nothing but a scheduled archive or a from-vault/
-// archive is accepted (never a guard/ backup: that is scripts/safety/restore.mjs).
-//
 // One record is almost always what you want (RESTORE.md, "Recovering ONE record"). --all puts
 // back every top-level node the archive holds, one path per node, never the root. A node created
 // since the archive was taken is left alone; nothing here deletes a node the archive doesn't name.
@@ -26,11 +20,11 @@
 //   firebase emulators:exec --only database,storage --project demo-calvary-restore \
 //     "node scripts/backup/restore-archive.mjs --object <archive> --all --apply"
 
+import { gunzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { mintToken } from '../rules-pull.mjs';
 import { openGuard, checkPath } from '../safety/guard.mjs';
 import { canon } from './verify-live.mjs';
-import { isScheduledArchive, isVaultArchive, isRestorableArchive, parseArchive } from './archives.mjs';
 
 const BUCKET = 'calvary-scribblings-default-rtdb-backups';
 const args = process.argv.slice(2);
@@ -50,18 +44,11 @@ async function archives() {
     items = items.concat(j.items || []);
     pageToken = j.nextPageToken || '';
   } while (pageToken);
-  return items.filter((o) => isRestorableArchive(o.name)).sort((a, b) => (a.timeCreated < b.timeCreated ? 1 : -1));
+  return items.filter((o) => o.name.endsWith('_data.json.gz')).sort((a, b) => (a.timeCreated < b.timeCreated ? 1 : -1));
 }
 
 if (args.includes('--list')) {
-  const all = await archives();
-  const row = (a) => console.log(`${a.timeCreated}  ${(Number(a.size) / 1048576).toFixed(2)} MB  ${a.name}`);
-  all.filter((a) => isScheduledArchive(a.name)).forEach(row);
-  const fromVault = all.filter((a) => isVaultArchive(a.name));
-  if (fromVault.length) {
-    console.log(`\ncopied back from the vault (${fromVault.length}); timeCreated is when the copy was made, not when the archive was taken:`);
-    fromVault.forEach(row);
-  }
+  for (const a of await archives()) console.log(`${a.timeCreated}  ${(Number(a.size) / 1048576).toFixed(2)} MB  ${a.name}`);
   process.exit(0);
 }
 
@@ -71,14 +58,11 @@ const all = args.includes('--all');
 if (!object || (!path && !all) || (path && all)) {
   fail('usage: --object <archive> and exactly one of --path <path> or --all (see the top of this file)');
 }
-if (!isRestorableArchive(object)) {
-  fail('--object must be a scheduled archive (…_data.json.gz) or one copied back from the vault (from-vault/…_data.json.gz)');
-}
 
 const dl = await fetch(`https://storage.googleapis.com/storage/v1/b/${BUCKET}/o/${encodeURIComponent(object)}?alt=media`, { headers: H });
 if (!dl.ok) fail(`download failed (HTTP ${dl.status})`);
-const tree = parseArchive(await dl.arrayBuffer());
-console.log(`archive: ${object}${isVaultArchive(object) ? ' (from the vault)' : ''} (${Object.keys(tree).length} top-level nodes)`);
+const tree = JSON.parse(gunzipSync(Buffer.from(await dl.arrayBuffer())));
+console.log(`archive: ${object} (${Object.keys(tree).length} top-level nodes)`);
 
 const guard = await openGuard('restore-archive');
 let updates;

@@ -21,7 +21,6 @@
 import { gunzipSync } from 'node:zlib';
 import { mintToken } from '../rules-pull.mjs';
 import { compareWithLive } from './verify-live.mjs';
-import { isScheduledArchive } from './archives.mjs';
 
 const BUCKET = 'calvary-scribblings-default-rtdb-backups';
 const EMU = process.env.FIREBASE_DATABASE_EMULATOR_HOST || '127.0.0.1:9000';
@@ -54,7 +53,7 @@ do {
   pageToken = j.nextPageToken || '';
 } while (pageToken);
 
-const archives = items.filter((o) => isScheduledArchive(o.name))
+const archives = items.filter((o) => o.name.endsWith('_data.json.gz'))
   .sort((a, b) => (a.timeCreated < b.timeCreated ? 1 : -1));
 if (!archives.length) fail('no data archives in the bucket at all');
 
