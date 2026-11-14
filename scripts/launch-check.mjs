@@ -31,6 +31,7 @@ import { LAUNCH_DATE_SHORT } from '../app/lib/launch.js';
 import { dictionaryLookup, DICT_BASE, DICT_SOURCE } from '../app/lib/dictionary.js';
 import { readServiceAccountFile, readSaKeySecret } from './security/service-account.mjs';
 import { readOnlyDb } from './safety/guard.mjs'; // SAFETY-1: read-only, enforced (any write throws)
+import { P4_ARMED, DRAIN_STALE_MS } from '../app/lib/pushP4.js';
 
 export const SITE = process.env.LAUNCH_SITE || 'https://calvaryscribblings.co.uk';
 export const GREEN = 'green';
@@ -42,6 +43,7 @@ export const STALE = {
   publish: 40 * MIN,   // the scheduled-publish Worker ticks every 15 minutes
   scrub: 45 * MIN,     // the account scrub runs every 15 minutes
   push: 45 * MIN,      // the push announcer, once armed, every 15 minutes
+  drain: DRAIN_STALE_MS, // P4-B1: the personal-push drain, once armed, every minute (5 min)
 };
 
 // ── London time ───────────────────────────────────────────────────────────────────────────
@@ -143,8 +145,8 @@ export function judgeMemberships({ status, httpStatus }, now) {
 export const pushScheduleArmed = (yml) => /^\s*-\s*cron:/m.test(String(yml || ''));
 
 /** JOBS: one heartbeat. `armed` false means the job is not live yet (not yet due). */
-export function judgeHeartbeat(name, { lastAt, staleMs, armed = true }, now) {
-  if (!armed) return row(name, NYD, 'not armed yet (its cron is commented out) — nothing is expected');
+export function judgeHeartbeat(name, { lastAt, staleMs, armed = true, unarmed = 'not armed yet (its cron is commented out) — nothing is expected' }, now) {
+  if (!armed) return row(name, NYD, unarmed);
   const ev = `last ran ${fmt(lastAt)} (${ago(lastAt, now)}); stale after ${Math.round(staleMs / 60000)} min`;
   return row(name, Number.isFinite(lastAt) && now - lastAt <= staleMs ? GREEN : RED, ev);
 }
@@ -346,6 +348,7 @@ export async function gather(now = Date.now(), { since: sinceArg } = {}) {
   const publishHb = await val('ops/publish_heartbeat');
   const scrubHb = await val('ops/account_scrub');
   const pushHb = await val('ops/push_announcer');
+  const drainHb = await val('ops/push_drain/lastRunAt');
   let pushArmed = false;
   try { pushArmed = pushScheduleArmed(readFileSync('.github/workflows/push-announce.yml', 'utf8')); } catch { /* treated as not armed */ }
 
@@ -375,6 +378,7 @@ export async function gather(now = Date.now(), { since: sinceArg } = {}) {
       publish: { lastAt: Number(publishHb?.lastTickAt) || NaN },
       scrub: { lastAt: Number(scrubHb?.lastRunAt) || NaN },
       push: { lastAt: Number(pushHb?.lastRunAt) || NaN, armed: pushArmed },
+      drain: { lastAt: Number(drainHb) || NaN, armed: P4_ARMED },
     },
     signals,
     dictionary,
@@ -393,6 +397,8 @@ export function judgeAll(g, now) {
     judgeHeartbeat('Job: scheduled publish', { lastAt: g.jobs.publish.lastAt, staleMs: STALE.publish }, now),
     judgeHeartbeat('Job: account scrub', { lastAt: g.jobs.scrub.lastAt, staleMs: STALE.scrub }, now),
     judgeHeartbeat('Job: push announcer', { lastAt: g.jobs.push.lastAt, staleMs: STALE.push, armed: g.jobs.push.armed }, now),
+    // P4-B1: armed at switch-on (P4_ARMED in app/lib/pushP4.js, flipped with the Worker's cron).
+    judgeHeartbeat('Job: personal-push drain', { lastAt: g.jobs.drain?.lastAt, staleMs: STALE.drain, armed: g.jobs.drain?.armed === true, unarmed: 'not armed yet (switch-on adds the Worker\'s cron) — nothing is expected' }, now),
     judgeSignals(g.signals),
     judgeDictionary(g.dictionary),
     judgeCovers(g.covers, now),

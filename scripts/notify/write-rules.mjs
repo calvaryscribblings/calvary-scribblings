@@ -112,17 +112,41 @@ const notifyPrefs = {
   },
 };
 
+// P4-B1 (docs/PUSH-P4.md). The push queue and the push state are the drain's alone: written and
+// read only with the server's token (which passes no rule), never by any client, founders included.
+// The queue is indexed on dueAt, the one query the drain makes.
+const pushQueue = { '.read': false, '.write': false, '.indexOn': ['dueAt'] };
+const pushState = { '.read': false, '.write': false };
+// The drain's heartbeat and lease: founders read it (the launch check reads it with the Admin SDK).
+const pushDrainOps = { '.read': `auth != null && (${F})`, '.write': false };
+// Two new fields on a device's own row (A60): pushCaps, what the app can take (personal pushes from
+// 1), and installHash, the SHA-256 of the app's private install id (POST /api/push/release).
+const tokenRowFields = {
+  pushCaps: { '.validate': 'newData.isNumber() && newData.val() >= 0 && newData.val() <= 100' },
+  installHash: { '.validate': 'newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)' },
+};
+
 export function build(rules) {
   const r = rules.rules;
   const out = {};
   for (const [k, v] of Object.entries(r)) {
-    if (['inbox', 'inbox_state', 'notify_prefs', 'announcements'].includes(k)) continue;
+    if (['inbox', 'inbox_state', 'notify_prefs', 'announcements', 'push_queue', 'push_state'].includes(k)) continue;
     if (k === 'library_notifications' || k === 'notifications') out[k] = legacyInbox(k);
     else if (k === 'followers') out[k] = followers;
+    else if (k === 'push_tokens') out[k] = withTokenFields(v);
+    else if (k === 'ops') out[k] = { ...v, push_drain: pushDrainOps };
     else out[k] = v;
-    if (k === 'library_notifications') Object.assign(out, { inbox, inbox_state: inboxState, notify_prefs: notifyPrefs, announcements });
+    if (k === 'library_notifications') Object.assign(out, { inbox, inbox_state: inboxState, notify_prefs: notifyPrefs, announcements, push_queue: pushQueue, push_state: pushState });
   }
   return { ...rules, rules: out };
+}
+
+/** push_tokens as it stands, with pushCaps and installHash allowed beside the four fields (before $other). */
+function withTokenFields(node) {
+  const row = node?.$uid?.$tokenKey;
+  if (!row) throw new Error('push_tokens/$uid/$tokenKey is not where write-rules expects it');
+  const { $other, ...fields } = row;
+  return { ...node, $uid: { ...node.$uid, $tokenKey: { ...fields, ...tokenRowFields, ...($other ? { $other } : {}) } } };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

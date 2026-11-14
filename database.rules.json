@@ -792,6 +792,17 @@
         "at"
       ]
     },
+    "push_queue": {
+      ".read": false,
+      ".write": false,
+      ".indexOn": [
+        "dueAt"
+      ]
+    },
+    "push_state": {
+      ".read": false,
+      ".write": false
+    },
     "dm_conversations": {
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
@@ -984,6 +995,10 @@
       },
       "money_fault": {
         ".read": false,
+        ".write": false
+      },
+      "push_drain": {
+        ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
         ".write": false
       }
     },
@@ -1864,6 +1879,12 @@
           },
           "updatedAt": {
             ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= now + 86400000"
+          },
+          "pushCaps": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+          },
+          "installHash": {
+            ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
           },
           "$other": {
             ".validate": false

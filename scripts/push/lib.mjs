@@ -342,6 +342,26 @@ export function messagesFor(message, recipients) {
 const isDead = (x) => x?.details?.error === 'DeviceNotRegistered';
 
 /**
+ * P4-B1: a device Expo no longer knows comes off EVERY account, not only the row the ticket was
+ * sent to (a phone signed into two accounts holds one token under both). `dead` is
+ * [{ uid, tokenKey }]; `tokens` is push_tokens. Rows already gone are kept as given (a delete of
+ * nothing is harmless). Each row once.
+ */
+export function everyRowFor(dead, tokens) {
+  const values = new Set();
+  for (const d of dead || []) { const t = tokens?.[d.uid]?.[d.tokenKey]?.token; if (t) values.add(t); }
+  const out = new Map();
+  for (const d of dead || []) out.set(`${d.uid}/${d.tokenKey}`, { uid: d.uid, tokenKey: d.tokenKey });
+  for (const [uid, rows] of Object.entries(tokens || {})) {
+    for (const [tokenKey, row] of Object.entries(rows || {})) if (values.has(row?.token)) out.set(`${uid}/${tokenKey}`, { uid, tokenKey });
+  }
+  return [...out.values()];
+}
+
+/** P4-B1: personal-push leftovers older than this are pruned by the job (the drain never needs them). */
+export const PERSONAL_LEFTOVER_MS = 2 * 24 * 60 * 60 * 1000;
+
+/**
  * Expo answers a send with one ticket per message, IN ORDER. An ok ticket has an id whose
  * receipt is fetched later; an error ticket is final now.
  */

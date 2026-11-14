@@ -286,3 +286,25 @@ The fix:
 - **Only the three loaders that parse env credentials were moved to the safe loader.** About 70 scripts
   still `JSON.parse(readFileSync('serviceAccountKey.json'))`. That file is decoded JSON and parses
   cleanly, so this is a narrower risk; the `CLAUDE.md` rule covers new code.
+
+## 9. The Expo access tokens and the drain secret (P4-B1, 14 Nov 2026)
+
+Not the Firebase key, but rotated the same way: create the new value, update every home, prove it,
+then revoke the old. **Never print one.** Expo access tokens are revoked in Expo's dashboard; the
+drain secret has no other copy than these two homes.
+
+| # | Value | Consumer | Where it's set | What breaks without it |
+|---|---|---|---|---|
+| 9.1 | Expo access token, **story job's** (`calvary-push-announcer`) | GitHub Actions secret `EXPO_ACCESS_TOKEN` | repo, then Settings, then Secrets and variables, then Actions | Story pushes and **every receipt check**, personal pushes' included (`push-announce.yml`) |
+| 9.2 | Expo access token, **drain's** (a second token, e.g. `calvary-push-drain`) | Cloudflare Pages secret `EXPO_ACCESS_TOKEN` | dash.cloudflare.com, then Workers & Pages, then `calvary-scribblings`, then Settings, then Variables and Secrets, **Production** only | Personal pushes: the drain answers 503 and sends nothing |
+| 9.3 | `PUSH_DRAIN_SECRET` (random, 48+ characters) | Cloudflare Pages secret `PUSH_DRAIN_SECRET` | the same page, **Production** only | The drain answers 503 |
+| 9.4 | the same `PUSH_DRAIN_SECRET` | Cloudflare Worker `push-drain-ping`, secret `PUSH_DRAIN_SECRET` | dash.cloudflare.com, then Workers & Pages, then `push-drain-ping`, then Settings, then Variables and Secrets | The drain answers 401; nothing is sent; the launch check turns red after 5 minutes once `P4_ARMED` |
+
+- **Two Expo tokens, not one shared.** Either can be revoked without stopping the other's job. With
+  enhanced push security on, a send without a valid token for the account is refused.
+- **Rotating the drain secret:** set the new value on the Worker and on Pages within the same minute.
+  A minute's 401s cost nothing: the queue waits, and anything under two hours late still goes.
+- **Pages secrets apply from the next deployment.** After changing 9.2 or 9.3, redeploy (or push) before
+  expecting the drain to use it.
+- **Proving it without sending:** `POST /api/push/drain?dry=1` with the secret reads, decides and answers
+  without writing or calling Expo. (No such call is made from this repo's scripts.)

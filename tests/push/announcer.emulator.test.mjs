@@ -409,6 +409,42 @@ describe('receipts and pruning', () => {
     assert.equal(hb.deadAtLastRun, 1);
   });
 
+  test('P4-B1: a personal push\'s receipt says DeviceNotRegistered — the device comes off EVERY account that holds it', async () => {
+    await seedWorld({ 'push_tokens/second/k': { ...token(2), updatedAt: NOW - 2 * D } });
+    await runSeed(await guarded(db), NOW, { apply: true });
+    // The drain kept this ticket (functions/api/push/drain.js); reader2's phone is also under `second`.
+    await db.ref('push_receipts/personal-ticket').set({ uid: 'reader2', tokenKey: 'k', at: NOW, kind: 'personal' });
+    const later = fakeExpo({ receipts: { 'personal-ticket': { status: 'error', details: { error: 'DeviceNotRegistered' } } } });
+    await runAnnouncer(await guarded(db), later, NOW + 20 * MIN, { apply: true, ...quiet });
+    assert.equal(await val('push_receipts'), null);
+    assert.equal(await val('push_tokens/reader2'), null);
+    assert.equal(await val('push_tokens/second'), null, 'the same phone under another account goes too');
+    assert.ok(await val('push_tokens/reader1/k'));
+  });
+
+  test('P4-B1: DeviceNotRegistered on a story push\'s ticket also clears the same phone under another account', async () => {
+    await seedWorld({ 'push_tokens/second/k': { ...token(2), updatedAt: NOW - 2 * D } });
+    await runSeed(await guarded(db), NOW, { apply: true });
+    await publish('ticket-dead-twice');
+    await runAnnouncer(await guarded(db), fakeExpo({ dead: ['ExpoPushToken[dev2]'] }), NOW + MIN, { apply: true, ...quiet });
+    assert.equal(await val('push_tokens/reader2'), null);
+    assert.equal(await val('push_tokens/second'), null);
+  });
+
+  test('P4-B1: personal-push leftovers older than two days are pruned; fresh ones stay', async () => {
+    await seedWorld({
+      'push_queue/reader1~old': { uid: 'reader1', rid: 'old', kind: 'reply', at: NOW - 3 * D, dueAt: NOW - 3 * D },
+      'push_queue/reader1~new': { uid: 'reader1', rid: 'new', kind: 'reply', at: NOW, dueAt: NOW },
+      'push_state/reader1/old': { pushedAt: NOW - 3 * D, recAt: NOW - 3 * D },
+      'push_state/reader1/new': { pushedAt: NOW - MIN, recAt: NOW - MIN },
+      'push_state/reader1/_day': { day: '2026-09-19', n: 4, morning: 0 },
+    });
+    await runSeed(await guarded(db), NOW, { apply: true });
+    await runAnnouncer(await guarded(db), fakeExpo(), NOW + MIN, { apply: true, ...quiet });
+    assert.deepEqual(Object.keys(await val('push_queue')), ['reader1~new']);
+    assert.deepEqual(Object.keys(await val('push_state/reader1')), ['new']);
+  });
+
   test('a row not refreshed in 60 days is pruned, and is not sent to', async () => {
     await seedWorld({ 'push_tokens/gone/k': token(9, NOW - 61 * D) });
     await runSeed(await guarded(db), NOW, { apply: true });

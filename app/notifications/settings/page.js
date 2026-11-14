@@ -8,10 +8,17 @@
 //
 // YOUR WRITING shows to writers only (users/{uid}.isAuthor, the same flag the writer badge reads).
 // Ruling 337: only cards whose push is live are drawn (app/lib/notifySettings.js CARD_LIVE).
+//
+// P4-B1. Two of the app's old fields on users/{uid} are read with notify_prefs (app/lib/pushP4.js
+// prefOn, the rule the drain and the announcer read too):
+//   359  ONE Stories switch: on only when neither notify_prefs/stories nor storyNotifications is
+//        off, and switching it writes both, in one update.
+//   362  replies and mentions: with no value of its own in notify_prefs, it starts off for a reader
+//        who turned the app's old mention notifications off (mentionNotifications === false).
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../lib/AuthContext';
-import { PREFS } from '../../lib/notificationKinds';
+import { prefOn, prefWrites } from '../../lib/pushP4';
 import { visibleCards, needsWriterFlag } from '../../lib/notifySettings';
 import NotificationsHeader from '../../components/bell/NotificationsHeader';
 import { MoonGlyph } from '../../components/bell/icons';
@@ -40,6 +47,7 @@ function Switch({ on, label, onChange, disabled }) {
 export default function NotificationSettingsPage() {
   const { user, loading } = useAuth();
   const [prefs, setPrefs] = useState(null);
+  const [legacy, setLegacy] = useState({});
   const [writer, setWriter] = useState(false);
   const [error, setError] = useState(null);
 
@@ -49,29 +57,36 @@ export default function NotificationSettingsPage() {
     (async () => {
       const { db } = await import('../../lib/firebaseCore');
       const { ref, get } = await import('firebase/database');
-      const [p, a] = await Promise.all([
-        get(ref(db, `notify_prefs/${user.uid}`)).then((s) => s.val()).catch(() => null),
-        needsWriterFlag() ? get(ref(db, `users/${user.uid}/isAuthor`)).then((s) => s.val()).catch(() => null) : null,
+      const read = (path) => get(ref(db, path)).then((s) => s.val()).catch(() => null);
+      const [p, a, story, mention] = await Promise.all([
+        read(`notify_prefs/${user.uid}`),
+        needsWriterFlag() ? read(`users/${user.uid}/isAuthor`) : null,
+        read(`users/${user.uid}/storyNotifications`),
+        read(`users/${user.uid}/mentionNotifications`),
       ]);
       if (!live) return;
       setPrefs(p && typeof p === 'object' ? p : {});
+      setLegacy({ storyNotifications: story, mentionNotifications: mention });
       setWriter(a === true);
     })();
     return () => { live = false; };
   }, [user]);
 
-  const value = (key) => (typeof prefs?.[key] === 'boolean' ? prefs[key] : PREFS[key].default);
+  const value = (key) => prefOn(key, prefs, legacy);
 
   const flip = async (key, on) => {
     const before = prefs;
+    const beforeLegacy = legacy;
     setPrefs((p) => ({ ...(p || {}), [key]: on }));
+    if (key === 'stories') setLegacy((l) => ({ ...l, storyNotifications: on }));
     setError(null);
     try {
       const { db } = await import('../../lib/firebaseCore');
-      const { ref, set } = await import('firebase/database');
-      await set(ref(db, `notify_prefs/${user.uid}/${key}`), on);
+      const { ref, update } = await import('firebase/database');
+      await update(ref(db), prefWrites(user.uid, key, on));
     } catch (e) {
       setPrefs(before);
+      setLegacy(beforeLegacy);
       setError('That switch didn’t save. Try again.');
       console.error('[notify_prefs] not saved:', e?.code || e?.message || e);
     }

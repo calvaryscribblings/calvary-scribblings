@@ -859,3 +859,18 @@ Recorded in SAFETY-2P, a planning and writing round. **Nothing below is built in
 - **348:** Still pending, on the measurement only (RADIO-B2).
 
 Also in SAFETY-2P: the vault (rulings 267, 268, 270–273 and 275) is planned in `docs/VAULT.md`, with Ikenna's console steps for phase 1. Nothing is built yet; 269 and 274 stay their own rounds.
+
+## 14 Nov 2026 (Ikenna): rulings 355–364
+
+Recorded in P4-B1, all ruled yes on 14 Nov. **Built** means in P4-B1; the rest are owed to their own rounds. 365–369 (personal pushes) are built in P4-B1 as written but await Ikenna's word, and are logged here in the ship round once ruled.
+
+- **355:** Vault copies are deleted after 60 days.
+- **356:** The CMS warns when a new story's title matches an existing one.
+- **357:** The fixed navigation bars stay as they are (96–97% opaque), outside ruling 324.
+- **358:** The gateway keeps its 1.4-second limit.
+- **359:** One Stories switch, in the app and on the website. It is on only when both fields are on (`notify_prefs/{uid}/stories` and `users/{uid}/storyNotifications`), and changing it sets both. **Built (web) in P4-B1:** `prefOn` and `prefWrites` in `app/lib/pushP4.js`, used by `/notifications/settings`; the story push job already reads either field off as off.
+- **360:** A notification the app has no screen for opens that page of the website inside the app.
+- **361:** With the phone's notifications off, the push settings screen says "Your phone has notifications turned off for Story Island." with OPEN SETTINGS.
+- **362:** Readers who turned off the app's old mention notifications start with replies and mentions off when personal pushes arrive. **Built (web) in P4-B1:** read live, not copied. With no value of its own in `notify_prefs`, replies and mentions read off when `users/{uid}/mentionNotifications` is false, on the settings page and in the drain (`prefOn`).
+- **363:** Wherever the app meant Inter but shows the phone's own font, it switches to Inter in its own round, walked screen by screen.
+- **364:** Replies to replies look the same on both. The app shows the website's in their response's thread, and the website nests the app's under the reply they answer.

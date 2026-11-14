@@ -10,6 +10,7 @@ import {
   planAnnouncements, planSeed, buildAudience, messagesFor, planTickets,
   receiptsToFetch, planReceipts, storyMessage, instalmentMessage, chunk, planSendWindow, londonDay,
   DEFAULT_MAX_PER_RUN, RECEIPT_BATCH, EXPO_BATCH, DAILY_CAP, QUIET_UNTIL_HOUR,
+  everyRowFor, PERSONAL_LEFTOVER_MS,
 } from './lib.mjs';
 import * as store from './store.mjs';
 import { BATCH_PAUSE_MS } from './expo.mjs';
@@ -32,7 +33,7 @@ export function errorTally(errors) {
 const noop = () => {};
 
 /** Receipts for tickets old enough to have one; dead devices come off the list. */
-export async function processReceipts(db, expo, now, { apply, log = noop }) {
+export async function processReceipts(db, expo, now, { apply, log = noop, tokens = {} }) {
   const stored = await store.readReceipts(db);
   const asked = receiptsToFetch(stored, now);
   const answers = {};
@@ -42,11 +43,14 @@ export async function processReceipts(db, expo, now, { apply, log = noop }) {
   log(`receipts: ${Object.keys(stored).length} held, ${asked.length} asked, ${plan.ok} ok, ${plan.dead.length} dead device(s), ${plan.errors.length} other error(s)`);
   // W12: this log is PUBLIC. Errors are tallied by kind; never a ticket id, uid or token.
   if (plan.errors.length) log(`  receipt errors: ${errorTally(plan.errors)}`);
+  // P4-B1: the device comes off every account that holds it, not only the row the ticket named.
+  const rows = everyRowFor(plan.dead, tokens);
+  if (rows.length > plan.dead.length) log(`  ${rows.length - plan.dead.length} more row(s) for the same device(s), under other accounts`);
   if (apply) {
-    await store.deleteTokens(db, plan.dead);
+    await store.deleteTokens(db, rows);
     await store.clearReceipts(db, plan.clear);
   }
-  return plan;
+  return { ...plan, deadRows: rows };
 }
 
 /** Rows not refreshed in 60 days. The app rewrites its row on every launch. */
@@ -92,7 +96,7 @@ async function announceOne(db, expo, item, message, recipients, ctx) {
       const who = recipients.slice(i * EXPO_BATCH, i * EXPO_BATCH + batch.length);
       const t = planTickets(tickets, who, { kind: item.kind, id: item.id });
       await store.addReceipts(db, t.pending, now);
-      await store.deleteTokens(db, t.dead);
+      await store.deleteTokens(db, everyRowFor(t.dead, ctx.tokens));
       ok += t.pending.length; dead += t.dead.length; errors += t.errors.length;
       if (t.errors.length) log(`  ticket errors: ${errorTally(t.errors)}`);
     }
@@ -127,9 +131,14 @@ export async function runAnnouncer(db, expo, now, {
       '(scripts/push/announce.mjs --seed --apply) or the first run announces the whole back catalogue.');
   }
 
-  const receipts = await processReceipts(db, expo, now, { apply, log });
-  const tokens = await store.readTokens(db);
+  // P4-B1: the rows first, so a dead device comes off every account that holds it. The receipts
+  // include the personal pushes' (the drain writes its tickets to push_receipts, kind 'personal').
+  const tokensBefore = await store.readTokens(db);
+  const receipts = await processReceipts(db, expo, now, { apply, log, tokens: tokensBefore });
+  const tokens = apply ? await store.readTokens(db) : tokensBefore;
   const pruned = await pruneStale(db, now, { apply, log, tokens });
+  const leftovers = await store.prunePersonal(db, now - PERSONAL_LEFTOVER_MS, { apply });
+  log(`personal pushes: ${leftovers.queue} queue and ${leftovers.state} state entr(ies) older than 2 days ${apply ? 'pruned' : 'to prune'}`);
 
   const world = await store.readWorld(db);
   const due = planAnnouncements(world, now);
@@ -185,7 +194,7 @@ export async function runAnnouncer(db, expo, now, {
   }
   for (const { item, message, announcement } of window.send) {
     if (!apply) { results.push({ ...item, message, dryRun: true }); continue; }
-    const entry = await announceOne(db, expo, item, message, recipients, { now, runId, log, pause, announcement });
+    const entry = await announceOne(db, expo, item, message, recipients, { now, runId, log, pause, announcement, tokens });
     results.push({ ...item, message, entry });
   }
 

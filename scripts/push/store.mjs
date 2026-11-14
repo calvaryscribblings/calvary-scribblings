@@ -130,3 +130,26 @@ export async function writeAnnouncement(db, rec) {
   const { committed } = await db.ref(`${ANNOUNCEMENTS}/${announcementId(rec.kind, rec.id)}`).transaction((cur) => (cur === null ? rec : undefined), undefined, false);
   return committed;
 }
+
+/**
+ * P4-B1: personal-push leftovers older than `before`: queue entries whose dueAt passed long ago
+ * (the drain drops anything two hours stale, so these are only a dead drain's), and push_state
+ * entries last pushed before then. The day counter (_day) goes when its day has. Counts only.
+ */
+export async function prunePersonal(db, before, { apply = false } = {}) {
+  // Read whole and filtered here: the drain keeps the queue short, and this needs no index.
+  const all = (await db.ref('push_queue').get()).val() || {};
+  const queue = Object.fromEntries(Object.entries(all).filter(([, e]) => !(Number(e?.dueAt) >= before)));
+  const state = (await db.ref('push_state').get()).val() || {};
+  const patch = {};
+  for (const key of Object.keys(queue)) patch[`push_queue/${key}`] = null;
+  let stateCount = 0;
+  for (const [uid, entries] of Object.entries(state)) {
+    for (const [rid, v] of Object.entries(entries || {})) {
+      const t = rid === '_day' ? Date.parse(`${v?.day}T23:59:59Z`) : Number(v?.pushedAt);
+      if (!(t >= before)) { patch[`push_state/${uid}/${rid}`] = null; stateCount++; }
+    }
+  }
+  if (apply && Object.keys(patch).length) await db.ref().update(patch);
+  return { queue: Object.keys(queue).length, state: stateCount };
+}

@@ -9,7 +9,8 @@
 // functions/api/_notify.js (blocks both ways, the recipient's mute, grouping, the budget).
 //
 //   event              subjectId                            who is told
-//   comment            {slug}/{commentId}                   the parent's author (reply), up to 6
+//   comment            {slug}/{commentId}                   the author of the reply it answers (replyToId),
+//                                                           else the parent's author (reply), up to 6
 //                                                           @mentions, the story's writer (response,
 //                                                           grouped per story, ruling 307)
 //   comment_reaction   {slug}/{commentId}/{type}            the response's author (grouped per response)
@@ -95,19 +96,28 @@ const EVENTS = {
     if (!live(c)) refuse('missing', 404);
     if (c.authorUid !== uid) refuse('not_yours', 403);
     const parentId = isKey(c.parentId) ? c.parentId : null;
-    const [story, parent, mentions] = await Promise.all([
+    // P4-B1: a comment carrying replyToId (a reply to a reply) tells the author of the reply it
+    // answers; without one, or when that reply is gone, the parent's author, as before.
+    const replyToId = parentId && isKey(c.replyToId) && c.replyToId !== parentId && c.replyToId !== commentId ? c.replyToId : null;
+    const [story, first, mentions] = await Promise.all([
       db.get(`${INDEX_PATH}/${slug}`),
-      parentId ? db.get(`comments/${slug}/${parentId}`) : null,
+      replyToId ? db.get(`comments/${slug}/${replyToId}`) : (parentId ? db.get(`comments/${slug}/${parentId}`) : null),
       mentioned(db, c.text),
     ]);
+    let answered = first;
+    let answeredId = replyToId || parentId;
+    if (replyToId && !(live(first) && first.authorUid)) {
+      answered = await db.get(`comments/${slug}/${parentId}`);
+      answeredId = parentId;
+    }
     const writer = story?.authorUid;
     const storyTitle = clip(story?.title, 200);
     const subject = { slug, commentId, ...(parentId ? { parentId } : {}) };
     return [
       // The old notes, as the story page wrote them: a reply names the response replied to and
       // quotes it; a mention quotes the new words.
-      parent?.authorUid && { uid: uidOrNull(parent.authorUid), kind: 'reply', subject, id: recordId('reply', slug, commentId),
-        legacy: lib({ type: 'reply', slug, commentId: parentId, commentText: clip(parent.text, 120), storyTitle }) },
+      answered?.authorUid && { uid: uidOrNull(answered.authorUid), kind: 'reply', subject, id: recordId('reply', slug, commentId),
+        legacy: lib({ type: 'reply', slug, commentId: answeredId, commentText: clip(answered.text, 120), storyTitle }) },
       ...mentions.map((m) => ({ uid: m, kind: 'mention', subject, id: recordId('mention', slug, commentId),
         legacy: lib({ type: 'mention', slug, commentText: clip(c.text, 140), storyTitle }) })),
       // Responses on your story are new (ruling 307): there was never an old note for them.

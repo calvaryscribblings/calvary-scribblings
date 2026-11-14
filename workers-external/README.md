@@ -13,6 +13,7 @@ Two are mirrored. Three are not.
 | `calvary-auth` | ❌ **none** | every verification and welcome email the business sends | unknown |
 | `calvary-og-image` | ❌ **none** | renders Open Graph preview images (`/api/og-image` is a 4-line proxy to it) | unknown |
 | `calvary-age-verify` | ❌ **none** | referenced by the site; purpose unconfirmed | unknown |
+| `push-drain-ping` (P4-B1, **not created yet**) | ✅ `push-drain-ping.worker.js`, written here first | its cron calls `POST /api/push/drain` each minute: the switch for personal pushes (`docs/PUSH-P4.md`) | `PUSH_DRAIN_SECRET` only (`security/KEY-ROTATION.md` §9) |
 
 The mirrors are byte-for-byte copies, kept honest by `scripts/worker-mirror-check.mjs`. A
 mirror that has drifted from the dashboard is worse than none, because it looks like a

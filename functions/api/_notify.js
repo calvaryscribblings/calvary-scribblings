@@ -33,13 +33,19 @@
 // (45, functions/api/_budget.js), which leaves headroom under Cloudflare's 50. A recipient is admitted only when its checks and one write
 // still fit; one that doesn't is dropped and counted, never half-written.
 //
-// Push is P4. `pushAllowed` and each kind's push behaviour live in app/lib/notificationKinds.js.
+// THE PUSH QUEUE (P4-B1, docs/PUSH-P4.md). Every record actually delivered whose kind pushes one by
+// one (app/lib/pushP4.js pushesPersonally) gets push_queue/{uid}~{recordId} = { uid, rid, kind, at,
+// dueAt: at }, in the SAME multi-path PATCH as the old notes. Nothing is read for it and nothing is
+// decided here: the drain (functions/api/push/drain.js) reads the switches, the devices and the
+// clock. The PATCH is reserved before any recipient is admitted, so a queue entry can never crowd an
+// inbox write out of the budget, and a call that pushes nobody pays nothing for it.
 //
 // LOGGING: codes and counts only. Never a uid, a name, a handle or any text.
 
 import { Budget, pooled, SUBREQUEST_BUDGET } from './_budget.js';
 import { dbBase, FIREBASE_TIMEOUT_MS } from './bookstore/_lib.js';
 import { INBOX_KINDS, RECENT_ACTORS, ACTOR_SET_CAP } from '../../app/lib/notificationKinds.js';
+import { pushesPersonally, queueKey, QUEUE } from '../../app/lib/pushP4.js';
 
 // Tries at a grouped record's ETag. Each round of a race lands at least one writer, so N readers
 // reacting at once need up to N rounds; the budget, not this number, is the real bound (a retry is
@@ -65,6 +71,13 @@ export function notifyDb(env, token, budget) {
     async get(path) {
       const res = await call(url(path), { headers: auth });
       if (!res.ok) throw new Error(`RTDB GET ${res.status}`);
+      return res.json();
+    },
+    /** A query: `params` as the REST API takes them, e.g. { orderBy: '"dueAt"', endAt: 5, limitToFirst: 10 }. */
+    async query(path, params) {
+      const qs = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&');
+      const res = await call(`${url(path)}?${qs}`, { headers: auth });
+      if (!res.ok) throw new Error(`RTDB query ${res.status}`);
       return res.json();
     },
     async getWithEtag(path) {
@@ -136,7 +149,7 @@ export function mergeGroup(prev, { kind, subject, actor, eventKey, now, fresh = 
     firstAt: p?.firstAt || now,
     at: now,
   };
-  if (p?.pushedAt) next.pushedAt = p.pushedAt;   // P4's hourly gate survives the update
+  if (p?.pushedAt) next.pushedAt = p.pushedAt;   // kept for old records; P4-B1's gate lives in push_state
   return next;
 }
 
@@ -161,8 +174,13 @@ export function dedupe(recipients, actor) {
  * one conditional write). A recipient is admitted only when this fits; a grouped record's retries
  * after losing a race are paid from what is left once every admitted recipient's share is set aside.
  */
-/** The one PATCH that carries every old note in the call, when any recipient has one. */
-export const legacyCost = (list) => (list.some((r) => r.legacy) ? 1 : 0);
+/**
+ * The one PATCH that carries every old note and every push-queue entry in the call, when any
+ * recipient could need one. Reserved before admission (P4-B1).
+ */
+export const patchCost = (list) => (list.some((r) => r.legacy || pushesPersonally(r.kind)) ? 1 : 0);
+/** @deprecated the old name, kept for anything that imports it */
+export const legacyCost = patchCost;
 
 export function recipientCost(r) {
   return CHECK_COST + (r.silenceIf?.length || 0) + (r.freshAfterSeen ? 1 : 0) + writeCost(r);
@@ -191,9 +209,9 @@ export async function deliver(db, { actor, recipients, now }) {
   if (!list.length) return stats;
   const { budget } = db;
 
-  // 1. Admit, nearest fact first, after the one read every recipient shares (and the old notes'
-  // one PATCH, when there are any).
-  const shared = 1 + legacyCost(list);
+  // 1. Admit, nearest fact first, after the one read every recipient shares (and the one PATCH for
+  // the old notes and the push queue, when the call could need it).
+  const shared = 1 + patchCost(list);
   if (!budget.fits(shared + recipientCost(list[0]))) { stats.dropped += list.length; return stats; }
   let room = budget.left - shared;
   const admitted = [];
@@ -222,13 +240,21 @@ export async function deliver(db, { actor, recipients, now }) {
   });
   audible.sort((x, y) => admitted.indexOf(x.r) - admitted.indexOf(y.r));
 
-  // 3. Write. The old notes' PATCH is set aside first, so no retry can eat it.
+  // 3. Write. The PATCH (old notes, push queue) is set aside first, so no retry can eat it.
   const legacy = {};
+  const queue = {};
   const mirror = (r) => {
     if (!r.legacy) return;
     legacy[`${r.legacy.node}/${r.uid}/${legacyKey(r)}`] = { ...r.legacy.record, read: false, createdAt: now, nid: inboxId(r) };
   };
-  let pending = audible.reduce((n, { r }) => n + writeCost(r), 0) + (audible.some(({ r }) => r.legacy) ? 1 : 0);
+  // A delivered record that pushes: one entry per reader and record, rewritten whole by a repeat so
+  // the drain sees it as new (functions/api/push/drain.js, finishedWith in app/lib/pushP4.js).
+  const enqueue = (r) => {
+    if (!pushesPersonally(r.kind)) return;
+    const rid = inboxId(r);
+    queue[`${QUEUE}/${queueKey(r.uid, rid)}`] = { uid: r.uid, rid, kind: r.kind, at: now, dueAt: now };
+  };
+  let pending = audible.reduce((n, { r }) => n + writeCost(r), 0) + (audible.some(({ r }) => r.legacy || pushesPersonally(r.kind)) ? 1 : 0);
   for (const { r, seenAt } of audible) {
     pending -= writeCost(r);
     try {
@@ -236,7 +262,7 @@ export async function deliver(db, { actor, recipients, now }) {
       if (!r.group) {
         const res = await db.put(path, { kind: r.kind, actor, subject: r.subject, at: now }, 'null_etag');
         stats[res === 'ok' ? 'delivered' : 'repeated']++;
-        if (res === 'ok') mirror(r);
+        if (res === 'ok') { mirror(r); enqueue(r); }
         continue;
       }
       let done = false;
@@ -248,7 +274,7 @@ export async function deliver(db, { actor, recipients, now }) {
         // A grouped repeat (a reader's second reaction on one post) adds nothing to the group, but
         // the web always wrote its own note for it, so the old note still goes (under its own key).
         if (!next) { stats.repeated++; done = true; if (r.legacyKey) mirror(r); break; }
-        if ((await db.put(path, next, etag)) === 'ok') { stats.delivered++; done = true; mirror(r); }
+        if ((await db.put(path, next, etag)) === 'ok') { stats.delivered++; done = true; mirror(r); enqueue(r); }
       }
       if (!done) stats.failed++;   // lost the race every time it could afford to try
     } catch (e) {
@@ -257,9 +283,17 @@ export async function deliver(db, { actor, recipients, now }) {
     }
   }
   const notes = Object.keys(legacy).length;
-  if (notes) {
-    try { await db.patch(legacy); stats.mirrored = notes; }
-    catch (e) { stats.mirrorFailed = notes; console.error(`[notify] the old notes failed: ${e?.code || e?.message || 'error'}`); }
+  const queued = Object.keys(queue).length;
+  if (notes || queued) {
+    try {
+      await db.patch({ ...legacy, ...queue });
+      if (notes) stats.mirrored = notes;
+      if (queued) stats.queued = queued;
+    } catch (e) {
+      if (notes) stats.mirrorFailed = notes;
+      if (queued) stats.queueFailed = queued;
+      console.error(`[notify] the old notes and push queue failed: ${e?.code || e?.message || 'error'}`);
+    }
   }
   return stats;
 }

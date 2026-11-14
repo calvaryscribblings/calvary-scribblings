@@ -556,3 +556,16 @@ describe('frequency — the numbers Ikenna rules on', () => {
     assert.ok(st.worstWeek >= 7 && st.worstWeek <= 8);
   });
 });
+
+// P4-B1 — a device Expo no longer knows comes off every account that holds it.
+import { everyRowFor } from '../../scripts/push/lib.mjs';
+test('P4-B1 · everyRowFor: the dead row, and the same token under every other account, each once', () => {
+  const tokens = {
+    a: { k1: { token: 'ExponentPushToken[x]' }, k2: { token: 'ExponentPushToken[y]' } },
+    b: { k: { token: 'ExponentPushToken[x]' } },
+    c: { k: { token: 'ExponentPushToken[z]' } },
+  };
+  const rows = everyRowFor([{ uid: 'a', tokenKey: 'k1' }, { uid: 'a', tokenKey: 'k1' }], tokens).map((r) => `${r.uid}/${r.tokenKey}`).sort();
+  assert.deepEqual(rows, ['a/k1', 'b/k']);
+  assert.deepEqual(everyRowFor([{ uid: 'gone', tokenKey: 'k' }], tokens), [{ uid: 'gone', tokenKey: 'k' }], 'a row already gone is kept as given');
+});
