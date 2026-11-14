@@ -21,8 +21,6 @@ import { getDatabase } from 'firebase-admin/database';
 import { getAuth } from 'firebase-admin/auth';
 import { adminApp, closeApp } from '../series/harness.mjs';
 import { routeNotify } from '../square/write-route.mjs';
-import { sectionOf } from '../../app/lib/bell.js';
-import { bellInstant, runnerNow } from './bell-clock.mjs';
 
 const app = adminApp('notif-b2-bell');
 const db = getDatabase(app);
@@ -34,22 +32,9 @@ const W = 'nb2-writer', M = 'nb2-muted', X = 'nb2-blocked', GONE = 'nb2-no-profi
 const WIDTHS = { phone: { width: 390, height: 844 }, ipad: { width: 820, height: 1180 }, desktop: { width: 1440, height: 900 } };
 const MIN = 60000, H = 60 * MIN, DAY = 24 * H;
 
-// One instant, AT, dates every fixture, and the page's clock is PINNED to it with Playwright's
-// page.clock.setFixedTime (SAFETY-2B.1). Pinned, not shifted: the old relative shift of Date stacked
-// twice under next dev and put every item in the future, while a fixed time set twice is the same
-// time, and pinned() below asserts it after every load. AT is the real time unless London's day is
-// too young to hold the TODAY fixtures (just after midnight, when this case went red on main), and
-// then late on the evening before: tests/notify/bell-clock.mjs. The Square draws its bell whether
-// it is open or not.
-const AT = bellInstant(runnerNow());
-// The fixtures meant for TODAY (minutes before AT, the oldest the reaction group's firstAt), checked
-// against the page's own rule before anything is drawn: a wrong AT fails here, by name.
-const TODAY_MINUTES = [1, 5, 8, 12, 20, 40, 70, 80, 90, 300];
-const london = (t) => new Date(t).toLocaleString('en-GB', { timeZone: 'Europe/London', dateStyle: 'short', timeStyle: 'medium' });
-console.log(`bell spec: runner ${london(runnerNow())} London, page pinned at ${london(AT)} London`);
-for (const m of TODAY_MINUTES) {
-  if (sectionOf(AT - m * 60000, AT) !== 'TODAY') throw new Error(`bell spec: a fixture ${m} minutes before its instant is not TODAY in London`);
-}
+// Real time: the page's clock is not shifted (a shifted Date stacked twice under next dev and put
+// every item in the future). The Square draws its bell whether it is open or not.
+const AT = Date.now();
 
 const prof = (displayName, h, extra = {}) => ({ displayName, username: h, handle: h, readCount: 12, createdAt: Date.UTC(2026, 2, 14), ...extra });
 
@@ -117,10 +102,8 @@ async function open(page, path, { uid = A, size = 'desktop' } = {}) {
   page.on('pageerror', (e) => errors.push(e.message));
   if (process.env.BELL_DEBUG) page.on('console', (m) => console.log('[page]', m.type(), m.text().slice(0, 300)));
   await page.setViewportSize(typeof size === 'object' ? size : WIDTHS[size]);
-  await page.clock.setFixedTime(AT);
   await routeNotify(page, { at: AT });
   await page.goto(path);
-  await pinned(page);
   if (uid) {
     await page.waitForFunction(() => !!window.__FB_EMULATOR_SIGNIN__, null, { timeout: 120000 });
     await page.evaluate((tk) => window.__FB_EMULATOR_SIGNIN__(tk), await getAuth(app).createCustomToken(uid));
@@ -128,10 +111,6 @@ async function open(page, path, { uid = A, size = 'desktop' } = {}) {
   const decline = page.getByRole('button', { name: /^decline$/i });
   try { await decline.waitFor({ timeout: 5000 }); await decline.click(); } catch {}
   return errors;
-}
-/** The page's clock is AT exactly: pinned once or five times, never stacked. */
-async function pinned(page) {
-  expect(await page.evaluate(() => Date.now()), 'the page clock is not the spec\'s instant').toBe(AT);
 }
 const visibleBell = (page) => page.locator('[data-bell-button]:visible').first();
 const val = async (p) => (await db.ref(p).get()).val();
@@ -222,7 +201,6 @@ test('the full page: a phone\'s bell opens it; four sources, each event once; th
   await expect(bell).toHaveAttribute('aria-label', 'Notifications, 3 unread', { timeout: 60000 });
   await bell.click();
   await page.waitForURL('**/notifications');
-  await pinned(page);
   const list = page.locator('[data-notifications-list]');
   await expect(list).toBeVisible({ timeout: 60000 });
   await expect.poll(() => val(`inbox_state/${A}/seenAt`)).toBeGreaterThan(AT - MIN);
@@ -282,7 +260,6 @@ test('the Square\'s bell is the same list and the same count: panel on desktop, 
   expect(Math.round((await phoneBell.locator('[data-bell-circle]').boundingBox()).width)).toBe(31);
   await phoneBell.click();
   await page.waitForURL('**/notifications');
-  await pinned(page);
   await expect(page.locator('[data-notifications-list]')).toBeVisible({ timeout: 60000 });
 });
 

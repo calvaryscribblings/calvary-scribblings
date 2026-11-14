@@ -417,7 +417,7 @@ export async function openGuard(name, opts = {}) {
 
   /**
    * Storage deletes, uploads (create or overwrite) and custom-metadata patches, by REST.
-   * deletes: [{ name, bucket? }]; uploads: [{ name, body, contentType, metadata?, cacheControl?, contentDisposition?, contentLanguage?, bucket? }];
+   * deletes: [{ name, bucket? }]; uploads: [{ name, body, contentType, metadata?, cacheControl?, bucket? }];
    * metadata: [{ name, metadata, bucket? }]. The bucket defaults to the main Firebase bucket.
    */
   async function storage({ deletes = [], uploads = [], metadata = [] } = {}, { label = 'storage' } = {}) {
@@ -449,9 +449,6 @@ export async function openGuard(name, opts = {}) {
         const meta = { name: o.name, contentType: o.contentType || 'application/octet-stream' };
         if (o.metadata) meta.metadata = o.metadata;
         if (o.cacheControl) meta.cacheControl = o.cacheControl;
-        // SAFETY-2B: a file restored from the vault keeps the headers it was served with.
-        if (o.contentDisposition) meta.contentDisposition = o.contentDisposition;
-        if (o.contentLanguage) meta.contentLanguage = o.contentLanguage;
         const mp = multipart(meta, Buffer.isBuffer(o.body) ? o.body : Buffer.from(o.body));
         r = await fetch(`${ep.gcs}/upload/storage/v1/b/${o.bucket}/o?uploadType=multipart&ifGenerationMatch=${gen}`, {
           method: 'POST', headers: { ...H, 'Content-Type': mp.type }, body: mp.body,

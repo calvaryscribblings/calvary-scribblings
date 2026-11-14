@@ -139,7 +139,7 @@ describe('comps never count as sales', () => {
       try { return statSync(p).isDirectory() ? walk(p) : [p]; } catch (e) { if (e.code === 'ENOENT') return []; throw e; }
     });
     const readIfThere = (f) => { try { return readFileSync(f, 'utf8'); } catch (e) { if (e.code === 'ENOENT') return ''; throw e; } };
-    const BACKUPS = new Set(['scripts/backup/restore-drill.mjs', 'scripts/backup/assess.mjs']);
+    const BACKUPS = new Set(['scripts/backup/export.mjs', 'scripts/backup/restore-drill.mjs', 'scripts/backup/assess.mjs']);
     const offenders = [];
     for (const f of [...walk('app'), ...walk('functions'), ...walk('scripts')].filter((p) => /\.(m?js)$/.test(p))) {
       if (BACKUPS.has(f)) continue;

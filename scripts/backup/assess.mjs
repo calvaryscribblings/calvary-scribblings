@@ -6,8 +6,6 @@
 // check whose failure path has never run is the same class of thing as a backup
 // nobody has restored.
 
-import { isScheduledArchive } from './archives.mjs';
-
 export const MAX_AGE_HOURS = 30;   // daily backup + a 6h grace for a late run
 export const MIN_FRACTION = 0.5;   // of the median of recent archives
 
@@ -33,7 +31,7 @@ export function assess(objects, now, probe = {}, opts = {}) {
   const problems = [];
 
   const archives = (objects || [])
-    .filter((o) => o && isScheduledArchive(o.name))
+    .filter((o) => o && typeof o.name === 'string' && o.name.endsWith('_data.json.gz'))
     .sort((a, b) => (a.timeCreated < b.timeCreated ? 1 : -1));
 
   if (!archives.length) {

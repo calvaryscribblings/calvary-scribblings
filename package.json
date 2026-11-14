@@ -141,9 +141,7 @@
     "test:proofs": "node --test tests/proofs/proofs.test.mjs tests/proofs/mail.test.mjs",
     "test:limits:emulator": "firebase emulators:exec --config firebase.proofs-test.json --only database --project demo-calvary-limits \"node --test --test-concurrency=1 tests/limits/*.emulator.mjs\"",
     "test:proofs:emulator": "firebase emulators:exec --config firebase.proofs-test.json --only database,storage --project demo-calvary-proofs \"node --test --test-concurrency=1 tests/proofs/*.emulator.mjs\"",
-    "test:proofs:browser": "firebase emulators:exec --config firebase.proofs-test.json --only auth,database --project calvary-scribblings \"node --test --test-concurrency=1 tests/proofs/browser.e2e.mjs\"",
-    "test:vault": "node --test \"tests/vault/*.test.mjs\"",
-    "test:vault:emulator": "firebase emulators:exec --config firebase.vault-test.json --only auth,database,storage --project demo-safety-2b \"node --test --test-concurrency=1 tests/vault/*.emulator.mjs\""
+    "test:proofs:browser": "firebase emulators:exec --config firebase.proofs-test.json --only auth,database --project calvary-scribblings \"node --test --test-concurrency=1 tests/proofs/browser.e2e.mjs\""
   },
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",
@@ -162,12 +160,10 @@
     "@firebase/rules-unit-testing": "^5.0.1",
     "@playwright/test": "^1.62.0",
     "@tailwindcss/postcss": "^4",
-    "age-encryption": "0.3.1",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "firebase-admin": "^14.2.0",
     "firebase-tools": "^15.24.0",
-    "globals": "14.0.0",
     "opentype.js": "2.0.0",
     "tailwindcss": "^4"
   },

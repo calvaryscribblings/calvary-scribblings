@@ -1,6 +1,5 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
-import globals from "globals";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -32,22 +31,6 @@ const eslintConfig = defineConfig([
   // supplies the browser, node and service-worker globals.
   {
     rules: { "no-undef": "error" },
-  },
-
-  // SAFETY-2B.1 — the one CommonJS file in the linted tree.
-  //
-  // eslint-config-next hands its browser + node globals only to the extensions
-  // it lists, and .cjs is not one of them, so this preload (run with
-  // `node --require` by tests/vault/bootstrap.test.mjs) linted as five
-  // no-undef errors: process, Buffer, __dirname and Response twice. It is
-  // declared here by name, and only it: any other .cjs that arrives still meets
-  // no-undef and has to be declared on its own.
-  {
-    files: ["tests/vault/bootstrap-fetch.cjs"],
-    languageOptions: {
-      sourceType: "commonjs",
-      globals: { ...globals.node },
-    },
   },
 ]);
 
