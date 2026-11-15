@@ -33,38 +33,70 @@ export function MoonGlyph({ size = 16, color = '#A39CB2' }) {
   return <S size={size}><path d="M19.5 14.6A7.8 7.8 0 0 1 9.4 4.5a7.8 7.8 0 1 0 10.1 10.1Z" fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" /></S>;
 }
 
-const KIND = {
-  heart: (c) => <path d="M12 19.2s-6.8-4.2-6.8-9a3.7 3.7 0 0 1 6.8-2 3.7 3.7 0 0 1 6.8 2c0 4.8-6.8 9-6.8 9Z" fill={c} />,
-  speech: (c) => <path d="M5 6.5h14a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5h-7.5L7.5 19.6V16.5H5A1.5 1.5 0 0 1 3.5 15V8A1.5 1.5 0 0 1 5 6.5Z" fill={c} />,
-  envelope: (c) => <g fill="none" stroke={c} strokeWidth="2.2" strokeLinejoin="round"><rect x="4" y="6.5" width="16" height="11" rx="1.6" /><path d="m4.5 7.5 7.5 6 7.5-6" /></g>,
-  person: (c) => <g fill={c}><circle cx="12" cy="8.6" r="3.4" /><path d="M5.5 19.5a6.5 6.5 0 0 1 13 0Z" /></g>,
-  // An open book: two pages from a spine, outlined, so it reads at 11px.
-  book: (c) => <g fill="none" stroke={c} strokeWidth="2.3" strokeLinejoin="round"><path d="M12 7.2C10.2 5.7 7 5.4 3.8 6.4v11.4c3.2-1 6.4-.7 8.2.8 1.8-1.5 5-1.8 8.2-.8V6.4C17 5.4 13.8 5.7 12 7.2Z" /><path d="M12 7.2v11.4" /></g>,
+// ── BELL-1: the kind badges and the sender-less tiles, as Ikenna's approved canvas draws them ───
+// Glyphs on a 24 viewBox, round caps and joins. Paths exactly as the canvas gives them.
+const GLYPHS = {
+  heart: { fill: true, d: ['M12 20.5s-7.5-4.6-7.5-10.4A4.2 4.2 0 0 1 12 7.4a4.2 4.2 0 0 1 7.5 2.7c0 5.8-7.5 10.4-7.5 10.4z'] },
+  arrow: { d: ['M10 7L5 12l5 5 M5 12h9a5 5 0 0 1 5 5v1'] },
+  at: { circle: [12, 12, 3.5], d: ['M15.5 12v1.5a2.5 2.5 0 0 0 5 0V12a8.5 8.5 0 1 0-3.3 6.7'] },
+  bubble: { d: ['M5 5h14v10H10l-5 4z'] },
+  message: { d: ['M4 5h16v11H11l-5 4v-4H4z'] },
+  follow: { circle: [9, 8, 3.5], d: ['M3 19c.8-3.2 3.2-5 6-5s5.2 1.8 6 5 M18 8v6M15 11h6'] },
+  book: { d: ['M3.5 6c2.8-1.2 5.8-1 8.5 1 2.7-2 5.7-2.2 8.5-1v12.5c-2.8-1.2-5.8-1-8.5 1-2.7-2-5.7-2.2-8.5-1z M12 7v12.5'] },
+  diamond: { d: ['M12 3.5l8.5 8.5-8.5 8.5L3.5 12z'] },
+  feather: { d: ['M19.5 4.5C13 5 8.5 9.5 7 16l-1.5 3.5 M19.5 4.5c.4 5.6-3 10-9.8 11.3 M8.6 12.6h6'] },
+  star: { d: ['M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z'] },
 };
 
-/** The 18px (16px in the panel) kind badge: a coloured disc with its glyph. */
-export function KindBadge({ badge, kind, size = 18, ring = '#0A0A0A', colors }) {
+/** One glyph: filled, or stroked with round caps and joins. */
+function Glyph({ name, size, color, stroke }) {
+  const g = GLYPHS[name];
+  if (!g) return null;
+  const paint = g.fill ? { fill: color, stroke: 'none' } : { fill: 'none', stroke: color, strokeWidth: stroke, strokeLinecap: 'round', strokeLinejoin: 'round' };
+  return (
+    <S size={size}>
+      {g.circle ? <circle cx={g.circle[0]} cy={g.circle[1]} r={g.circle[2]} {...paint} /> : null}
+      {g.d.map((d) => <path key={d} d={d} {...paint} />)}
+    </S>
+  );
+}
+
+/** Each kind's badge glyph: replies the arrow, mentions the @, responses and quotes the bubble. */
+const GLYPH_OF_KIND = {
+  reply: 'arrow', square_reply: 'arrow', square_reply_to_you: 'arrow', open_pages_reply: 'arrow',
+  mention: 'at', quote: 'bubble', square_quote: 'bubble', response: 'bubble',
+  message: 'message', follow: 'follow',
+  reaction: 'heart', story_reaction: 'heart', new_story: 'book',
+};
+
+/**
+ * The kind badge: a coloured circle (16px in the panel, 18px on the page) at right −4, bottom −4 of
+ * the picture's box, ringed 2px in the row's ground, with a 9px (10px) glyph.
+ */
+export function KindBadge({ badge, kind, size = 18, glyph = 10, ring = '#0A0A0A', colors }) {
   const b = colors[badge];
   if (!b) return null;
-  const glyph = badge === 'slate' && kind === 'follow' ? 'person' : b.glyph;
+  const name = GLYPH_OF_KIND[kind] || b.glyph;
   return (
-    <span data-kind-badge={badge} style={{ position: 'absolute', right: -3, bottom: -3, width: size, height: size, borderRadius: '50%', background: b.ground, boxShadow: `0 0 0 2px ${ring}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <S size={Math.round(size * 0.62)}>{KIND[glyph](b.ink)}</S>
+    <span data-kind-badge={badge} data-glyph={name} style={{ position: 'absolute', right: -4, bottom: -4, width: size, height: size, borderRadius: '50%', background: b.ground, boxShadow: `0 0 0 2px ${ring}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Glyph name={name} size={glyph} color={b.ink} stroke={b.stroke} />
     </span>
   );
 }
 
-/** The sender-less tiles: the Square's diamond, a tier-up's star, Open Pages' feather. Gold. */
-export function Tile({ tile, size = 40 }) {
-  const g = '#C9A84C', ink = '#14121C';
-  const glyph = {
-    diamond: <path d="M12 3.5 20.5 12 12 20.5 3.5 12Z" fill={ink} />,
-    star: <path d="m12 4 2.4 5 5.4.6-4 3.7 1.1 5.4L12 16l-4.9 2.7 1.1-5.4-4-3.7 5.4-.6Z" fill={ink} />,
-    feather: <g fill="none" stroke={ink} strokeWidth="1.9" strokeLinecap="round"><path d="M19 5c-6 0-11 4.5-12.5 13" /><path d="M19 5c0 6-4 10.5-10 11.3M11.5 12.5H16" /></g>,
-  }[tile];
+/** The sender-less tiles: dark circles with a 1px inner ring. The Square, Open Pages, and tier-ups, badges and rewards. */
+export const TILES = Object.freeze({
+  diamond: { ground: '#1A1728', ring: '#2A2640', ink: '#C9A84C', stroke: 1.8 },
+  feather: { ground: '#1C1A26', ring: '#2A2640', ink: '#EFE8DA', stroke: 1.7 },
+  star: { ground: '#241E10', ring: '#4A3D1C', ink: '#C9A84C', stroke: 1.7 },
+});
+
+export function Tile({ tile, size = 40, glyph = 18 }) {
+  const t = TILES[tile];
+  if (!t) return null;
   return (
-    <span data-tile={tile} style={{ width: size, height: size, borderRadius: 10, background: g, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-      <S size={Math.round(size * 0.55)}>{glyph}</S>
+    <span data-tile={tile} style={{ width: size, height: size, borderRadius: '50%', background: t.ground, boxShadow: `inset 0 0 0 1px ${t.ring}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <Glyph name={tile} size={glyph} color={t.ink} stroke={t.stroke} />
     </span>
   );
 }

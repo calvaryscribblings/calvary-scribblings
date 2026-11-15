@@ -48,13 +48,14 @@ const words = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 const amountOf = (v) => (Number.isInteger(v) && v > 0 ? v : null);
 
 // ── the kinds, as the rows draw them ──────────────────────────────────────────────────────────
-// badge: the 18px (16px in the panel) circle on the avatar. tile: a sender-less item drawn as a
-// gold tile instead of an avatar.
+// badge: the 18px (16px in the panel) circle at the picture's corner. tile: a sender-less item drawn
+// as a dark round tile instead of a face (components/bell/icons.js TILES). BELL-1: the canvas's
+// colours; each kind's own glyph is chosen in icons.js (GLYPH_OF_KIND), `glyph` here is the fallback.
 export const BADGES = Object.freeze({
-  heart: { ground: '#A92339', glyph: 'heart', ink: '#F6F1E7' },     // reactions
-  violet: { ground: '#6E45C8', glyph: 'speech', ink: '#F6F1E7' },   // replies, mentions, responses
-  slate: { ground: '#4A5578', glyph: 'envelope', ink: '#F6F1E7' },  // messages and follows
-  gold: { ground: '#C9A84C', glyph: 'book', ink: '#14121C' },       // new stories
+  heart: { ground: '#A92339', glyph: 'heart', ink: '#F6EFE6' },                 // reactions (filled)
+  violet: { ground: '#6E45C8', glyph: 'bubble', ink: '#F6EFE6', stroke: 2.6 },  // replies, mentions, responses, quotes
+  slate: { ground: '#4A5578', glyph: 'message', ink: '#F6EFE6', stroke: 2.6 },  // messages and follows
+  gold: { ground: '#C9A84C', glyph: 'book', ink: '#1A140A', stroke: 2.4 },      // new stories and instalments
 });
 
 const LEGACY_REACTIONS = new Set(['heart', 'fire', 'clap', 'quill', 'like']);
