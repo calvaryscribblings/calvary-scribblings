@@ -12,7 +12,7 @@
 //     and muted absent, FROM A WRITER YOU FOLLOW from the reader's own list, TODAY / THIS WEEK /
 //     EARLIER; a sender-less note is "Calvary Scribblings"; one with no profile "Reader"
 //   · the Square's bell opens the same list, with the same count; the Profile page links to it
-//   · settings (ruling 337): only STORIES is drawn, its switch writes notify_prefs
+//   · settings (ruling 337, P4 switch-on): STORIES and PEOPLE drawn, YOUR WRITING for writers, the Square held; switches write notify_prefs
 //
 // Invented emulator readers only, never a founder. Screenshots go to test-results/notif-b2/
 // (git-ignored) and stay local. Nothing touches production.
@@ -272,29 +272,38 @@ test('the Profile page: its panel is now a link to the one list, carrying the on
   await expect(link.locator('[data-bell-badge]')).toHaveText('3');
 });
 
-test('settings (ruling 337): only STORIES is drawn, its switch writes notify_prefs, writers see no more', async ({ page }) => {
+test('settings (ruling 337, P4 switch-on): STORIES and PEOPLE are drawn, YOUR WRITING for writers only, THE SQUARE held; switches write notify_prefs', async ({ page }) => {
   await reset({ unread: 0 });
   for (const size of Object.keys(WIDTHS)) {
     await open(page, '/notifications/settings', { size });
     await expect(page.locator('[data-pref="stories"] [role="switch"]')).toBeEnabled({ timeout: 60000 });
     await expect(page.getByRole('heading', { name: 'Push notifications' })).toBeVisible();
     await expect(page.locator('[data-pref="stories"] [role="switch"]')).toHaveAttribute('aria-checked', 'true');
-    await expect(page.locator('[data-card]')).toHaveCount(1);
-    for (const hidden of ['PEOPLE', 'YOUR WRITING', 'THE SQUARE']) await expect(page.locator(`[data-card="${hidden}"]`)).toHaveCount(0);
-    await expect(page.locator('main h2')).toHaveText(['STORIES']);
+    await expect(page.locator('[data-card]')).toHaveCount(2);
+    for (const hidden of ['YOUR WRITING', 'THE SQUARE']) await expect(page.locator(`[data-card="${hidden}"]`)).toHaveCount(0);
+    await expect(page.locator('main h2')).toHaveText(['STORIES', 'PEOPLE']);
+    await expect(page.locator('[data-card="PEOPLE"] [data-pref]')).toHaveCount(4);
+    for (const key of ['replies_mentions', 'messages', 'followers', 'reactions']) {
+      await expect(page.locator(`[data-pref="${key}"] [role="switch"]`)).toHaveAttribute('aria-checked', 'true');
+    }
     await expect(page.locator('[data-quiet-hours]')).toHaveText('Messages, replies and mentions reach you at any hour. Anything else that comes between midnight and 08:00 London waits until 08:00, when the first three arrive. The rest stay in your notifications.');
     await page.screenshot({ path: `${SHOTS}/settings-${size}.png`, fullPage: true });
   }
   await page.locator('[data-pref="stories"] [role="switch"]').click();
   await expect.poll(() => val(`notify_prefs/${A}/stories`)).toBe(false);
+  await page.locator('[data-pref="messages"] [role="switch"]').click();
+  await expect.poll(() => val(`notify_prefs/${A}/messages`)).toBe(false);
   await page.reload();
   await expect(page.locator('[data-pref="stories"] [role="switch"]')).toHaveAttribute('aria-checked', 'false', { timeout: 60000 });
+  await expect(page.locator('[data-pref="messages"] [role="switch"]')).toHaveAttribute('aria-checked', 'false');
 
   await reset({ unread: 0, writerA: true });
   await open(page, '/notifications/settings', { size: 'phone' });
   await expect(page.locator('[data-pref="stories"] [role="switch"]')).toBeEnabled({ timeout: 60000 });
-  await expect(page.locator('[data-card]')).toHaveCount(1);
-  await expect(page.locator('[data-card="YOUR WRITING"]')).toHaveCount(0);
+  await expect(page.locator('main h2')).toHaveText(['STORIES', 'PEOPLE', 'YOUR WRITING'], { timeout: 60000 });
+  await expect(page.locator('[data-card="THE SQUARE"]')).toHaveCount(0);
+  await page.locator('[data-pref="responses"] [role="switch"]').click();
+  await expect.poll(() => val(`notify_prefs/${A}/responses`)).toBe(false);
   await page.screenshot({ path: `${SHOTS}/settings-writer-phone.png`, fullPage: true });
 });
 
@@ -437,11 +446,13 @@ test('settings geometry: the STORIES card and the gap below the last card, at 39
         };
       });
       table.push({ width, writer: writerA, ...g });
-      // Ruling 337: one card, one heading. The STORIES card as it measured with all four drawn
-      // (x 20/330, 350/520 wide, radius 22, 22 below, switch 51×31), and the last card to the moon
-      // note still 28: no stray heading, no gap where the hidden cards were.
-      expect.soft(g.cards).toEqual(['STORIES']);
-      expect.soft(g.headings).toEqual(['STORIES']);
+      // Ruling 337 at P4 switch-on: STORIES and PEOPLE, and YOUR WRITING for a writer; never THE
+      // SQUARE (P7). The STORIES card as it measured with all four drawn (x 20/330, 350/520 wide,
+      // radius 22, 22 below, switch 51×31), and the last card to the moon note still 28: no stray
+      // heading, no gap where the held card was.
+      const drawn = writerA ? ['STORIES', 'PEOPLE', 'YOUR WRITING'] : ['STORIES', 'PEOPLE'];
+      expect.soft(g.cards).toEqual(drawn);
+      expect.soft(g.headings).toEqual(drawn);
       expect.soft(g.section.x).toBe(width === 390 ? 20 : 330);
       expect.soft(g.section.w).toBe(width === 390 ? 350 : 520);
       expect.soft(g.section.marginBottom).toBe('22px');

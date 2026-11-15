@@ -1,16 +1,15 @@
 // NOTIF-B2 — the Push notifications screen's cards (ruling 312), as data, so the page and its tests
 // read one list. Each key is a notify_prefs switch (app/lib/notificationKinds.js PREFS).
 //
-// Ruling 337: the screen shows only switches that do something today. Only new-story pushes are
-// sent, so only STORIES is live. Every other card, its switches and its notify_prefs fields stay
-// in the code behind one flag each, off until its push goes live:
-//   PEOPLE and YOUR WRITING with personal pushes (P4), THE SQUARE with its own push (P7).
+// Ruling 337: the screen shows only switches that do something today. STORIES from the start;
+// PEOPLE and YOUR WRITING since personal pushes switched on (P4-S0). THE SQUARE, its switch and its
+// notify_prefs field stay in the code behind its flag, off until its own push goes live (P7).
 // Turning a card on is one edit here (and the bell suite's ruling-337 expectations with it).
 
 /** One flag per card that isn't live yet. Flip it the day that card's push ships. */
 export const CARD_LIVE = Object.freeze({
-  PEOPLE: false,          // P4: personal pushes
-  'YOUR WRITING': false,  // P4: personal pushes
+  PEOPLE: true,           // P4: personal pushes, live at switch-on (P4-S0)
+  'YOUR WRITING': true,   // P4: personal pushes, live at switch-on (P4-S0)
   'THE SQUARE': false,    // P7: the Square's push
 });
 

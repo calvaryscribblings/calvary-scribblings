@@ -209,11 +209,11 @@ describe('settings (ruling 312)', () => {
     assert.equal(SETTINGS_CARDS.find((c) => c.heading === 'YOUR WRITING').writersOnly, true);
   });
 
-  test('ruling 337: only STORIES is drawn until P4 and P7; the other cards wait behind one flag each', () => {
-    assert.deepEqual(CARD_LIVE, { PEOPLE: false, 'YOUR WRITING': false, 'THE SQUARE': false });
-    assert.deepEqual(visibleCards({ writer: false }).map((c) => c.heading), ['STORIES']);
-    assert.deepEqual(visibleCards({ writer: true }).map((c) => c.heading), ['STORIES']);
-    assert.equal(needsWriterFlag(), false);
+  test('ruling 337 at P4 switch-on: STORIES, PEOPLE and (for writers) YOUR WRITING are drawn; THE SQUARE waits for P7', () => {
+    assert.deepEqual(CARD_LIVE, { PEOPLE: true, 'YOUR WRITING': true, 'THE SQUARE': false });
+    assert.deepEqual(visibleCards({ writer: false }).map((c) => c.heading), ['STORIES', 'PEOPLE']);
+    assert.deepEqual(visibleCards({ writer: true }).map((c) => c.heading), ['STORIES', 'PEOPLE', 'YOUR WRITING']);
+    assert.equal(needsWriterFlag(), true, 'YOUR WRITING is live, so the page reads users/{uid}/isAuthor');
     const page = code('app/notifications/settings/page.js');
     assert.match(page, /visibleCards\(\{ writer \}\)\.map\(/);
     assert.doesNotMatch(page, /SETTINGS_CARDS/);

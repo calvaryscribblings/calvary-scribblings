@@ -5,8 +5,9 @@
 // docs/PUSH-P4.md (P4-R0, option d).
 //
 // THE SWITCHES. Rulings 365–369 were ruled yes on 14 Nov (docs/COPY-RULINGS.md); each is one
-// constant below. Switch-on (docs/PUSH-P4.md, "Switch-on") flips FOUNDERS_ONLY and P4_ARMED, in one commit
-// with CARD_LIVE in app/lib/notifySettings.js, the day the Worker's cron is added.
+// constant below. P4_ARMED went on with the Worker's cron (P4-B3). Switch-on (P4-S0, docs/PUSH-P4.md
+// "Order of go-live" step 6) turns FOUNDERS_ONLY off, in one commit with CARD_LIVE in
+// app/lib/notifySettings.js.
 //
 // Plain data and arithmetic, no network: the client, the Functions (bundled) and node --test all
 // load it.
@@ -16,8 +17,8 @@ import { FOUNDER_UIDS } from './founders.js';
 
 // ── the switches ─────────────────────────────────────────────────────────────────────────────
 
-/** Until switch-on, the drain sends only to the founders' own devices (P4-B1 item 9). */
-export const FOUNDERS_ONLY = true;
+/** Switch-on (P4-S0): false, so the drain sends to every reader. While true it sent only to the founders' own devices (P4-B1 item 9). */
+export const FOUNDERS_ONLY = false;
 /** Armed in P4-B3 (14 Nov), with the Worker's cron: the launch check expects the drain's heartbeat, and notify and /api/push/seen send at once. Founders only until switch-on. */
 export const P4_ARMED = true;
 /**
