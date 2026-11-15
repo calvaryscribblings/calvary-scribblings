@@ -34,7 +34,7 @@
 import { lookupUser, mintAccessToken, SCOPES } from './bookstore/_lib.js';
 import { deliver, notifyDb, newBudget, recordId } from './_notify.js';
 import { SUBREQUEST_BUDGET } from './_budget.js';
-import { P4_ARMED, FOUNDERS_ONLY, sendsNow } from '../../app/lib/pushP4.js';
+import { P4_ARMED, FOUNDERS_ONLY, sendsNow, wakeQueue, wakesDrain, WAKE_MESSAGE } from '../../app/lib/pushP4.js';
 import { isId } from '../../app/lib/ids.js';
 import { INDEX_PATH } from '../../app/lib/storyIndex.js';
 import { mentionHandles } from '../../app/lib/squareHandles.js';
@@ -291,7 +291,18 @@ export async function handleNotify(context, { now = Date.now(), limit = SUBREQUE
       // Imported here, not at the top: the drain brings the bell's words with it, and notify's own
       // importers (the Square write route in the Playwright suites) needn't load them. The bundler
       // still bundles it (a literal path), so it is the same code in the same Function.
-      context.waitUntil(import('./push/drain.js').then(({ drainNow }) => drainNow(db, env, { now, keys: queuedKeys, stats: instant, foundersOnly })));
+      // P4-B5 (ruling 373): with a queue binding, one subrequest is kept back for the wake-up, and
+      // sent only AFTER the instant pass (its lease given back) and only if that pass left entries
+      // behind. A failed send loses nothing: the entries stay queued for the cron.
+      const wake = wakeQueue(env) && budget.fits(1) ? wakeQueue(env) : null;
+      if (wake) budget.take(1);
+      context.waitUntil(import('./push/drain.js').then(async ({ drainNow }) => {
+        const out = await drainNow(db, env, { now, keys: queuedKeys, stats: instant, foundersOnly });
+        if (!wake || !wakesDrain(out)) return;
+        let sent = false;
+        try { await wake.send(WAKE_MESSAGE); sent = true; } catch (e) { console.error(`[${LABEL}] wake failed: ${e?.code || e?.name || 'error'}`); }
+        if (stats) stats.wake = { sent, used: budget.used };
+      }));
     }
     return reply({ ok: true });
   } catch (e) {

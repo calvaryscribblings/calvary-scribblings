@@ -83,6 +83,9 @@ export async function handleDrain(context, { now = Date.now(), limit = SUBREQUES
   const { request, env } = context;
   const url = new URL(request.url);
   const dry = url.searchParams.get('dry') === '1';
+  // P4-B5: push-drain-ping's queue() handler marks its calls, so they write lastWake and the cron's
+  // heartbeat (lastRunAt) stays the proof the CRON runs. The same secret, the same pass otherwise.
+  const via = url.searchParams.get('via') === 'wake' ? 'wake' : 'cron';
   const S = stats || {};
   Object.assign(S, { dry, due: 0, cleared: 0, sent: 0, devices: 0, later: 0, dropped: {}, messages: [] });
 
@@ -98,7 +101,7 @@ export async function handleDrain(context, { now = Date.now(), limit = SUBREQUES
   try {
     budget.take(1);
     const db = notifyDb(env, await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY, SCOPES), budget);
-    const out = await drainPass(db, env, { now, dry, S, foundersOnly, keep: !!stats });
+    const out = await drainPass(db, env, { now, dry, S, foundersOnly, keep: !!stats, via });
     S.used = budget.used;
     if (out.busy) return reply({ ok: false, code: 'busy' }, 409);
     return reply(dry ? { ok: true, more: out.more, dry: true } : { ok: true, more: out.more });
@@ -144,7 +147,7 @@ export async function drainNow(db, env, { now = Date.now(), keys = [], stats = n
  * acts on entries another pass finished while it waited (now that notify sends too, two passes can
  * start in the same second). The cron pays one query more for it when the queue isn't empty.
  */
-async function drainPass(db, env, { now, dry, S, foundersOnly, keys = null, keep = false }) {
+async function drainPass(db, env, { now, dry, S, foundersOnly, keys = null, keep = false, via = 'cron' }) {
   const { budget } = db;
   const instant = Array.isArray(keys);
   const readDue = async () => {
@@ -160,7 +163,7 @@ async function drainPass(db, env, { now, dry, S, foundersOnly, keys = null, keep
     due = await readDue();
     if (!Object.keys(due).length) {
       S.due = 0;
-      if (!dry) await db.patch({ [`${DRAIN_OPS}/lastRunAt`]: now });
+      if (!dry) await db.patch(via === 'wake' ? { [`${DRAIN_OPS}/lastWake`]: { at: now, sent: 0 } } : { [`${DRAIN_OPS}/lastRunAt`]: now });
       return { more: false };
     }
   }
@@ -176,6 +179,7 @@ async function drainPass(db, env, { now, dry, S, foundersOnly, keys = null, keep
   const beat = (o) => {
     const last = { at: now, sent: S.sent, devices: S.devices, later: S.later, cleared: S.cleared, dropped: S.dropped };
     if (instant) o[`${DRAIN_OPS}/lastInstant`] = last;
+    else if (via === 'wake') o[`${DRAIN_OPS}/lastWake`] = last;
     else Object.assign(o, { [`${DRAIN_OPS}/lastRunAt`]: now, [`${DRAIN_OPS}/last`]: last });
   };
 

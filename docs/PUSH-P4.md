@@ -308,3 +308,131 @@ switch-on: anything more than two hours past due is stale.
 | `tests/notify/p4-drain.emulator.mjs` (`test:notify:emulator`) | notify enqueues within budget at 1 and 8 recipients; `replyToId` and its fallback; the drain's secrets and dry mode; **the 08:00 hold** for a reaction (02:00 → 07:59 nothing → 08:00 sent); **375** (a message and a reply at 02:00 go at 02:00; an entry held before the change keeps 08:00); **376** (a held push seen at 06:00 dropped at 08:00; a conversation read inside its two minutes sends nothing) and **the hourly group** (10:00 sent, 10:20 waits, 11:00 names both) under an injected clock; 366, 367, 369; stale; **no duplicate after a crash between claim and send** (two shapes); **a block added during the hold**; founders only; newest row and pushCaps; DeviceNotRegistered; 8 readers within 45 a call; the release endpoint |
 | `tests/rules/p4-push.test.mjs` (`test:rules`) | Every client (owner, stranger, founder, signed out) out of `push_queue`, `push_state` and the lease; `pushCaps` and `installHash` validated; `seenAt` as the server's timestamp; 359's two-field write |
 | `tests/push/*` (`test:push`, `test:push:emulator`) | `everyRowFor`; a personal receipt and a story ticket each clearing a device under two accounts; leftovers pruned |
+| `tests/notify/p4-queue.emulator.mjs`, `tests/ci/p4-b5.test.mjs` (P4-B5) | **373**: eight recipients all sent with the clock unmoved (notify 40 with the queue send, then drain calls of 3 + 3 + 2, each ≤ 35); Square mentions 2, 4 and 6 all at once; the wake-up names nobody; the cron at the same moment sends nothing twice; a failed queue send loses nothing; a held lease retries inside the minute, then leaves it to the cron; no binding is exactly as before; wake calls write `lastWake`, never `lastRunAt` |
+
+---
+
+## Ruling 373: every recipient at once (P4-B5, built on `claude/p4-queue`, not deployed)
+
+**Ruling 373:** when one event notifies several people, all of them get the push at once.
+
+**Why the instant send alone can't.** One notify call is one request, planned to 45 subrequests.
+notify spends about 4 per recipient fanning out, and the drain about 14 per recipient sending (a
+reader's 7 reads and an entry's 7). So the instant send takes one recipient at most, and from five
+Square mentions (or eight on a story) none: 39 of 45 are gone before it starts. Before P4-B5 the
+rest waited for the minute cron. Measured on 170a1432: Square mentions 2, 3 and 4 gave 1 at once;
+5 and 6 gave 0; the eight-recipient comment gave 0.
+
+**How it works.**
+- notify keeps one subrequest back when the deployment has a queue binding (`PUSH_WAKE`). After its
+  instant pass has finished and given the lease back, and only if that pass left entries behind
+  (`wakesDrain`: out of budget, the lease held, `more`, or a failure), it sends **one** message,
+  the word `drain`, to the queue. The message names nobody: no uid, no key, no words.
+- `push-drain-ping` is the queue's consumer. Its `queue()` handler runs **the cron's own loop**
+  (`drainLoop`), each call a fresh `POST /api/push/drain` with its own 45, marked `?via=wake` so
+  the drain writes `ops/push_drain/lastWake` and never `lastRunAt` (the cron's heartbeat stays
+  the cron's). The drain reads its own queue, as it does for the cron.
+- **Nothing is sent twice**, whoever calls: the drain's lease comes before its read, and every
+  entry is claimed before it is sent (P4-B1, P4-B3). Two callers at the same moment: one gets
+  409 and sends nothing.
+- **Lease held (409), the drain unreachable or a 5xx:** the Worker retries the batch in 15 seconds,
+  at most 3 tries (`WAKE_ATTEMPTS`, `WAKE_RETRY_S`; the Worker keeps its own copy of both, and
+  `tests/ci/p4-b5.test.mjs` holds them equal), then acknowledges it. Whatever is left, the cron
+  takes within the minute.
+- **The queue send fails:** caught and logged as a code. The entries stay queued; the cron sends them.
+- **No binding** (a preview, a test, or before the queue exists): notify is exactly as before.
+- The cron stays the safety net, unchanged.
+
+**Measured** (`tests/notify/p4-queue.emulator.mjs`, under the 50-subrequest shim): eight
+recipients — notify 39 subrequests + 1 for the queue send = 40; then three drain calls sending
+3 + 3 + 2, each at most 35; all eight with the clock unmoved. Square mentions 2, 4 and 6: every one at
+once (1 + 1, 1 + 3, 0 + 6). The Worker makes one subrequest per drain call, at most 20.
+
+### Cloudflare's free plan
+
+- **Queues are on the Workers Free plan** since 4 Feb 2026
+  ([changelog](https://developers.cloudflare.com/changelog/post/2026-02-04-queues-free-plan/)):
+  "10,000 operations/day included", and "In most cases, it takes 3 operations to deliver a message:
+  1 write, 1 read, and 1 delete." Retention is "24 hours (non-configurable)"
+  ([pricing](https://developers.cloudflare.com/queues/platform/pricing/)). "Each retry incurs a read
+  operation."
+- **What that buys.** One message per event that overflows the instant send, none for an event
+  with one recipient. About 3,300 such events a day, fewer if retries are needed (each retry +1).
+- **If a day's operations run out.** Cloudflare's docs don't say what `send()` does then (checked:
+  pricing, limits, JavaScript APIs, 15 Nov 2026). Every outcome falls back to today's behaviour: a
+  send that throws is caught and the entries wait for the cron; a message accepted and never
+  delivered leaves them for the cron too; a late delivery finds them already sent and sends nothing.
+  **So pushes for multi-recipient events arrive within the minute, as before P4-B5; none is lost or
+  doubled.** The counter resets daily.
+- Whether a queue `send()` counts toward the 50 subrequests isn't documented either; notify keeps
+  one back for it.
+- Drain calls made for the queue are Pages requests and count toward the free plan's 100,000 a day,
+  as the cron's do (3 per eight-recipient event, about 1 per 3 readers).
+
+### Deploy steps (the next round, after switch-on is on main)
+
+Inside 00:00–19:30 London. Each step is proven by what was deployed, read back from Cloudflare's API
+(names, types and settings only; never a binding's value, never `env_vars`), never by calling the
+live site. Until step 4, nothing behaves differently: the Worker's `queue()` is never called without
+a queue, and notify sends nothing without the binding.
+
+1. **Upload push-drain-ping's code, content only.**
+   `node scripts/workers/upload-push-drain-ping.mjs --expect=<main's commit before P4-B5>` (dry run:
+   downloads, backs up to `calvary-private`, requires live to equal the mirror at that commit), then
+   the same with `--apply`. It PUTs `/accounts/{account_id}/workers/scripts/push-drain-ping/content`:
+   "Replace Worker script content without touching config or metadata"
+   ([API](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/subresources/content/methods/update/)).
+   That page doesn't name cron triggers or secrets, so read them back too.
+   **Proven by:** the script's read-back (`content/v2`) byte-identical to the mirror; the Worker's
+   schedules still `* * * * *` (`GET …/workers/scripts/push-drain-ping/schedules`, "Get the schedules
+   (Cron Triggers) for a Worker script",
+   [API](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/subresources/schedules/methods/get/));
+   its secrets still `PUSH_DRAIN_SECRET`, `secret_text` (`GET …/secrets`,
+   [API](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/subresources/secrets/methods/list/)).
+   ⚠ That endpoint's schema allows a `text` field holding the value, so the response is reduced
+   to `name` and `type` in the reading process before anything is printed. And
+   `ops/push_drain/lastRunAt` still advancing each minute (read-only, times only).
+2. **Create the queue `push-wake`.** `npx wrangler queues create push-wake`
+   ([wrangler](https://developers.cloudflare.com/workers/wrangler/commands/queues/)), or
+   `POST /accounts/{account_id}/queues` with `queue_name`
+   ([API](https://developers.cloudflare.com/api/resources/queues/methods/create/)).
+   **Proven by:** `GET /accounts/{account_id}/queues/{queue_id}` (or `wrangler queues info push-wake`):
+   the name, and no consumers yet.
+3. **Add push-drain-ping as its consumer**, without deploying the Worker:
+   `npx wrangler queues consumer add push-wake push-drain-ping --batch-size 10 --batch-timeout 0 --message-retries 2 --max-concurrency 1`,
+   or `POST /accounts/{account_id}/queues/{queue_id}/consumers` with `script_name: "push-drain-ping"`,
+   `type: "worker"` and settings `batch_size: 10, max_wait_time_ms: 0, max_retries: 2, max_concurrency: 1`
+   ([API](https://developers.cloudflare.com/api/resources/queues/subresources/consumers/methods/create/)).
+   - **Batch timeout 0** delivers at once: the batching page's table gives `max_batch_timeout`
+     "5 seconds" default, "0 seconds" minimum, "60 seconds" maximum
+     ([batching](https://developers.cloudflare.com/queues/configuration/batching-retries/)).
+     A second fetch of the docs found no minimum stated; if 0 is refused, use 1.
+   - **Retries 2** is three tries, as the Worker counts them (it acknowledges on its third anyway).
+     "Messages that reach the configured maximum retries will be deleted from the queue": with no
+     dead-letter queue, that is right, because the cron still holds the entries.
+   - **Concurrency 1**, against Cloudflare's general advice to leave it unset
+     ([concurrency](https://developers.cloudflare.com/queues/configuration/consumer-concurrency/)):
+     two loops at once would only meet the drain's lease and spend retries.
+   **Proven by:** `GET /accounts/{account_id}/queues/{queue_id}/consumers`
+   ([API](https://developers.cloudflare.com/api/resources/queues/subresources/consumers/methods/list/)):
+   `script_name` and the four settings exactly as above; and step 1's schedules and `lastRunAt` again.
+4. **Bind the queue to the Pages project, Production only.** Dashboard: Workers & Pages → the
+   project → Settings → Bindings → Add → Queue; variable name `PUSH_WAKE`, queue `push-wake`, in the
+   **Production** environment only ([Pages bindings](https://developers.cloudflare.com/pages/functions/bindings/):
+   "Redeploy your project for the binding to take effect."). The docs' steps for Queues don't show
+   the environment choice, so check that Preview has no `PUSH_WAKE` after saving.
+   **Proven by:** the project read back from the Pages API
+   ([API](https://developers.cloudflare.com/api/resources/pages/subresources/projects/methods/get/)) and filtered, in the reading process, to
+   `deployment_configs.{production,preview}.queue_producers` only (never `env_vars`, which return
+   `plain_text` values): Production has `PUSH_WAKE → push-wake`, Preview has none.
+5. **Push `claude/p4-queue` to main.** Its deploy carries the code and, being a new deployment,
+   takes the binding.
+   **Proven by:** CI green on the commit; the Pages deployment for that commit succeeded;
+   `lastRunAt` still advancing; then, after the first real event with two or more recipients,
+   `ops/push_drain/lastWake.at` equal to that event's minute (read-only, times and counts only).
+   On the phones: a Square post by a third account mentioning both founders reaches both within
+   seconds, not at the next minute.
+
+**To undo:** remove the Pages binding and redeploy (notify is as before), or remove the consumer
+(the message waits out its 24 hours unread; the cron sends everything). The Worker's previous code is
+in `calvary-private` from step 1: `upload-push-drain-ping.mjs --restore=<file> --apply`.

@@ -24,7 +24,8 @@ describe('item 1: instant', () => {
   });
   test('notify sends through the drain\'s own pass, after its response, never a sender of its own', () => {
     const n = src('functions/api/notify.js');
-    assert.match(n, /context\.waitUntil\(import\('\.\/push\/drain\.js'\)\.then\(\(\{ drainNow \}\) => drainNow\(db, env, \{ now, keys: queuedKeys/);
+    // P4-B5 wrapped the pass so a queue wake-up can follow it; it is still the drain's own pass, in waitUntil.
+    assert.match(n, /context\.waitUntil\(import\('\.\/push\/drain\.js'\)\.then\(async \(\{ drainNow \}\) => \{\s+const out = await drainNow\(db, env, \{ now, keys: queuedKeys/);
     assert.ok(!n.includes('exp.host'), 'notify never calls Expo itself');
     const s = src('functions/api/push/seen.js');
     assert.match(s, /context\.waitUntil\(drainNow\(db, env/);

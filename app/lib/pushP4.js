@@ -27,6 +27,24 @@ export const P4_ARMED = true;
  * set, so a preview deployment, which has neither, never sends.
  */
 export const sendsNow = (env, armed = P4_ARMED) => !!(armed && env?.PUSH_DRAIN_SECRET && env?.EXPO_ACCESS_TOKEN);
+
+// ── P4-B5, ruling 373: every recipient at once ───────────────────────────────────────────────
+// One notify call can send to one recipient itself (the 45-subrequest budget). When its instant pass
+// leaves entries behind, it sends ONE wake-up to a Cloudflare Queue (binding PUSH_WAKE, Production
+// only). push-drain-ping's queue() handler then runs the cron's own drain loop, each call a fresh
+// request with its own budget. The drain reads its own queue, as the cron does, so the wake-up names
+// nobody. No binding: notify is exactly as before, and the cron is the net either way.
+
+/** The whole of a wake-up's body: no uid, no key, no words. */
+export const WAKE_MESSAGE = 'drain';
+/** The Worker's tries for one wake-up before it leaves the entries to the cron (it keeps its own copy: it is pasted). */
+export const WAKE_ATTEMPTS = 3;
+/** Seconds between those tries: three inside the minute. */
+export const WAKE_RETRY_S = 15;
+/** The queue binding, if this deployment has one (Production only; never a preview or a test without it). */
+export const wakeQueue = (env) => (env?.PUSH_WAKE && typeof env.PUSH_WAKE.send === 'function' ? env.PUSH_WAKE : null);
+/** Whether an instant pass left entries behind: out of budget, the lease held, more than it could take, or a failure. */
+export const wakesDrain = (S) => !!S && (S.more === true || S.failed === true || S.skipped === 'budget' || S.skipped === 'busy');
 /** Ruling 365 (ruled 14 Nov): a push reads exactly as its row, quoted words included; a message names only the sender. false: titles only. */
 export const PUSH_QUOTED_WORDS = true;
 
