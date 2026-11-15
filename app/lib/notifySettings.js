@@ -19,7 +19,7 @@ export const SETTINGS_CARDS = Object.freeze([
   { heading: 'PEOPLE', rows: [
     { key: 'replies_mentions', label: 'replies and mentions', sub: 'as they happen' },
     { key: 'messages', label: 'messages', sub: 'as they happen' },
-    { key: 'followers', label: 'new followers', sub: 'as they happen' },
+    { key: 'followers', label: 'new followers', sub: 'as they happen, except overnight' }, // 379: follows wait for 08:00 (375)
     { key: 'reactions', label: 'reactions', sub: 'grouped, at most once an hour for each post' },
   ] },
   { heading: 'YOUR WRITING', writersOnly: true, rows: [

@@ -897,3 +897,11 @@ Personal pushes. Built in P4-B1 as written, all ruled yes on 14 Nov, recorded in
 - **375:** Messages, replies, mentions and quotes push at any hour. Every other personal kind keeps 311's hold (00:00–08:00 London) and 366's three at 08:00. Caps and intervals are unchanged (367, 369, 310, 318). A push already waiting for 08:00 when this deployed still goes at 08:00. **Built in P4-B4:** `ANY_HOUR_KINDS` in `app/lib/pushP4.js`; an entry the drain had already moved to 08:00 keeps 08:00 and stays one of that morning's three.
 - **376:** A push is dropped (`seen`) if the reader has seen its row by the time it's due: their `seenAt` is at or after the row's newest event. For a message, having read that conversation since counts too. The badge and every other reason are unchanged. **Built in P4-B4:** in `decide`. A conversation counts as read when its unread count (`dm_conversations/{uid}/{convId}/unread`) is 0, believed only 15 seconds after the message (`DM_READ_GRACE_MS`, a chosen number: the sender's client writes the count just after the message).
 - **377:** The moon note on the push settings page reads exactly: "Messages, replies and mentions reach you at any hour. Anything else that comes between midnight and 08:00 London waits until 08:00, when the first three arrive. The rest stay in your notifications." Its glyph, type, colour and spacing are kept. **Built (web) in P4-B4.** The app's copy follows in its own update.
+
+## 15 Nov 2026 (Ikenna): rulings 378–380
+
+Recorded in P4-S0.1, on `claude/p4-switch-on`.
+
+- **378:** Switch-on goes ahead once the founder test's daytime steps pass, and its two Square steps follow at 8pm.
+- **379:** The new-followers line reads "as they happen, except overnight", on the app and the website. **Built (web) in P4-S0.1:** the `followers` row's `sub` in `app/lib/notifySettings.js` (follows keep 311's hold and wait for 08:00 under 375). The app's A62 carries the same words.
+- **380:** The app's notifications prompt reads: "New stories, never more than two a day, plus replies, mentions and messages as they happen. You choose which in Settings." The app's copy; nothing on the website.

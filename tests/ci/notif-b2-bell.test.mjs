@@ -218,4 +218,11 @@ describe('settings (ruling 312)', () => {
     assert.match(page, /visibleCards\(\{ writer \}\)\.map\(/);
     assert.doesNotMatch(page, /SETTINGS_CARDS/);
   });
+
+  test('ruling 379: new followers read "as they happen, except overnight"; replies, mentions and messages keep "as they happen" (375)', () => {
+    const sub = (key) => SETTINGS_CARDS.flatMap((c) => c.rows).find((r) => r.key === key).sub;
+    assert.equal(sub('followers'), 'as they happen, except overnight');
+    assert.equal(sub('replies_mentions'), 'as they happen');
+    assert.equal(sub('messages'), 'as they happen');
+  });
 });
