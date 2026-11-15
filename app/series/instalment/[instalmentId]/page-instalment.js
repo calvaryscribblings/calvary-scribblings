@@ -329,10 +329,10 @@ function Sponsor({ name, logoUrl }) {
         />
       )}
       <span style={{ minWidth: 0 }}>
-        <span style={{ display: 'block', fontFamily: BODY, fontSize: 11, color: 'rgba(245,240,232,0.28)', lineHeight: 1.4 }}>
+        <span style={{ display: 'block', fontFamily: BODY, fontSize: 11, color: 'rgba(245,240,232,0.5)', lineHeight: 1.4 }}>
           {SPONSOR_PREAMBLE}
         </span>
-        <span style={{ display: 'block', fontFamily: DISPLAY, fontSize: 13.5, color: 'rgba(245,240,232,0.55)', lineHeight: 1.4 }}>
+        <span style={{ display: 'block', fontFamily: DISPLAY, fontSize: 13.5, color: 'rgba(245,240,232,0.7)', lineHeight: 1.4 }}>
           {name}
         </span>
       </span>

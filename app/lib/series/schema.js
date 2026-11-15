@@ -352,7 +352,7 @@ export function validateInstalmentDetail(doc, { publishing = false } = {}) {
 
   // A LOGO WITH NO NAME IS NOT A CREDIT. The sponsor line is a tile beside two lines of text,
   // the second of which is the name; with a logo and no name it renders as an unattributed
-  // mark next to "this instalment made possible by" and a blank — which is worse than no
+  // mark next to "Made possible by" and a blank — which is worse than no
   // sponsor line at all, and is indistinguishable from a bug. The reverse IS allowed: a name
   // with no logo is a perfectly good magazine sponsor line, and the page drops the tile.
   if (isStr(doc.sponsorLogoUrl) && !isStr(doc.sponsorName)) {

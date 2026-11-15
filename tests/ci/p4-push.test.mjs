@@ -6,6 +6,7 @@ import {
   dueTime, morningAfter, inQuietHours, london, londonInstant, intervalFor, decide, devicesFor, rowsHolding,
   prefOn, prefWrites, kindAllowed, nextDay, finishedWith, queueKey, namedActors, pushesPersonally,
   MORNING_CAP, DAILY_CAP, CONVERSATION_INTERVAL_MS, STALE_MS, CHANNEL_FOR_PREF, DAY_KEY,
+  ANY_HOUR_KINDS, holdsForMorning, conversationRead, DM_READ_GRACE_MS,
   FOUNDERS_ONLY, P4_ARMED, PUSH_QUOTED_WORDS, PUSH_CAPS_MIN, DRAIN_STALE_MS,
 } from '../../app/lib/pushP4.js';
 import { rowFor, needs, pushWords, badgeFor, FALLBACK_URL } from '../../app/lib/pushWords.js';
@@ -68,11 +69,15 @@ describe("London's clock: quiet hours and 08:00, across both clock changes", () 
   test('every five minutes of three days: a due time is never inside the quiet hours', () => {
     for (const start of ['2026-03-28T22:00:00Z', '2026-10-24T22:00:00Z', '2026-11-13T22:00:00Z']) {
       for (let t = at(start); t < at(start) + 30 * H; t += 5 * MIN) {
-        for (const kind of ['reply', 'reaction', 'message']) {
+        for (const kind of ['reaction', 'response', 'follow', 'open_pages_live']) {
           const { dueAt, held } = dueTime(kind, t);
           assert.equal(inQuietHours(dueAt), false, `${kind} at ${new Date(t).toISOString()}`);
           assert.equal(held, inQuietHours(t));
           assert.ok(dueAt >= t);
+        }
+        // 375: messages, replies, mentions and quotes are due when they happen, at any hour.
+        for (const kind of ['message', 'reply', 'mention', 'quote']) {
+          assert.deepEqual(dueTime(kind, t), { dueAt: t, held: false }, `${kind} at ${new Date(t).toISOString()}`);
         }
       }
     }
@@ -134,10 +139,10 @@ describe('decide()', () => {
     assert.equal(decide(entry('reaction', noon + H), group('reaction', noon + 20 * MIN), state, reader(), noon + H, {}, OFF).action, 'send');
     assert.equal(decide(entry('reaction', noon), group('reaction', noon), state, reader(), noon + 5 * MIN, {}, OFF).reason, 'nothing_new');
   });
-  test('the quiet hours: held for 08:00, sent then', () => {
+  test('the quiet hours: held for 08:00, sent then (311, for every kind 375 leaves held)', () => {
     const t = at('2026-11-14T02:00:00Z');
-    assert.deepEqual(decide(entry('reply', t), one('reply', t), {}, reader(), t, {}, OFF), { action: 'later', dueAt: at('2026-11-14T08:00:00Z') });
-    assert.deepEqual(decide(entry('reply', t), one('reply', t), {}, reader(), at('2026-11-14T08:00:00Z'), {}, OFF), { action: 'send', held: true, dueAt: at('2026-11-14T08:00:00Z') });
+    assert.deepEqual(decide(entry('reaction', t), group('reaction', t), {}, reader(), t, {}, OFF), { action: 'later', dueAt: at('2026-11-14T08:00:00Z') });
+    assert.deepEqual(decide(entry('reaction', t), group('reaction', t), {}, reader(), at('2026-11-14T08:00:00Z'), {}, OFF), { action: 'send', held: true, dueAt: at('2026-11-14T08:00:00Z') });
   });
   test('stale: more than two hours past its time is dropped, never sent late', () => {
     assert.equal(decide(entry('reply', noon), one('reply', noon), {}, reader(), noon + 2 * H, {}, OFF).action, 'send');
@@ -161,13 +166,83 @@ describe('decide()', () => {
   test('366: three held pushes at 08:00, then the rest stay in the list', () => {
     const t = at('2026-11-14T03:00:00Z'), eight = at('2026-11-14T08:00:00Z');
     const three = { [DAY_KEY]: { day: '2026-11-14', n: 3, morning: MORNING_CAP } };
-    assert.equal(decide(entry('reply', t), one('reply', t), three, reader(), eight, {}, OFF).reason, 'morning_cap');
-    assert.equal(decide(entry('reply', eight + MIN), one('reply', eight + MIN), three, reader(), eight + MIN, {}, OFF).action, 'send', 'a push that was never held is not capped');
+    assert.equal(decide(entry('follow', t), one('follow', t), three, reader(), eight, {}, OFF).reason, 'morning_cap');
+    assert.equal(decide(entry('follow', eight + MIN), one('follow', eight + MIN), three, reader(), eight + MIN, {}, OFF).action, 'send', 'a push that was never held is not capped');
   });
   test('nextDay counts the day and the morning, and starts a new day over', () => {
     assert.deepEqual(nextDay({}, at('2026-11-14T08:00:00Z'), 3, 3), { day: '2026-11-14', n: 3, morning: 3 });
     assert.deepEqual(nextDay({ [DAY_KEY]: { day: '2026-11-14', n: 3, morning: 3 } }, at('2026-11-14T09:00:00Z'), 1, 0), { day: '2026-11-14', n: 4, morning: 3 });
     assert.deepEqual(nextDay({ [DAY_KEY]: { day: '2026-11-13', n: 9, morning: 3 } }, at('2026-11-14T09:00:00Z'), 1, 0), { day: '2026-11-14', n: 1, morning: 0 });
+  });
+});
+
+// P4-B4 — rulings 375 and 376, under an injected clock. Invented readers only.
+describe('375: messages, replies, mentions and quotes push at any hour; the rest keep 08:00', () => {
+  const two = at('2026-11-14T02:00:00Z'), eight = at('2026-11-14T08:00:00Z');
+  const msg = (t, extra = {}) => ({ kind: 'message', actor: B, subject: { convId: 'c' }, count: 1, actorCount: 1, recent: [B], at: t, ...extra });
+  test('the four kinds, exactly', () => {
+    assert.deepEqual([...ANY_HOUR_KINDS].sort(), ['mention', 'message', 'quote', 'reply']);
+    for (const k of ['message', 'reply', 'mention', 'quote']) assert.equal(holdsForMorning(k), false, k);
+    for (const k of ['follow', 'reaction', 'response', 'story_reaction', 'open_pages_live']) assert.equal(holdsForMorning(k), true, k);
+  });
+  test('a message at 02:00 goes at 02:00', () => {
+    assert.deepEqual(decide(entry('message', two), msg(two), {}, reader(), two, {}, OFF), { action: 'send', held: false, dueAt: two });
+    for (const k of ['reply', 'mention', 'quote']) assert.equal(decide(entry(k, two), one(k, two), {}, reader(), two, {}, OFF).action, 'send', k);
+  });
+  test('a reaction at 02:00 waits for 08:00, and goes then', () => {
+    assert.deepEqual(decide(entry('reaction', two), group('reaction', two), {}, reader(), two, {}, OFF), { action: 'later', dueAt: eight });
+    assert.deepEqual(decide(entry('reaction', two), group('reaction', two), {}, reader(), eight, {}, OFF), { action: 'send', held: true, dueAt: eight });
+  });
+  test('an entry held for 08:00 before the change keeps 08:00: not sent at deploy time, not stale at 08:00, still one of the morning three', () => {
+    // What the drain before P4-B4 left behind: a message at 02:00, its entry moved to 08:00.
+    const held = { ...entry('message', two), dueAt: eight };
+    assert.deepEqual(decide(held, msg(two), {}, reader(), two + 5 * MIN, {}, OFF), { action: 'later', dueAt: eight }, 'deploy at 02:05: nothing goes');
+    assert.deepEqual(decide(held, msg(two), {}, reader(), eight, {}, OFF), { action: 'send', held: true, dueAt: eight });
+    const three = { [DAY_KEY]: { day: '2026-11-14', n: 3, morning: MORNING_CAP } };
+    assert.equal(decide(held, msg(two), three, reader(), eight, {}, OFF).reason, 'morning_cap', '366 still counts it');
+    const reply = { ...entry('reply', two), dueAt: eight };
+    assert.deepEqual(decide(reply, one('reply', two), {}, reader(), eight, {}, OFF), { action: 'send', held: true, dueAt: eight });
+  });
+  test('a conversation\'s two minutes is not mistaken for an 08:00 promise', () => {
+    const t = at('2026-11-14T07:58:30Z');
+    const state = { 'message:x': { pushedAt: at('2026-11-14T07:58:00Z'), recAt: at('2026-11-14T07:58:00Z') } };
+    const e = { ...entry('message', t), dueAt: eight };
+    assert.deepEqual(decide(e, msg(t), state, reader(), eight, {}, OFF), { action: 'send', held: false, dueAt: eight });
+  });
+});
+
+describe('376: a push the reader has already seen is dropped (seen)', () => {
+  const two = at('2026-11-14T02:00:00Z'), six = at('2026-11-14T06:00:00Z'), eight = at('2026-11-14T08:00:00Z');
+  const noon = at('2026-11-14T12:00:00Z');
+  const msg = (t) => ({ kind: 'message', actor: B, subject: { convId: 'c' }, count: 2, actorCount: 1, recent: [B], at: t });
+  test('a held push seen at 06:00 is dropped at 08:00', () => {
+    assert.deepEqual(decide(entry('reaction', two), group('reaction', two), {}, reader({ seenAt: six }), two, {}, OFF), { action: 'later', dueAt: eight }, 'not before it is due');
+    assert.deepEqual(decide(entry('reaction', two), group('reaction', two), {}, reader({ seenAt: six }), eight, {}, OFF), { action: 'drop', reason: 'seen' });
+  });
+  test('seenAt at the row\'s newest event counts; one before it does not', () => {
+    assert.equal(decide(entry('reaction', two), group('reaction', two), {}, reader({ seenAt: two }), eight, {}, OFF).reason, 'seen');
+    assert.equal(decide(entry('reaction', two), group('reaction', two), {}, reader({ seenAt: two - 1 }), eight, {}, OFF).action, 'send');
+    // A group's newest event is the row's `at`, not when the group began.
+    const g = group('reaction', two + 30 * MIN, { firstAt: two });
+    assert.equal(decide(entry('reaction', two + 30 * MIN), g, {}, reader({ seenAt: two + 10 * MIN }), eight, {}, OFF).action, 'send');
+  });
+  test('a message whose conversation is read before its two minutes are up sends nothing', () => {
+    const state = { 'message:x': { pushedAt: noon, recAt: noon } };
+    const t = noon + 30000;
+    assert.deepEqual(decide(entry('message', t), msg(t), state, reader({ seenAt: noon - H }), noon + 2 * MIN, {}, OFF), { action: 'send', held: false, dueAt: noon + 2 * MIN });
+    assert.deepEqual(decide(entry('message', t), msg(t), state, reader({ seenAt: noon - H, convRead: true }), noon + 2 * MIN, {}, OFF), { action: 'drop', reason: 'seen' });
+    assert.equal(decide(entry('reply', noon), one('reply', noon), {}, reader({ convRead: true }), noon, {}, OFF).action, 'send', 'a conversation read speaks only for a message');
+  });
+  test('conversationRead: unread at 0, read after the grace that lets the sender\'s count land', () => {
+    assert.equal(conversationRead(0, noon, noon + DM_READ_GRACE_MS), true);
+    assert.equal(conversationRead(0, noon, noon + DM_READ_GRACE_MS - 1), false, 'too soon: the count may not have landed');
+    assert.equal(conversationRead(1, noon, noon + 2 * MIN), false);
+    assert.equal(conversationRead(null, noon, noon + 2 * MIN), false, 'no row: not read');
+    assert.equal(conversationRead(undefined, noon, noon + 2 * MIN), false);
+  });
+  test('every other reason and the badge are unchanged: an unseen reader still gets the push', () => {
+    assert.equal(decide(entry('reply', noon), one('reply', noon), {}, reader({ seenAt: noon - 1 }), noon, {}, OFF).action, 'send');
+    assert.equal(decide(entry('reply', noon), one('reply', noon), {}, reader({ seenAt: null }), noon, {}, OFF).action, 'send', 'never opened a list');
   });
 });
 

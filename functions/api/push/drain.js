@@ -16,7 +16,8 @@
 //      died is never repeated);
 //   3. per entry, everything app/lib/pushP4.js decide() needs, read under the subrequest budget:
 //      the record, the reader's switches and old fields (359, 362), their push state, the devices
-//      (newest row wins, pushCaps), and at send time the blocks, mutes and the muted conversation;
+//      (newest row wins, pushCaps), and at send time the blocks, mutes and the muted conversation,
+//      and for a message its conversation's unread count (376, P4-B4);
 //   4. CLAIM: one PATCH marks every entry handled and records each push in push_state, BEFORE Expo
 //      is called;
 //   5. one Expo request, every personal push priority high, with its threadId, and collapseId + tag
@@ -41,6 +42,7 @@ import { READ_LIMITS } from '../../../app/lib/bell.js';
 import {
   QUEUE, STATE, DAY_KEY, DRAIN_OPS, LEASE_MS, QUEUE_READ_LIMIT, EXPO_BATCH, FOUNDERS_ONLY,
   BADGE_KIND, BADGE_KEY, decide, decideBadge, devicesFor, rowsHolding, isFounder, nextDay, finishedWith, namedActors, queueKey,
+  conversationRead, DM_READ_GRACE_MS,
 } from '../../../app/lib/pushP4.js';
 import { INBOX_KINDS } from '../../../app/lib/notificationKinds.js';
 import { rowFor, needs, pushWords, badgeFor } from '../../../app/lib/pushWords.js';
@@ -52,7 +54,10 @@ const LABEL = 'push-drain';
 const RESERVE = 4;
 /** A reader's reads, first time they appear: switches, old mention field, push state, mutes, blocks, seenAt, badge. */
 const READER_COST = 7;
-/** An entry's reads, worst case: the record, two actors' blocks, the muted conversation, two names, one detail. */
+/**
+ * An entry's reads, worst case: the record, two actors' blocks, the muted conversation, two names, one
+ * detail. A message (P4-B4) adds its conversation's unread count but has one actor and no detail.
+ */
 const ENTRY_COST = 7;
 /** The instant send starts only with room for the lease (2), its query (1), the devices (1), one reader, one entry and the reserve. */
 export const INSTANT_FLOOR = 4 + READER_COST + ENTRY_COST + RESERVE;
@@ -242,7 +247,12 @@ async function drainPass(db, env, { now, dry, S, foundersOnly, keys = null, keep
     for (const a of actors) actorBlocks[a] = { [e.uid]: (await read(`blocked_users/${a}/${e.uid}`)) === true };
     const convId = record?.kind === 'message' ? record?.subject?.convId : null;
     const dmMuted = convId ? (await db.get(`dm_muted/${e.uid}/${convId}`)) === true : false;
-    const decision = decide(e, record, reader.state, { ...reader, actorBlocks, dmMuted }, now, counts, { foundersOnly });
+    // 376: a message's conversation read since (its unread count back at 0). Read only once the
+    // count can be believed (DM_READ_GRACE_MS), so a message's instant send never pays for it.
+    const recAt = Number(record?.at) || Number(e.at) || 0;
+    const convRead = convId && now - recAt >= DM_READ_GRACE_MS
+      ? conversationRead(await db.get(`dm_conversations/${e.uid}/${convId}/unread`), recAt, now) : false;
+    const decision = decide(e, record, reader.state, { ...reader, actorBlocks, dmMuted, convRead }, now, counts, { foundersOnly });
     if (decision.action === 'drop') { drop(key, e, decision.reason); continue; }
     if (decision.action === 'later') { claim[`${QUEUE}/${key}/dueAt`] = decision.dueAt; S.later++; continue; }
 

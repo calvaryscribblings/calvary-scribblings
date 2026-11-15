@@ -42,6 +42,20 @@ export const CHANNEL_FOR_PREF = Object.freeze({
   replies_mentions: 'people', messages: 'people', followers: 'people', reactions: 'people',
   responses: 'your_writing', open_pages: 'your_writing',
 });
+/**
+ * Ruling 375 (ruled 15 Nov): these kinds push at any hour. Every other personal kind keeps 311's
+ * hold (00:00–08:00 London) and 366's three at 08:00.
+ */
+export const ANY_HOUR_KINDS = Object.freeze(['message', 'reply', 'mention', 'quote']);
+/** Whether a kind's push waits for 08:00 when it falls due in the quiet hours (311, 375). */
+export const holdsForMorning = (kind) => !ANY_HOUR_KINDS.includes(kind);
+/**
+ * Ruling 376, for a message: the conversation counts as read when the reader's unread count for it
+ * (dm_conversations/{uid}/{convId}/unread) is 0. That count is written by the SENDER's client, just
+ * after the message and after notify is called, so straight after a message it can still read 0
+ * from an earlier read. A chosen number: the count is believed only this long after the message.
+ */
+export const DM_READ_GRACE_MS = 15 * 1000;
 /** A chosen number: a push more than this long past when it should have gone is dropped, never sent late. */
 export const STALE_MS = 2 * 60 * 60 * 1000;
 /** A device row is eligible only when the app (A60) has written this capability or higher. */
@@ -115,13 +129,24 @@ export function intervalFor(kind) {
 /**
  * When a record's push is due. `at` is the record's newest event; `last` is what was pushed for it
  * before ({ pushedAt }), or nothing. The first push of a group goes at once (310 read so); a later
- * one waits for the interval. Anything due in the quiet hours waits for 08:00 (`held`).
+ * one waits for the interval. Anything due in the quiet hours waits for 08:00 (`held`), except a
+ * message, a reply, a mention or a quote, which go at any hour (375).
  */
 export function dueTime(kind, at, last = null) {
   const interval = intervalFor(kind);
   const base = interval && last?.pushedAt ? Math.max(at, last.pushedAt + interval) : at;
-  return inQuietHours(base) ? { dueAt: morningAfter(base), held: true } : { dueAt: base, held: false };
+  return holdsForMorning(kind) && inQuietHours(base) ? { dueAt: morningAfter(base), held: true } : { dueAt: base, held: false };
 }
+
+/** Whether `ms` is exactly 08:00 on London's wall clock: the only due time a hold ever writes. */
+export const isMorningInstant = (ms) => Number.isFinite(ms) && ms > 0 && morningAfter(ms) === ms;
+
+/**
+ * Ruling 376, for a message: read since. `unread` is dm_conversations/{uid}/{convId}/unread as it
+ * stands; `at` the record's newest event. 0 counts only once the grace has passed (DM_READ_GRACE_MS);
+ * no row, or any other number, is not read.
+ */
+export const conversationRead = (unread, at, now) => unread === 0 && now - at >= DM_READ_GRACE_MS;
 
 // ── who ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -205,7 +230,8 @@ export function namedActors(record) {
  * @param record   inbox/{uid}/{rid}, or null
  * @param state    push_state/{uid} (per record: { pushedAt, recAt }; under DAY_KEY: { day, n, morning })
  * @param reader   { prefs, legacy, devices, muted, blocked, actorBlocks: {uid: their blocked list},
- *                   dmMuted: boolean }
+ *                   dmMuted: boolean, seenAt: inbox_state seenAt or null,
+ *                   convRead: conversationRead() for a message's conversation }
  * @param counts   this run's running counts per uid { n, morning } (for the caps across one run)
  * @param opts     { foundersOnly } — tests only; production always reads FOUNDERS_ONLY
  */
@@ -219,8 +245,18 @@ export function decide(e, record, state, reader, now, counts = {}, { foundersOnl
   const last = state?.[e.rid] || null;
   const at = Number(record.at) || Number(e.at) || 0;
   if (last && Number(last.recAt) >= at) return { action: 'drop', reason: 'nothing_new' };
-  const { dueAt, held } = dueTime(kind, at, last);
+  let { dueAt, held } = dueTime(kind, at, last);
+  // 375 AT DEPLOY. An entry the drain already moved to 08:00 (`later` writes the entry's dueAt)
+  // keeps 08:00, as one of that morning's three: nothing it promised is sent early, or dropped as
+  // stale at 08:00 because the kind no longer waits. Only a promise later than the computed time
+  // counts, so a conversation's two minutes, which compute to the same instant, are never one.
+  const promised = Number(e?.dueAt);
+  if (!held && promised > dueAt && isMorningInstant(promised)) ({ dueAt, held } = { dueAt: promised, held: true });
   if (dueAt > now) return { action: 'later', dueAt };
+  // 376: seen by the time it's due. The row's newest event is `at`; a message's conversation read
+  // since counts too. Checked when due, so a held push is judged at 08:00.
+  if (typeof reader.seenAt === 'number' && reader.seenAt >= at) return { action: 'drop', reason: 'seen' };
+  if (kind === 'message' && reader.convRead) return { action: 'drop', reason: 'seen' };
   if (now - dueAt > STALE_MS) return { action: 'drop', reason: 'stale' };
   // Re-checked at send time (319): a block either way, a mute, a muted conversation.
   for (const a of namedActors(record)) {

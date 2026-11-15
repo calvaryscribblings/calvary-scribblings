@@ -97,6 +97,13 @@ const post = (pid, author, extra = {}) => set(`square_posts/${pid}`, { text: 'a 
 const comment = (cid, author, text, extra = {}) => set(`comments/${SLUG}/${cid}`, { text, authorUid: author, authorName: 'x', createdAt: 0, ...extra });
 const queue = async () => (await get('push_queue')) || {};
 
+/** Ben likes Ada's Square post id(n) at `now` (a kind 375 leaves held overnight). */
+async function benReacts(n, now) {
+  await post(id(n), U.ada);
+  await set(`square_reactions/${id(n)}/like/${U.ben}`, true);
+  return notify(U.ben, 'square_reaction', `${id(n)}/like`, now);
+}
+
 /** Ben replies to Ada's Square post at `now`. */
 async function benReplies(n, now, text = 'What a line.') {
   await post(id(100), U.ada);
@@ -226,9 +233,9 @@ describe('the drain', () => {
     assert.equal(await get('ops/push_drain/lastRunAt'), T('2026-11-14T12:00:00Z'));
   });
 
-  test('THE 08:00 HOLD, without waiting: a reply at 02:00 waits, nothing at 07:59, sent at 08:00', async () => {
+  test('THE 08:00 HOLD, without waiting: a reaction at 02:00 waits, nothing at 07:59, sent at 08:00', async () => {
     await device(U.ada);
-    await benReplies(1, T('2026-11-14T02:00:00Z'));
+    await benReacts(1, T('2026-11-14T02:00:00Z'));
     await drain(T('2026-11-14T02:00:30Z'));
     assert.equal(expo.sent.length, 0);
     assert.equal(Object.values(await queue())[0].dueAt, T('2026-11-14T08:00:00Z'), 'rescheduled to 08:00 London');
@@ -240,12 +247,102 @@ describe('the drain', () => {
 
   test('a block added during the hold: silent at 08:00', async () => {
     await device(U.ada);
-    await benReplies(1, T('2026-11-14T02:00:00Z'));
+    await benReacts(1, T('2026-11-14T02:00:00Z'));
     await drain(T('2026-11-14T02:01:00Z'));
     await set(`blocked_users/${U.ada}/${U.ben}`, true);
     const d = await drain(T('2026-11-14T08:00:00Z'));
     assert.equal(expo.sent.length, 0);
     assert.equal(d.stats.dropped.silenced, 1);
+  });
+
+  // P4-B4 — rulings 375 and 376 end to end, under an injected clock.
+  test('375: a message at 02:00 goes at 02:00, and so does a reply', async () => {
+    const two = T('2026-11-14T02:00:00Z');
+    await device(U.ada);
+    const conv = [U.ada, U.ben].sort().join('_');
+    await set(`dm_messages/${conv}/${id(1)}`, { text: 'words never pushed', senderUid: U.ben, createdAt: two });
+    await notify(U.ben, 'message', `${conv}/${id(1)}`, two);
+    await benReplies(2, two);
+    const d = await drain(two + 1000);
+    assert.equal(d.stats.later, 0, 'nothing waits for 08:00');
+    assert.deepEqual(expo.sent.map((m) => m.body).sort(), ['Name-ben sent you a message', '“What a line.”'].sort());
+    const day = await get(`push_state/${U.ada}/_day`);
+    assert.equal(day.morning, 0, 'not one of the morning three');
+  });
+
+  test('375: a reaction at 02:00 still waits for 08:00', async () => {
+    await device(U.ada);
+    await benReacts(1, T('2026-11-14T02:00:00Z'));
+    const d = await drain(T('2026-11-14T02:00:01Z'));
+    assert.equal(d.stats.later, 1);
+    assert.equal(expo.sent.length, 0);
+    assert.equal(Object.values(await queue())[0].dueAt, T('2026-11-14T08:00:00Z'));
+  });
+
+  test('375 at deploy: an entry held for 08:00 before the change keeps 08:00, nothing earlier, not stale', async () => {
+    await device(U.ada);
+    await benReplies(1, T('2026-11-14T02:00:00Z'));
+    // What the drain before P4-B4 wrote for a reply at 02:00: the entry moved to 08:00.
+    const key = queueKey(U.ada, `reply:sq:${id(1)}`);
+    await set(`push_queue/${key}/dueAt`, T('2026-11-14T08:00:00Z'));
+    for (const t of ['02:05:00', '05:00:00', '07:59:59']) {
+      await drain(T(`2026-11-14T${t}Z`));
+      assert.equal(expo.sent.length, 0, `nothing at ${t}`);
+      assert.equal((await queue())[key].dueAt, T('2026-11-14T08:00:00Z'), `due time unchanged at ${t}`);
+    }
+    const d = await drain(T('2026-11-14T08:00:00Z'));
+    assert.equal(expo.sent.length, 1);
+    assert.deepEqual(d.stats.dropped, {});
+    assert.equal((await get(`push_state/${U.ada}/_day`)).morning, 1, 'one of the morning three, as it was promised');
+  });
+
+  test('376: a held push seen at 06:00 is dropped at 08:00 (seen)', async () => {
+    await device(U.ada);
+    await set(`inbox_state/${U.ada}/seenAt`, T('2026-11-14T01:00:00Z'));
+    await benReacts(1, T('2026-11-14T02:00:00Z'));
+    await drain(T('2026-11-14T02:00:30Z'));
+    await set(`inbox_state/${U.ada}/seenAt`, T('2026-11-14T06:00:00Z'));
+    const d = await drain(T('2026-11-14T08:00:00Z'));
+    assert.equal(expo.sent.length, 0);
+    assert.deepEqual(d.stats.dropped, { seen: 1 });
+    assert.equal(Object.keys((await get(`inbox/${U.ada}`)) || {}).length, 1, 'the row stays in the list');
+  });
+
+  test('376: a message whose conversation is read before its two minutes are up sends nothing', async () => {
+    const noon = T('2026-11-14T12:00:00Z');
+    await device(U.ada);
+    await set(`inbox_state/${U.ada}/seenAt`, noon - 60 * MIN);
+    const conv = [U.ada, U.ben].sort().join('_');
+    const say = async (n, t) => {
+      await set(`dm_messages/${conv}/${id(n)}`, { text: 'words never pushed', senderUid: U.ben, createdAt: t });
+      await notify(U.ben, 'message', `${conv}/${id(n)}`, t);
+      // The sender's count, as MessagesPanel writes it after the message.
+      await set(`dm_conversations/${U.ada}/${conv}/unread`, ((await get(`dm_conversations/${U.ada}/${conv}/unread`)) || 0) + 1);
+    };
+    await say(1, noon);
+    await drain(noon + 1000);
+    assert.equal(expo.sent.length, 1, 'the first goes at once');
+    await say(2, noon + 30000);
+    assert.equal((await drain(noon + 31000)).stats.later, 1, 'the second waits for the two minutes');
+    // Ada opens the conversation at 12:01.
+    await set(`dm_conversations/${U.ada}/${conv}/unread`, 0);
+    const d = await drain(noon + 2 * MIN + 1000);
+    assert.equal(expo.sent.length, 1, 'nothing more');
+    assert.deepEqual(d.stats.dropped, { seen: 1 });
+  });
+
+  test('376: a conversation left unread still pushes after its two minutes', async () => {
+    const noon = T('2026-11-14T12:00:00Z');
+    await device(U.ada);
+    const conv = [U.ada, U.ben].sort().join('_');
+    for (const [n, t] of [[1, noon], [2, noon + 30000]]) {
+      await set(`dm_messages/${conv}/${id(n)}`, { text: 'x', senderUid: U.ben, createdAt: t });
+      await notify(U.ben, 'message', `${conv}/${id(n)}`, t);
+      await set(`dm_conversations/${U.ada}/${conv}/unread`, n);
+      await drain(t + 1000);
+    }
+    await drain(noon + 2 * MIN + 1000);
+    assert.equal(expo.sent.length, 2);
   });
 
   test('THE HOURLY GROUP, without waiting: the first reaction at once, the second waits for the hour, then both are named', async () => {
@@ -292,14 +389,11 @@ describe('the drain', () => {
 
   test('366: at 08:00 at most three of the night\'s pushes, oldest first; the rest stay in the list', async () => {
     await device(U.ada);
-    await post(id(100), U.ada);
-    for (let n = 1; n <= 5; n++) {
-      await post(id(n), U.ben, { parentId: id(100), text: `reply ${n}` });
-      await notify(U.ben, 'square_post', id(n), T(`2026-11-14T0${n}:00:00Z`));
-    }
+    // Reactions, on five of Ada's posts: since 375, replies no longer wait for the morning.
+    for (let n = 1; n <= 5; n++) await benReacts(n, T(`2026-11-14T0${n}:00:00Z`));
     await drain(T('2026-11-14T08:00:00Z'));
     assert.equal(expo.sent.length, MORNING_CAP);
-    assert.deepEqual(expo.sent.map((m) => m.body), ['“reply 1”', '“reply 2”', '“reply 3”']);
+    assert.deepEqual(expo.sent.map((m) => [1, 2, 3, 4, 5].find((n) => m.data.url.includes(id(n)))), [1, 2, 3]);
     assert.equal(Object.keys((await get(`inbox/${U.ada}`)) || {}).length, 5, 'all five stay in the list');
   });
 

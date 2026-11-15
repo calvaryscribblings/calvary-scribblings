@@ -1,23 +1,47 @@
 # Personal pushes (P4)
 
-**Status (14 Nov 2026, P4-B3).**
+**Status (15 Nov 2026, P4-B4).**
 - **Rules: live** since 04:09 London (P4-B2, `npm run rules:deploy:db`).
 - **Code: live.** P4-B1 is on main, and P4-B3 adds the instant send, priority, threads and the badge-only push (`a1e99d48`). **Armed in P4-B3, founders only**: `PUSH_DRAIN_SECRET` is set on the Worker and on Pages Production, `P4_ARMED = true`, and the Worker's `* * * * *` cron is on.
 - **The app: A60 live** since 05:38 London. It writes `pushCaps` and `installHash`, calls release, and creates the two channels. **One difference from this doc's plan:** for replies and mentions, A60 writes both `notify_prefs/{uid}/replies_mentions` and the old `users/{uid}/mentionNotifications`. The read (`prefOn`) agrees either way: notify_prefs's own value wins when present, and the old field is consulted only without one, so two equal values read the same.
 - **Rulings 365–369: ruled yes** on 14 Nov (`docs/COPY-RULINGS.md`).
+- **Rulings 375–377 (15 Nov), built in P4-B4:** messages, replies, mentions and quotes push at any hour (375); a push the reader has already seen is dropped (376); the settings page's moon note says so (377).
 - **Founders only** (`FOUNDERS_ONLY`) until switch-on.
 
 Replies, mentions, quotes, messages and follows leave for the reader's phone the moment the event
 lands, as a standard app's do: the notify call sends its own push (P4-B3). Reactions and responses arrive as one grouped line per post or story, at most hourly, and the first
-of a group goes at once. Every personal push is high priority, so a sleeping Android phone wakes for it. Nothing arrives between 00:00 and 08:00 London: what falls due then waits
-for 08:00, at most three per reader, oldest first (366). A conversation pushes at once, then at most
+of a group goes at once. Every personal push is high priority, so a sleeping Android phone wakes for it. Messages, replies, mentions and quotes arrive at any hour (375).
+Anything else that falls due between 00:00 and 08:00 London waits for 08:00, at most three per reader, oldest first (311, 366).
+A push whose row the reader has already seen by the time it's due is dropped, and so is a message
+whose conversation they've read since (376). A conversation pushes at once, then at most
 every two minutes (367). No reader gets more than twenty a London day (369). Every push obeys the
 reader's switch for its kind, their mutes and blocks, and a muted conversation. It reads exactly as
 its row in the bell (365) and opens what the row opens. Story pushes are unchanged
 (`docs/PUSH-GO-LIVE.md`, their 25 Sept rules, their */15 job).
 
 Rulings 365–369 (ruled yes 14 Nov) are each one constant in `app/lib/pushP4.js`: `PUSH_QUOTED_WORDS` (365), `MORNING_CAP` (366), `CONVERSATION_INTERVAL_MS` (367),
-`CHANNEL_FOR_PREF` (368, the app's names) and `DAILY_CAP` (369).
+`CHANNEL_FOR_PREF` (368, the app's names) and `DAILY_CAP` (369). Ruling 375 is `ANY_HOUR_KINDS`;
+376 is the `seen` step of `decide` (below).
+
+### Rulings 375–377 (15 Nov, P4-B4)
+
+- **375.** `holdsForMorning(kind)` is false for `message`, `reply`, `mention` and `quote`, so their
+  `dueTime` never moves to 08:00. Everything else keeps 311's hold and 366's three. Caps and
+  intervals are unchanged (367, 369, 310, 318). **At deploy:** an entry the drain had already moved
+  to 08:00 (`later` writes the entry's `dueAt`) keeps 08:00 and counts as one of that morning's three.
+  Nothing is sent at deploy time, and nothing is dropped as stale at 08:00 because the kind no
+  longer waits. `decide` honours a stored `dueAt` only when it is exactly 08:00 London and later
+  than the computed due time, so a conversation's two minutes never pass for one.
+- **376.** When an entry falls due, `decide` drops it (`seen`) if the reader's `seenAt` is at or after
+  the row's newest event (`record.at`). For a message, a conversation read since counts too: its
+  unread count, `dm_conversations/{uid}/{convId}/unread`, is 0. That count is written by the
+  **sender's** client, just after the message and after notify is called, so at the instant send it
+  can still read 0 from an earlier read. The drain believes it only 15 seconds after the message
+  (`DM_READ_GRACE_MS`, a chosen number). The instant send never reads it, and pays no subrequest.
+  The badge and every other reason are unchanged.
+- **377.** The moon note on `/notifications/settings`: "Messages, replies and mentions reach you at
+  any hour. Anything else that comes between midnight and 08:00 London waits until 08:00, when the
+  first three arrive. The rest stay in your notifications." The app's copy follows in its own update.
 
 ---
 
@@ -78,13 +102,17 @@ launch check           ─► red when ops/push_drain/lastRunAt is > 5 min old, 
 5. Nothing new since this record last pushed → drop (`nothing_new`).
 6. The due time: the record's newest event; for a group already pushed, no sooner than the last push
    plus the interval (an hour for reactions and responses, two minutes for a conversation). In the
-   quiet hours, 08:00 London (`held`). Later than now → `later`, and the entry's `dueAt` is moved.
-7. More than two hours past due → drop (`stale`, a chosen number). Never sent late.
-8. Re-checked at send time: the named actors blocked either way or muted, or the conversation muted
+   quiet hours, 08:00 London (`held`), except for a message, a reply, a mention or a quote (375). An
+   entry already moved to 08:00 before 375 keeps it. Later than now → `later`, and the entry's
+   `dueAt` is moved.
+7. Seen by now → drop (`seen`, 376): `seenAt` at or after the row's newest event, or, for a message,
+   its conversation's unread count at 0 once 15 seconds have passed.
+8. More than two hours past due → drop (`stale`, a chosen number). Never sent late.
+9. Re-checked at send time: the named actors blocked either way or muted, or the conversation muted
    → drop (`silenced`). A held push can be eight hours old.
-9. Twenty already today (London) → drop (`daily_cap`). A held push, and three held already sent
+10. Twenty already today (London) → drop (`daily_cap`). A held push, and three held already sent
    this morning → drop (`morning_cap`). It stays in the list.
-10. Send.
+11. Send.
 
 ### At most once
 
@@ -234,12 +262,12 @@ switch-on: anything more than two hours past due is stale.
    and on Pages Production.
 4. **Cron on** (the Worker's `* * * * *`), founders only. `P4_ARMED = true` is committed first, which also wakes
    the instant send and `/api/push/seen`, then the cron is added. The launch check watches the heartbeat from then on.
-5. **Founder test**: a reply, a mention, a message, a reaction twice within the hour, and one at
-   night (the 08:00 hold), on Ikenna's A60 phone. Check: the words, the route opened, the badge, the
-   channel.
+5. **Founder test**: a reply, a mention, a message, a reaction twice within the hour, and at night
+   a message (at once, 375) and a reaction (the 08:00 hold), on Ikenna's A60 phone. Check: the words,
+   the route opened, the badge, the channel, and that a push seen before it's due never arrives (376).
 6. **Switch-on**, one commit: `FOUNDERS_ONLY = false`, `CARD_LIVE.PEOPLE` and
-   `CARD_LIVE['YOUR WRITING']` true, and the bell suite's ruling-337 expectations with them. The app
-   turns on its own cards in A60.
+   `CARD_LIVE['YOUR WRITING']` true, and the bell suite's ruling-337 expectations with them. The app's
+   cards come on in the app's own update at switch-on, not in A60.
 
 ## Ikenna's manual steps (to be checked against current Expo and Cloudflare docs before he gets them)
 
@@ -270,6 +298,6 @@ switch-on: anything more than two hours past due is stale.
 | Suite | What |
 |---|---|
 | `tests/ci/p4-push.test.mjs` (`test:ci`) | The switches, London's clock every 5 minutes across both clock-change days, the gates, every drop reason, the caps, devices, 359 and 362, the words through the bell, the money guard, the badge |
-| `tests/notify/p4-drain.emulator.mjs` (`test:notify:emulator`) | notify enqueues within budget at 1 and 8 recipients; `replyToId` and its fallback; the drain's secrets and dry mode; **the 08:00 hold** (02:00 → 07:59 nothing → 08:00 sent) and **the hourly group** (10:00 sent, 10:20 waits, 11:00 names both) under an injected clock; 366, 367, 369; stale; **no duplicate after a crash between claim and send** (two shapes); **a block added during the hold**; founders only; newest row and pushCaps; DeviceNotRegistered; 8 readers within 45 a call; the release endpoint |
+| `tests/notify/p4-drain.emulator.mjs` (`test:notify:emulator`) | notify enqueues within budget at 1 and 8 recipients; `replyToId` and its fallback; the drain's secrets and dry mode; **the 08:00 hold** for a reaction (02:00 → 07:59 nothing → 08:00 sent); **375** (a message and a reply at 02:00 go at 02:00; an entry held before the change keeps 08:00); **376** (a held push seen at 06:00 dropped at 08:00; a conversation read inside its two minutes sends nothing) and **the hourly group** (10:00 sent, 10:20 waits, 11:00 names both) under an injected clock; 366, 367, 369; stale; **no duplicate after a crash between claim and send** (two shapes); **a block added during the hold**; founders only; newest row and pushCaps; DeviceNotRegistered; 8 readers within 45 a call; the release endpoint |
 | `tests/rules/p4-push.test.mjs` (`test:rules`) | Every client (owner, stranger, founder, signed out) out of `push_queue`, `push_state` and the lease; `pushCaps` and `installHash` validated; `seenAt` as the server's timestamp; 359's two-field write |
 | `tests/push/*` (`test:push`, `test:push:emulator`) | `everyRowFor`; a personal receipt and a story ticket each clearing a device under two accounts; leftovers pruned |

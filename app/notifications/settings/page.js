@@ -124,7 +124,7 @@ export default function NotificationSettingsPage() {
             {error ? <p role="alert" style={{ fontFamily: SERIF, fontSize: 16, color: '#E7A0AE', margin: '0 0 18px' }}>{error}</p> : null}
             <p data-quiet-hours style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontFamily: SERIF, fontStyle: 'italic', fontSize: 16, lineHeight: 1.45, color: '#A39CB2', margin: '28px 6px 0' }}>
               <span style={{ paddingTop: 3 }}><MoonGlyph size={16} color="#A39CB2" /></span>
-              <span>Nothing arrives between midnight and 08:00 London. Anything sent in those hours reaches you together at 08:00.</span>
+              <span>Messages, replies and mentions reach you at any hour. Anything else that comes between midnight and 08:00 London waits until 08:00, when the first three arrive. The rest stay in your notifications.</span>
             </p>
           </>
         )}

@@ -92,12 +92,12 @@ export function releaseCreditLabel(ms, now = Date.now()) {
 }
 
 /**
- * The line above a sponsor's name. Lowercase, and that is the design, not a slip.
+ * The line above a sponsor's name (ruling 370, 15 Nov 2026). The app shows the same words.
  *
- * Sentence case throughout the credits block — see app/series/instalment/[instalmentId]/
- * page-instalment.js on why the eyebrow is the only small-caps element on that page.
+ * See app/series/instalment/[instalmentId]/page-instalment.js on why the eyebrow is the only
+ * small-caps element on that page.
  */
-export const SPONSOR_PREAMBLE = 'this instalment made possible by';
+export const SPONSOR_PREAMBLE = 'Made possible by';
 
 // ── READING TIME ─────────────────────────────────────────────────────────────────────────
 //

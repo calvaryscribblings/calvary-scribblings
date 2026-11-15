@@ -831,9 +831,8 @@ describe('R12.4 · the instalment page — logline, sponsor, and a reading time 
         'the tense is hardcoded — it would be the wrong word on the other side of the date');
     });
 
-    test('the sponsor preamble is sentence case, like the credits beside it', () => {
-      assert.equal(SPONSOR_PREAMBLE, 'this instalment made possible by');
-      assert.equal(SPONSOR_PREAMBLE, SPONSOR_PREAMBLE.toLowerCase());
+    test('the sponsor preamble reads as ruled (370)', () => {
+      assert.equal(SPONSOR_PREAMBLE, 'Made possible by');
     });
 
     test('CAPS APPEAR EXACTLY TWICE BELOW THE NAV, AND BOTH ARE THE EYEBROW', () => {

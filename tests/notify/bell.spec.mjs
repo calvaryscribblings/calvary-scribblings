@@ -282,7 +282,7 @@ test('settings (ruling 337): only STORIES is drawn, its switch writes notify_pre
     await expect(page.locator('[data-card]')).toHaveCount(1);
     for (const hidden of ['PEOPLE', 'YOUR WRITING', 'THE SQUARE']) await expect(page.locator(`[data-card="${hidden}"]`)).toHaveCount(0);
     await expect(page.locator('main h2')).toHaveText(['STORIES']);
-    await expect(page.locator('[data-quiet-hours]')).toContainText('Nothing arrives between midnight and 08:00 London.');
+    await expect(page.locator('[data-quiet-hours]')).toHaveText('Messages, replies and mentions reach you at any hour. Anything else that comes between midnight and 08:00 London waits until 08:00, when the first three arrive. The rest stay in your notifications.');
     await page.screenshot({ path: `${SHOTS}/settings-${size}.png`, fullPage: true });
   }
   await page.locator('[data-pref="stories"] [role="switch"]').click();
