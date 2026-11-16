@@ -12,6 +12,12 @@
 #                                         (BST: Sunday 23:10 UTC; GMT: Monday 00:10 UTC)
 #   workflow_dispatch                     by hand, any time
 #
+# CLOCK-1.1: calvary-clock dispatches this at each cron above, passing the cron as the `clock` input.
+# The gate reads `github.event.schedule || inputs.clock`, so a dispatched run sends exactly the table
+# the scheduled run would (the Monday table, or the daily one that emails only on red). A scheduled
+# or clock run claims its occasion's email in ops/launch_check before sending (--slot … --apply), so
+# GitHub's late run of the same occasion sends nothing. A dispatch by hand (no clock) is unchanged.
+#
 # A red row fails the job AFTER the email is sent, so the Actions tab shows it too.
 
 name: launch check
@@ -26,6 +32,11 @@ on:
     - cron: '5 8 * * *'      # ALERTS-1: daily 08:05 London while GMT — emails only on red
   workflow_dispatch:
     inputs:
+      clock:
+        description: 'Set by calvary-clock (CLOCK-1): the cron it fired. Leave blank by hand.'
+        required: false
+        default: ''
+        type: string
       email:
         description: 'Email the table to Ikenna'
         type: boolean
@@ -48,7 +59,11 @@ jobs:
       - uses: actions/checkout@v5
       - name: Is this the London time we meant?
         id: gate
-        run: node scripts/launch-check-gate.mjs "${{ github.event.schedule }}" | tee -a /dev/stderr | grep -E '^(run|mode)=' >> "$GITHUB_OUTPUT"
+        env:
+          # LIVE-PATHS-2: the cron reaches the shell as an environment variable, quoted where it is
+          # used; the gate accepts only its own crons.
+          SCHEDULE: ${{ github.event.schedule || inputs.clock }}
+        run: node scripts/launch-check-gate.mjs "$SCHEDULE" | tee -a /dev/stderr | grep -E '^(run|mode)=' >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v5
         if: steps.gate.outputs.run == 'true'
         with:
@@ -70,15 +85,20 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         env:
           LAUNCH_SERVICE_ACCOUNT: ${{ runner.temp }}/serviceAccountKey.json
+          # CLOCK-1.1: the guard's backups of the one claim it writes use the same key.
+          GUARD_SERVICE_ACCOUNT: ${{ runner.temp }}/serviceAccountKey.json
           GITHUB_TOKEN: ${{ github.token }}
+          SCHEDULE: ${{ github.event.schedule || inputs.clock }}
         shell: bash   # pipefail: the script's own exit status still fails the step (W12)
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.email }}" != "true" ]; then
+          if [ -z "$SCHEDULE" ] && [ "${{ inputs.email }}" != "true" ]; then
             node scripts/launch-check.mjs 2>&1 | node scripts/ops/log-guard.mjs
-          elif [ "${{ steps.gate.outputs.mode }}" = "if-red" ]; then
-            node scripts/launch-check.mjs --email-if-red 2>&1 | node scripts/ops/log-guard.mjs
-          else
+          elif [ -z "$SCHEDULE" ]; then
             node scripts/launch-check.mjs --email 2>&1 | node scripts/ops/log-guard.mjs
+          elif [ "${{ steps.gate.outputs.mode }}" = "if-red" ]; then
+            node scripts/launch-check.mjs --email-if-red --slot "$SCHEDULE" --apply 2>&1 | node scripts/ops/log-guard.mjs
+          else
+            node scripts/launch-check.mjs --email --slot "$SCHEDULE" --apply 2>&1 | node scripts/ops/log-guard.mjs
           fi
       - name: Remove the service account
         if: always()

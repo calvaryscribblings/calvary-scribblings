@@ -6,9 +6,16 @@
 // (github.event.schedule), so a run GitHub delays by half an hour still counts correctly.
 //
 //   node scripts/launch-check-gate.mjs "<cron>"   → prints run=true|false (for $GITHUB_OUTPUT)
+//
+// CLOCK-1.1: the cron reaches this gate the same way whether GitHub's schedule fired it
+// (github.event.schedule) or the clock dispatched it (the `clock` input, which carries the cron that
+// fired). The workflow passes `github.event.schedule || inputs.clock`, so a dispatched run sends the
+// same table a scheduled one would. And each London occasion has one SLOT (slotOf/slotKey below):
+// scripts/launch-check.mjs claims the slot's email before sending, so two runs never send it twice.
 
 import { pathToFileURL } from 'node:url';
 import { LAUNCH, LAUNCH_DATE_SHORT } from '../app/lib/launch.js';
+import { parseCron, cronMatches } from '../workers-external/calvary-clock/clock.mjs';
 
 // The launch day as London's calendar writes it — derived, never retyped (tests/build/launch-literals).
 const LAUNCH_DAY = `${LAUNCH.y}-${String(LAUNCH.m).padStart(2, '0')}-${String(LAUNCH.d).padStart(2, '0')}`;
@@ -50,6 +57,29 @@ export function shouldRun(schedule, ms = Date.now()) {
   if (!schedule) return true;
   const s = SCHEDULES[schedule];
   return !!s && s.valid(ms);
+}
+
+/**
+ * THE SLOT a run of `schedule` belongs to: the latest minute at or before `now` when that cron fired.
+ * GitHub can start a run hours late; the clock and GitHub's run of one firing share the slot. Looks back
+ * 48 hours (every cron here fires at least daily, or is held to the launch date by its gate); null if
+ * the cron is not one of ours or did not fire in that time.
+ */
+export function slotOf(schedule, now = Date.now()) {
+  if (!SCHEDULES[schedule]) return null;
+  const c = parseCron(schedule);
+  const top = Math.floor(now / 60000) * 60000;
+  for (let t = top; t > top - 48 * 3600000; t -= 60000) if (cronMatches(c, t)) return t;
+  return null;
+}
+
+/** The slot's key, its London date and time: '2026-11-17-0805'. The BST and GMT crons of one London
+ *  time give the same key, so the gate's twin crons can never both send. */
+export function slotKey(slotMs) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).formatToParts(new Date(slotMs)).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}-${p.hour}${p.minute}`;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {

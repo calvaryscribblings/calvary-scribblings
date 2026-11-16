@@ -24,7 +24,9 @@ name: square horizon
 # ⭑ ARMED — 4 SEP 2026, ON IKENNA'S RULING
 # ═══════════════════════════════════════════════════════════════════════════
 #
-# ⚠ THE CRON IS THE SWITCH. The `Sweep` step passes --apply on ANY scheduled run,
+# ⚠ THE CRON IS THE SWITCH (and, since CLOCK-1.1, the clock's table: calvary-clock dispatches this
+# with apply=true at the same minutes, so disarming also means taking it out of
+# workers-external/calvary-clock/clock.mjs, or holding it there). The `Sweep` step passes --apply on ANY scheduled run,
 # so commenting the schedule out is the only thing that disarms this workflow and
 # restoring it is the arming. There is no second switch behind it. If you ever
 # need to stop the horizon, comment the two lines below again — do not rely on
@@ -60,6 +62,11 @@ on:
     - cron: '5 * * * *'   # hourly at :05 UTC; the script acts only at London 20:00
   workflow_dispatch:
     inputs:
+      clock:
+        description: 'Set by calvary-clock (CLOCK-1): the cron it fired. Leave blank by hand.'
+        required: false
+        default: ''
+        type: string
       apply:
         description: 'Write. Unticked, this only reports what would move.'
         required: false
@@ -78,6 +85,9 @@ concurrency:
 jobs:
   sweep:
     runs-on: ubuntu-latest
+    # CLOCK-1.1: under the bell claim's 15-minute lease (scripts/ops/once.mjs), so a claim still inside
+    # its lease always belongs to a run that may yet finish. A sweep takes about 40 seconds.
+    timeout-minutes: 10
     steps:
       # R9.2 (c) — ACTION MAJORS PINNED OFF THE DEPRECATED node20 RUNTIME, and
       # node 22 to match every other workflow in this repo. This file arrived on
@@ -113,7 +123,8 @@ jobs:
           node scripts/square/horizon.mjs $ARGS 2>&1 | node scripts/ops/log-guard.mjs
 
       - name: Liveness — fail loudly if the bell has been missed
-        if: github.event_name == 'schedule'
+        # The clock's runs are the scheduled runs now (CLOCK-1.1); a dispatch by hand is not.
+        if: github.event_name == 'schedule' || inputs.clock != ''
         shell: bash   # pipefail: the script's own exit status still fails the step (W12)
         run: node scripts/square/horizon-liveness.mjs 2>&1 | node scripts/ops/log-guard.mjs
 

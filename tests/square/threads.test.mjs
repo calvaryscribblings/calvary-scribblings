@@ -173,7 +173,7 @@ describe('the horizon carries replyToId and removedBy untouched', () => {
   });
   test('the archive write copies each record whole (no field list to forget a new field)', () => {
     const src = readFileSync(new URL('../../scripts/square/horizon.mjs', import.meta.url), 'utf8');
-    assert.match(src, /const \{ id, \.\.\.rec \} = p;\n\s+patch\[`square_archive\/\$\{id\}`\] = \{ \.\.\.rec, archivedAt: now, archivedBy: 'horizon' \};/);
+    assert.match(src, /const \{ id, \.\.\.rec \} = p;\n\s+patch\[`square_archive\/\$\{id\}`\] = \{ \.\.\.rec, archivedAt: asOf, archivedBy: 'horizon' \};/);
   });
 });
 

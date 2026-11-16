@@ -5,10 +5,15 @@
 //   node scripts/launch-check.mjs --email    …and mail it to Ikenna (via /api/ops/launch-email)
 //   node scripts/launch-check.mjs --email-if-red   …only when a row is red (the daily run, ALERTS-1)
 //   node scripts/launch-check.mjs --json     the rows as JSON
-//   --since <ISO>                            the "since the last check" instant (default: the
-//                                            previous launch-check workflow run, else 24h ago)
+//   --since <ISO>                            the "since the last check" instant (default: the last
+//                                            occasion that was reported, from ops/launch_check; else the
+//                                            previous launch-check workflow run; else 24h ago)
+//   --slot "<cron>" --apply                  CLOCK-1.1: a scheduled or clock-dispatched run. The email is
+//                                            claimed in ops/launch_check/slots/<London date-time> before it
+//                                            goes, so a second run of the same occasion never sends it again.
 //
-// READ-ONLY against production. It reads with the Firebase Admin SDK, asks the live site the
+// READ-ONLY against production, but for one thing: with --slot and --apply it claims the occasion's
+// email in ops/launch_check (through the guard) before sending it. It reads with the Firebase Admin SDK, asks the live site the
 // questions a signed-out reader would, and asks /api/ops/launch-status for the membership
 // switches as BOOLEANS. The only thing it ever sends is the email.
 //
@@ -30,7 +35,9 @@ import { endingOf } from './check-built-gate.mjs';
 import { LAUNCH_DATE_SHORT } from '../app/lib/launch.js';
 import { dictionaryLookup, DICT_BASE, DICT_SOURCE } from '../app/lib/dictionary.js';
 import { readServiceAccountFile, readSaKeySecret } from './security/service-account.mjs';
-import { readOnlyDb } from './safety/guard.mjs'; // SAFETY-1: read-only, enforced (any write throws)
+import { readOnlyDb, openGuard } from './safety/guard.mjs'; // SAFETY-1: reads read-only, enforced; the one claim goes through the guard
+import { takeFn, settleFn, runIdOf, LEASE_MS } from './ops/once.mjs';
+import { SCHEDULES as GATE_SCHEDULES, slotOf, slotKey } from './launch-check-gate.mjs';
 import { P4_ARMED, DRAIN_STALE_MS } from '../app/lib/pushP4.js';
 import { CLOCK_ARMED, CLOCK_HEARTBEAT_URL, judgeClockHeartbeat } from '../app/lib/clock.js';
 
@@ -383,7 +390,8 @@ export async function gather(now = Date.now(), { since: sinceArg } = {}) {
     } catch (e) { dictionary = { error: String(e.message || e).slice(0, 80), ms: Date.now() - t0 }; }
   }
 
-  const since = Number.isFinite(sinceArg) ? sinceArg : ((await previousRunStart()) ?? now - 24 * 3600_000);
+  const since = Number.isFinite(sinceArg) ? sinceArg
+    : (lastReportedAt(await val(LEDGER), now) ?? (await previousRunStart()) ?? now - 24 * 3600_000);
   const signals = { moneyFailures: await val('ops/money_failures'), publishSkips: await val('ops/publish_skips'), since };
 
   const covers = { lastReconcileOkAt: await lastReconcileOk(), held: heldGoingLive(await val('cms_stories'), now) };
@@ -425,6 +433,57 @@ export function judgeAll(g, now) {
   ];
 }
 
+// ── CLOCK-1.1: ONE EMAIL PER OCCASION ─────────────────────────────────────────────────────────
+// The clock dispatches this workflow on time and GitHub's schedule still runs it too, often hours
+// late. Each London occasion (the Monday 00:10, the daily 08:05) is a SLOT, keyed by its London date
+// and time (scripts/launch-check-gate.mjs slotKey). Before an email goes, the run claims the slot:
+//   · claimed → sent. A second run finds `sent` and does not send.
+//   · claimed → failed (the send threw). A later run of the same slot may claim it and send.
+//   · a daily run that is all green sends nothing and records `quiet`: the occasion was judged.
+//   · a claim left `claimed` by a run that died is free again after LEASE_MS (the job times out first).
+// "Since the last check" is the last slot that was judged and reported (sent or quiet), so a second
+// run that stood down never narrows the next day's window.
+export const LEDGER = 'ops/launch_check/slots';
+
+/** The latest judged-and-reported slot before `now` (sent or quiet), or null. */
+export function lastReportedAt(slots, now) {
+  let best = null;
+  for (const v of Object.values(slots || {})) {
+    const t = Number(v?.checkedAt);
+    if ((v?.state === 'sent' || v?.state === 'quiet') && Number.isFinite(t) && t < now && (best === null || t > best)) best = t;
+  }
+  return best;
+}
+
+/**
+ * Report one occasion once. `db` is the guarded handle (ref(path).transaction). `wantEmail` is this
+ * run's verdict (always on a Monday, only when red on a daily). Returns
+ *   { state: 'sent' | 'quiet' | 'stood-down', prior? }
+ * and throws if the send fails (after recording `failed`, so a later run may retry).
+ */
+export async function reportOnce(db, { key, now, runId, wantEmail, send, log = () => {}, leaseMs = LEASE_MS }) {
+  const ref = db.ref(`${LEDGER}/${key}`);
+  const record = wantEmail
+    ? { state: 'claimed', at: now, runId, checkedAt: now }
+    : { state: 'quiet', at: now, runId, checkedAt: now };
+  const res = await ref.transaction(takeFn(record, now, { leaseMs }));
+  if (!res.committed) {
+    const prior = res.snapshot?.val?.()?.state ?? 'unknown';
+    log(`[once] ${key}: already ${prior} by another run — this run sends nothing`);
+    return { state: 'stood-down', prior };
+  }
+  if (!wantEmail) { log(`[once] ${key}: all green, nothing to send — recorded`); return { state: 'quiet' }; }
+  try {
+    const sent = await send();
+    await ref.transaction(settleFn(runId, { state: 'sent', sentAt: Date.now() }));
+    log(`[once] ${key}: sent`);
+    return { state: 'sent', sent };
+  } catch (e) {
+    await ref.transaction(settleFn(runId, { state: 'failed', failedAt: Date.now() })).catch(() => {});
+    throw e;
+  }
+}
+
 async function email(sa, rows, now) {
   const { subject } = summarise(rows);
   const r = await fetch(`${SITE}/api/ops/launch-email`, {
@@ -449,10 +508,33 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   console.log(`\n${subject}`);
   // ALERTS-1: --email sends the table whatever it says (Mondays, the launch day, a dispatch);
   // --email-if-red sends it only when something is red (the daily run).
-  if (args.includes('--email') || (args.includes('--email-if-red') && red)) {
+  const wantEmail = args.includes('--email') || (args.includes('--email-if-red') && red);
+  const slotIdx = args.indexOf('--slot');
+  let stoodDown = false;
+  if (slotIdx >= 0) {
+    // CLOCK-1.1: a scheduled or clock-dispatched run. The cron must be one of the gate's.
+    const cron = args[slotIdx + 1] || '';
+    if (!GATE_SCHEDULES[cron]) { console.error('::error::--slot is not one of the launch check\'s crons'); process.exit(1); }
+    const slot = slotOf(cron, now);
+    if (slot === null) { console.error('::error::that cron has not fired in the last 48 hours'); process.exit(1); }
+    const guard = await openGuard('launch-check', { apply: args.includes('--apply') });
+    if (!guard.apply) {
+      console.log(`[once] ${slotKey(slot)}: DRY RUN (no --apply) — nothing claimed, nothing sent`);
+    } else {
+      const { getDatabase } = await import('firebase-admin/database');
+      const out = await reportOnce(guard.adminDb(getDatabase()), {
+        key: slotKey(slot), now, runId: runIdOf(process.env, now), wantEmail,
+        send: async () => { const sent = await email(g.sa, rows, now); console.log(`emailed: ${sent.subject} (${sent.id})`); return sent; },
+        log: (l) => console.log(l),
+      });
+      stoodDown = out.state === 'stood-down' && out.prior === 'sent';
+    }
+  } else if (wantEmail) {
     const sent = await email(g.sa, rows, now);
     console.log(`emailed: ${sent.subject} (${sent.id})`);
   }
-  for (const r of rows) if (r.status === RED) console.log(`::error::[launch] ${r.name}: ${r.evidence}`);
-  process.exit(red ? 1 : 0);
+  // A run that stood down because this occasion's table already went out does not fail as well:
+  // the red rows are in the email that was sent, and GitHub would otherwise mail a second alarm.
+  for (const r of rows) if (r.status === RED) console.log(`::${stoodDown ? 'warning' : 'error'}::[launch] ${r.name}: ${r.evidence}`);
+  process.exit(red && !stoodDown ? 1 : 0);
 }

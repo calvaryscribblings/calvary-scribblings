@@ -100,7 +100,10 @@ describe('ALERTS-1 · on red, the check mails every day', () => {
 
   test('--email-if-red mails only when a row is red, through /api/ops/launch-email', () => {
     const s = src('scripts/launch-check.mjs');
-    assert.match(s, /if \(args\.includes\('--email'\) \|\| \(args\.includes\('--email-if-red'\) && red\)\) \{\n\s+const sent = await email\(g\.sa, rows, now\);/);
+    // CLOCK-1.1: the verdict is wantEmail; a scheduled or clock run claims the occasion first (reportOnce).
+    assert.match(s, /const wantEmail = args\.includes\('--email'\) \|\| \(args\.includes\('--email-if-red'\) && red\);/);
+    assert.match(s, /\} else if \(wantEmail\) \{\n\s+const sent = await email\(g\.sa, rows, now\);/);
+    assert.match(s, /key: slotKey\(slot\), now, runId: runIdOf\(process\.env, now\), wantEmail,/);
     assert.match(s, /fetch\(`\$\{SITE\}\/api\/ops\/launch-email`/);
   });
 });

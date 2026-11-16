@@ -158,7 +158,8 @@ describe('W7 · the schedule, in London time', () => {
     const yml = readFileSync('.github/workflows/launch-check.yml', 'utf8');
     const crons = [...yml.matchAll(/- cron: '([^']+)'/g)].map((m) => m[1]).sort();
     assert.deepEqual(crons, Object.keys(SCHEDULES).sort());
-    assert.match(yml, /launch-check-gate\.mjs "\$\{\{ github\.event\.schedule \}\}"/);
+    // CLOCK-1.1: the cron that fired, from a schedule or the clock, through the environment.
+    assert.match(yml, /SCHEDULE: \$\{\{ github\.event\.schedule \|\| inputs\.clock \}\}\n\s+run: node scripts\/launch-check-gate\.mjs "\$SCHEDULE"/);
     assert.match(yml, /node scripts\/launch-check\.mjs --email/);
   });
 });

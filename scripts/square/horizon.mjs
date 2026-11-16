@@ -89,6 +89,33 @@
 // is a question with an answer. The workflow fails loudly if the last bell is
 // more than 26 hours old — a horizon that silently never runs is the defect this
 // round exists to fix, and it must not be able to come back quietly.
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// CLOCK-1.1 — ONE BELL A NIGHT, HOWEVER MANY RUNS (decided 16 Nov 2026)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The clock (workers-external/calvary-clock) dispatches this workflow at :05,
+// and GitHub's own schedule still fires it too, often late. So two runs can land
+// in the 20:00 hour, together or an hour apart. Before this, every --apply run
+// in hour 20 swept with ITS OWN clock: a second run at 20:40 moved every thread
+// that had turned 48 hours old since 20:00, which means posts vanishing in the
+// middle of a session, the one thing this design exists to prevent.
+//
+// Now:
+//   · THE BELL IS 20:00 LONDON, NOT THE MOMENT A RUN STARTS. Everything the bell
+//     does (the plan, archivedAt, lastBellAt) is as of 20:00 that night, so any
+//     run that night moves exactly the same posts. A run at 20:59 sweeps as if it
+//     were 20:00.
+//   · THE NIGHT IS CLAIMED BEFORE ANYTHING MOVES (square_horizon/bell, a
+//     transaction), so the rest of what the bell does (the heartbeat's
+//     lastBellAt / sweptAtLastRun) happens once. A second run stands down.
+//   · A claim whose run failed is marked so, and the next run that hour takes it
+//     at once. A run that died without saying so holds the night for LEASE_MS
+//     (15 min; the job's timeout is 10), then the night may be retried. Never
+//     after 21:00: outside the bell nothing is swept, and the liveness step says
+//     so the next day.
+//   · --force (a manual catch-up) is unchanged: it sweeps as of the moment it
+//     runs, and claims nothing.
 
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -97,6 +124,7 @@ import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 import { openGuard } from '../safety/guard.mjs';
 import { isId } from '../../app/lib/ids.js';
+import { takeFn, settleFn, runIdOf, LEASE_MS } from '../ops/once.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..', '..');
@@ -164,55 +192,70 @@ export function planSweep(posts, now = Date.now()) {
 
 function fail(msg) { console.error(`\n  ✗ ${msg}\n`); process.exit(1); }
 
-async function main() {
-  const sa = JSON.parse(await readFile(resolve(ROOT, 'serviceAccountKey.json'), 'utf8'));
-  initializeApp({ credential: cert(sa), databaseURL: DB_URL });
-  // SAFETY-1: every write goes through the guard (dry without --apply; backup, verify, write).
-  const guard = await openGuard('square-horizon');
-  const db = guard.adminDb(getDatabase());
+const LONDON_PARTS = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/London', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+});
+const londonParts = (ms) => Object.fromEntries(LONDON_PARTS.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
 
-  const now = Date.now();
+/**
+ * The bell of the London night containing `now`: { night: 'YYYY-MM-DD', at: epoch ms of 20:00 London }.
+ * London's offset at 20:00 is the offset all evening (the clocks change at 01:00 UTC), so it is read
+ * at `now` when `now` is in the bell hour, and at 20:00 UTC on that date otherwise.
+ */
+export function bellOf(now) {
+  const p = londonParts(now);
+  const night = `${p.year}-${p.month}-${p.day}`;
+  const guessUtc = Date.UTC(+p.year, +p.month - 1, +p.day, BELL_HOUR);
+  const q = londonParts(guessUtc);
+  const offsetH = ((Date.UTC(+q.year, +q.month - 1, +q.day, +q.hour, +q.minute) - guessUtc) / 3600000);
+  return { night, at: guessUtc - offsetH * 3600000 };
+}
+
+/**
+ * ONE RUN. `db` is a guarded firebase-admin handle in production (any object with
+ * ref(path).get/update/transaction and ref().update in the tests). Returns what it did.
+ *   action: 'dry-run' | 'not-the-bell' | 'already-rung' | 'in-flight' | 'swept'
+ */
+export async function ringBell(db, now, { apply = false, force = false, runId = runIdOf(process.env, now), log = console.log, leaseMs = LEASE_MS } = {}) {
   const hour = londonHour(now);
   const atBell = hour === BELL_HOUR;
+  const bell = bellOf(now);
+  const asOf = force || !atBell ? now : bell.at;
 
-  const [postSnap, reactSnap] = await Promise.all([
-    db.ref('square_posts').get(),
-    db.ref('square_reactions').get(),
-  ]);
-  // LIVE-PATHS-1: the KEY is the id; a stored `id` field never overrides it.
-  const posts = Object.entries(postSnap.val() || {}).map(([id, p]) => ({ ...p, id }));
-  const reactions = reactSnap.val() || {};
+  const readRoom = async () => {
+    const [postSnap, reactSnap] = await Promise.all([db.ref('square_posts').get(), db.ref('square_reactions').get()]);
+    // LIVE-PATHS-1: the KEY is the id; a stored `id` field never overrides it.
+    return { posts: Object.entries(postSnap.val() || {}).map(([id, p]) => ({ ...p, id })), reactions: reactSnap.val() || {} };
+  };
 
-  const plan = planSweep(posts, now);
-  const london = new Date(now).toLocaleString('en-GB', { timeZone: 'Europe/London', dateStyle: 'full', timeStyle: 'medium' });
+  let { posts, reactions } = await readRoom();
+  let plan = planSweep(posts, asOf);
+  report(log, { now, hour, atBell, asOf, posts, plan });
 
-  console.log(`\n  THE HORIZON — 48h, thread-scoped, evaluated at the ${BELL_HOUR}:00 bell`);
-  console.log(`  ${'─'.repeat(62)}`);
-  console.log(`  London now ............... ${london}`);
-  console.log(`  at the bell .............. ${atBell ? 'YES' : `no (hour ${hour}) — a sweep would no-op`}`);
-  console.log(`  records in the room ...... ${posts.length}`);
-  console.log(`  threads .................. ${plan.threads}   (orphaned replies adopted: ${plan.orphans})`);
-  console.log(`  ${'─'.repeat(62)}`);
-  console.log(`  STAYS .................... ${plan.keep.length} records`);
-  console.log(`  MOVES to square_archive .. ${plan.move.length} records`);
-  console.log(`  ${'─'.repeat(62)}`);
-
-  const pinned = plan.decisions.filter((d) => d.pinned);
-  const inside = plan.decisions.filter((d) => !d.pinned && !d.past);
-  console.log(`  pinned threads (exempt) .. ${pinned.length}`);
-  for (const d of pinned) console.log(`      ${d.rootId.slice(0, 14)}…  ${d.replies} replies  ${d.ageHours.toFixed(1)}h old`);
-  console.log(`  inside the horizon ....... ${inside.length}`);
-  for (const d of inside.slice(0, 8)) console.log(`      ${d.rootId.slice(0, 14)}…  ${d.replies} replies  ${d.ageHours.toFixed(1)}h old`);
-
-  if (!APPLY) {
-    console.log(`\n  DRY RUN — nothing was written. Re-run with --apply.\n`);
-    process.exit(0);
-  }
-  if (!atBell && !FORCE) {
-    console.log(`\n  NOT THE BELL — no sweep. The horizon is evaluated once a day, at ${BELL_HOUR}:00 London,`);
-    console.log(`  so nothing is ever removed while a session is open. Heartbeat updated.\n`);
+  if (!apply) { log(`\n  DRY RUN — nothing was written. Re-run with --apply.\n`); return { action: 'dry-run', plan }; }
+  if (!atBell && !force) {
+    log(`\n  NOT THE BELL — no sweep. The horizon is evaluated once a day, at ${BELL_HOUR}:00 London,`);
+    log(`  so nothing is ever removed while a session is open. Heartbeat updated.\n`);
     await db.ref('square_horizon').update({ lastRunAt: now, lastRunHour: hour, sweptAtLastRun: 0 });
-    process.exit(0);
+    return { action: 'not-the-bell' };
+  }
+
+  // ── claim the night ──────────────────────────────────────────────────────
+  if (!force) {
+    const record = { night: bell.night, state: 'claimed', at: now, runId, asOf: bell.at };
+    const res = await db.ref('square_horizon/bell').transaction(
+      takeFn(record, now, { leaseMs, free: (cur) => !cur || cur.night !== bell.night }),
+    );
+    if (!res.committed) {
+      const cur = res.snapshot?.val?.() || {};
+      const action = cur.state === 'claimed' ? 'in-flight' : 'already-rung';
+      log(`\n  ${action === 'in-flight' ? 'ANOTHER RUN HOLDS TONIGHT\'S BELL' : 'TONIGHT\'S BELL HAS ALREADY RUNG'} (${bell.night}) — no sweep. Heartbeat updated.\n`);
+      await db.ref('square_horizon').update({ lastRunAt: now, lastRunHour: hour });
+      return { action };
+    }
+    // The room as it is now that the night is ours: a run before us may have moved some of it.
+    ({ posts, reactions } = await readRoom());
+    plan = planSweep(posts, asOf);
   }
 
   // ── the sweep ────────────────────────────────────────────────────────────
@@ -221,32 +264,67 @@ async function main() {
   let moved = 0;
   let badAuthorUid = 0;
   const CHUNK = 100;
-  for (let i = 0; i < plan.move.length; i += CHUNK) {
-    const batch = plan.move.slice(i, i + CHUNK);
-    const patch = {};
-    for (const p of batch) {
-      const { id, ...rec } = p;
-      patch[`square_archive/${id}`] = { ...rec, archivedAt: now, archivedBy: 'horizon' };
-      if (reactions[id]) patch[`square_archive_reactions/${id}`] = reactions[id];
-      patch[`square_posts/${id}`] = null;
-      patch[`square_reactions/${id}`] = null;
-      // LIVE-PATHS-1: authorUid is a field the post's owner can rewrite to any string. A '.' in it
-      // made the guard throw and stalled every hourly sweep; a '/' nested the write. Only a real
-      // uid builds a path; anything else leaves that one index entry alone (counted below).
-      if (isId('uid', p.authorUid)) patch[`user_square_posts/${p.authorUid}/${id}`] = null;
-      else if (p.authorUid) badAuthorUid++;
+  try {
+    for (let i = 0; i < plan.move.length; i += CHUNK) {
+      const batch = plan.move.slice(i, i + CHUNK);
+      const patch = {};
+      for (const p of batch) {
+        const { id, ...rec } = p;
+        patch[`square_archive/${id}`] = { ...rec, archivedAt: asOf, archivedBy: 'horizon' };
+        if (reactions[id]) patch[`square_archive_reactions/${id}`] = reactions[id];
+        patch[`square_posts/${id}`] = null;
+        patch[`square_reactions/${id}`] = null;
+        // LIVE-PATHS-1: authorUid is a field the post's owner can rewrite to any string. A '.' in it
+        // made the guard throw and stalled every hourly sweep; a '/' nested the write. Only a real
+        // uid builds a path; anything else leaves that one index entry alone (counted below).
+        if (isId('uid', p.authorUid)) patch[`user_square_posts/${p.authorUid}/${id}`] = null;
+        else if (p.authorUid) badAuthorUid++;
+      }
+      await db.ref().update(patch);
+      moved += batch.length;
     }
-    await db.ref().update(patch);
-    moved += batch.length;
+    await db.ref('square_horizon').update({
+      lastRunAt: now, lastRunHour: hour, lastBellAt: asOf,
+      sweptAtLastRun: moved, remaining: plan.keep.length,
+    });
+  } catch (e) {
+    // Say so, so the next run this hour takes the night at once rather than after the lease.
+    if (!force) await db.ref('square_horizon/bell').transaction(settleFn(runId, { state: 'failed', failedAt: now })).catch(() => {});
+    throw e;
   }
+  if (!force) await db.ref('square_horizon/bell').transaction(settleFn(runId, { state: 'done', doneAt: now, moved }));
 
-  await db.ref('square_horizon').update({
-    lastRunAt: now, lastRunHour: hour, lastBellAt: now,
-    sweptAtLastRun: moved, remaining: plan.keep.length,
-  });
+  log(`\n  ✓ SWEPT as of ${new Date(asOf).toISOString()} — ${moved} records moved to square_archive. ${plan.keep.length} remain in the room.\n`);
+  if (badAuthorUid) log(`  ⚠ ${badAuthorUid} moved post(s) carried an authorUid that is not a uid: their user_square_posts entry was left alone.\n`);
+  return { action: 'swept', moved, plan };
+}
 
-  console.log(`\n  ✓ SWEPT — ${moved} records moved to square_archive. ${plan.keep.length} remain in the room.\n`);
-  if (badAuthorUid) console.log(`  ⚠ ${badAuthorUid} moved post(s) carried an authorUid that is not a uid: their user_square_posts entry was left alone.\n`);
+function report(log, { now, hour, atBell, asOf, posts, plan }) {
+  const london = new Date(now).toLocaleString('en-GB', { timeZone: 'Europe/London', dateStyle: 'full', timeStyle: 'medium' });
+  log(`\n  THE HORIZON — 48h, thread-scoped, evaluated at the ${BELL_HOUR}:00 bell`);
+  log(`  ${'─'.repeat(62)}`);
+  log(`  London now ............... ${london}`);
+  log(`  at the bell .............. ${atBell ? 'YES' : `no (hour ${hour}) — a sweep would no-op`}`);
+  log(`  measured as of ........... ${new Date(asOf).toISOString()}`);
+  log(`  records in the room ...... ${posts.length}`);
+  log(`  threads .................. ${plan.threads}   (orphaned replies adopted: ${plan.orphans})`);
+  log(`  ${'─'.repeat(62)}`);
+  log(`  STAYS .................... ${plan.keep.length} records`);
+  log(`  MOVES to square_archive .. ${plan.move.length} records`);
+  log(`  ${'─'.repeat(62)}`);
+  const pinned = plan.decisions.filter((d) => d.pinned);
+  const inside = plan.decisions.filter((d) => !d.pinned && !d.past);
+  log(`  pinned threads (exempt) .. ${pinned.length}`);
+  log(`  inside the horizon ....... ${inside.length}`);
+}
+
+async function main() {
+  const sa = JSON.parse(await readFile(resolve(ROOT, 'serviceAccountKey.json'), 'utf8'));
+  initializeApp({ credential: cert(sa), databaseURL: DB_URL });
+  // SAFETY-1: every write goes through the guard (dry without --apply; backup, verify, write).
+  const guard = await openGuard('square-horizon');
+  const db = guard.adminDb(getDatabase());
+  await ringBell(db, Date.now(), { apply: APPLY, force: FORCE });
   process.exit(0);
 }
 

@@ -1,7 +1,8 @@
 # CLOCK-1 — a reliable clock for the scheduled jobs (ruling 399)
 
-Ruling 399, yes (Ikenna, 16 Nov 2026). Built and tested on `claude/clock-1`. **Not live:** no Worker
-uploaded, no cron, no token, nothing dispatched.
+Ruling 399, yes (Ikenna, 16 Nov 2026). Built and tested on `claude/clock-1` (CLOCK-1, then CLOCK-1.1,
+which made the last two jobs safe to run twice, so the clock runs **all nine**). **Not live:** no
+Worker uploaded, no cron, no token, nothing dispatched.
 
 ## Why
 
@@ -42,25 +43,25 @@ never overlap: the second waits. "Back to back" below is the case that matters.
 | proofs-mail | POSTs `/api/proofs/mail-tick` | **Safe.** Every email is claimed by create-only/compare-and-swap before it goes (`functions/api/proofs/_mail.js`). |
 | push-announce | receipts, prunes, announces new stories | **Safe.** Each announcement is claimed by a transaction before the send (`scripts/push/store.mjs` `claim`); the 2-a-day cap is read fresh by each run, and runs never overlap. Receipts are cleared once read. |
 | withdrawals | flips licences past their end, summons a build | **Safe.** The second run finds nothing due: no write, no hook. |
-| **square-horizon** | at the 20:00 London bell, moves threads past 48h to `square_archive` | **⚠ NOT SAFE — HELD.** The script has no "once per bell" record: every `--apply` run in London hour 20 sweeps, with `now` as its clock. A clock run at 20:05 and GitHub's late run at, say, 20:40 would sweep twice, and the second moves every thread whose root turned 48 hours old in between — posts from 20:05–20:40 two nights ago vanish **mid-session**, the one thing the horizon is designed never to do. Nothing is deleted (it's a move), but it breaks the ruling. |
-| **launch-check** | emails the launch table (Mondays always, daily only when red) | **⚠ NOT SAFE — HELD.** A second run sends a second email. And its gate reads `github.event.schedule`, which a dispatch doesn't carry, so a dispatched run is treated as manual: it would email the **full** table every time, red or not. |
+| square-horizon | at the 20:00 London bell, moves threads past 48h to `square_archive` | **Safe since CLOCK-1.1** (was held). Before, every `--apply` run in hour 20 swept with its own clock, so a second run at 20:40 moved threads that turned 48h old after 20:00, mid-session. Now everything the bell does is **as of 20:00 London** (plan, `archivedAt`, `lastBellAt`), so any run that night moves exactly the same posts, and the **night is claimed** in `square_horizon/bell` (a transaction) before anything moves: a second run stands down and leaves the heartbeat's bell fields alone. A run that fails marks the claim `failed` and the next run that hour retries at once; one that dies silently holds the night for the 15-minute lease (the job's timeout is now 10). Never after 21:00. |
+| launch-check | emails the launch table (Mondays always, daily only when red) | **Safe since CLOCK-1.1** (was held). The gate and the check read `github.event.schedule \|\| inputs.clock`, so a dispatched run sends exactly the scheduled table. A scheduled or clock run claims its **occasion** (`ops/launch_check/slots/<London date-time>`, e.g. `2026-11-17-0805`) before emailing: `sent` stops every later run; a failed send is `failed` and a later run may retry; an all-green daily is recorded `quiet`. "Since the last check" now comes from that ledger (the last occasion judged and reported), so a run that stood down never narrows the next window. A run that stood down because the table already went out exits green, so GitHub doesn't send a second alarm. A dispatch by hand is unchanged. |
 
-The clock dispatches the seven safe ones and holds the two (`held:` in
-`workers-external/calvary-clock/clock.mjs`, with the reason). They stay on GitHub's schedule.
+The clock dispatches all nine. The `held:` mechanism stays in `clock.mjs` for the next job found
+unsafe.
 
-### The two held jobs — proposed fixes (need a ruling, not built)
+One thing a double run can still double is **GitHub's own failure notification**. If
+backup-liveness is red, both its runs fail and GitHub mails each one. The same goes for the
+horizon's liveness step. These are GitHub's alarms, not the site's emails, and they fire only
+when something is already wrong.
 
-- **square-horizon: one sweep per bell.** Before sweeping, read `square_horizon/lastBellAt`; if it
-  falls on today's London date, skip with "already swept at …". Add a `clock` input and run the
-  liveness step on `schedule || inputs.clock`. With that, a double run is a no-op, and the clock
-  would also stop the missed bells (3 of the last 6). The London pairing already holds: the test
-  shows the clock's hourly `:05` meets the 20:00 bell exactly once a London day across all four
-  clock changes of 2026–27.
-- **launch-check: one email per slot.** Pass the fired cron as the `clock` input, give the gate
-  `github.event.schedule || inputs.clock`, and claim each slot's email before sending (a
-  create-only `ops/launch_check/sent/<slot>`) so the second run reports instead of mailing. The test
-  already shows the gate keeps exactly one Monday 00:10 and one 08:05 a London day with the cron the
-  clock fires, across the changes.
+### The shared claim (`scripts/ops/once.mjs`)
+
+`claimed` → `done`/`sent`/`quiet` (final) or `failed` (free again at once). A `claimed` record past
+`LEASE_MS` (15 min) is free again. Both jobs' workflows time out at 10 minutes, under the lease.
+Both write through the guard: `square-horizon` already did, and `launch-check` now opens
+`openGuard('launch-check')` for its one claim, with `GUARD_SERVICE_ACCOUNT` set to the key it already
+has. `ops/launch_check` is a new node. It has no rules entry, so clients are denied by default and
+only the Admin SDK writes it, which needs no rules deploy.
 
 ## What was built
 
@@ -80,16 +81,25 @@ The clock dispatches the seven safe ones and holds the two (`held:` in
   `event.scheduledTime`; `fetch()` answers `GET /heartbeat` and 404s everything else. The record is
   a Durable Object, not KV. KV can read up to a minute stale in another location, and each tick can
   land anywhere, so a KV record could fire a slot twice.
-- The seven dispatched workflows gain a `clock` input: a marker that no step reads (the test checks
-  this). What each run does is already set by its existing inputs: `apply: 'true'` for scrub, covers,
-  index and withdrawals, and `mode: 'apply'` for push-announce. Each is the value its scheduled run
-  uses.
+- All nine workflows gain a `clock` input. It never reaches a run script: it's read only as an
+  `env:` value or an `if:` (the test checks this). What each run does is set by the inputs the clock
+  sends, each the value its scheduled run uses: `apply: 'true'` for scrub, covers, index, withdrawals
+  and the horizon; `mode: 'apply'` for push-announce. launch-check's gate reads the `clock` cron. The
+  horizon's liveness step also runs on clock runs.
+- **The off switch still works.** A workflow whose `schedule:` is commented out (how push-announce
+  and square-horizon are disarmed) makes the parity test fail while the clock still lists it. So
+  disarming means taking it out of `clock.mjs` (or holding it) in the same commit.
 - `app/lib/clock.js` + a launch-check row, **Job: clock (workflow dispatch)**. It shows NOT YET DUE
   until `CLOCK_ARMED`. Once armed it is red unless the heartbeat is `live`, has ticked within
   5 minutes, and GitHub accepted a dispatch within 20 minutes. A newer refusal is named by its
   status: an expired token reads `401`.
-- `tests/ci/clock-1.test.mjs` (`npm run test:clock`, also in `test:ci`): 68 tests. The parity test
-  fails if a workflow's schedule changes without the clock's. Ten mutations were each caught.
+- `tests/ci/clock-1.test.mjs` + `tests/ci/clock-11.test.mjs` (`npm run test:clock`, also in
+  `test:ci`): 101 tests. The parity test covers all nine. The horizon tests cover two runs at once,
+  back to back, a first run at 20:59, a failed first run, a silently dead run, 21:05, and an
+  author's deletion between the first read and the claim. The launch tests cover two runs at once,
+  back to back, a failed send, a dead run, a quiet daily, a dispatched daily run and a dispatched
+  Monday run, with the workflow's own shell branch executed. The mutation check: 10 mutations in
+  CLOCK-1 and 20 more over both fixes, each caught.
 
 ## Cron triggers
 
@@ -123,17 +133,25 @@ Cloudflare dashboard → Workers → `calvary-clock` → Settings → Variables 
 3. Ikenna adds the secret (step 2).
 4. Turn on the cron `* * * * *`, still in dry run. Watch the Worker's logs for an hour. Each due slot
    should appear once (`would dispatch covers.yml for …`), never twice, and `GET /heartbeat` should
-   show `mode: dry-run` and a fresh `tickAt`.
-5. Set `CLOCK_MODE = live`. In the same session, commit `CLOCK_ARMED = true` and
-   `CLOCK_HEARTBEAT_URL` in `app/lib/clock.js` and push it before 19:30.
+   show `mode: dry-run` and a fresh `tickAt`. All nine should appear, including
+   `square-horizon.yml` at :05 and `withdrawals.yml` at :07.
+5. Set `CLOCK_MODE = live`, **before 19:30** London, so the first live square-horizon bell is the
+   one you're watching rather than the first thing to happen. In the same session, commit
+   `CLOCK_ARMED = true` and `CLOCK_HEARTBEAT_URL` in `app/lib/clock.js`, and push it before 19:30.
 
 **4. How we'll know it works.**
-- Actions: each of the seven shows `workflow_dispatch` runs at its own minutes, every slot.
+- That evening: one sweep at the bell, as of 20:00. `square_horizon/bell` reads `done` for tonight,
+  and GitHub's own `:05` run, whenever it lands, logs `TONIGHT'S BELL HAS ALREADY RUNG`.
+  `lastBellAt` is exactly 20:00 London.
+- The next 08:05 (or Monday 00:10): at most one email. `ops/launch_check/slots/<date-0805>` reads
+  `sent` (red) or `quiet` (green), and GitHub's late run logs `already sent by another run` /
+  `already quiet`.
+- Actions: each of the nine shows `workflow_dispatch` runs at its own minutes, every slot.
   `push-announce` gets 96 a day, not 3. GitHub's late scheduled runs still appear alongside them;
   those are the fallback and are harmless (the inventory above).
 - `ops/push_announcer/lastRunAt` never older than ~15 minutes. The launch check's push-announcer row
   (45-minute stale limit), red most days lately, goes green.
 - The launch check's clock row is green. A day later, re-run the lateness measurement
   (dispatch runs against slots) and expect ~100% of slots within a minute or two.
-- Then decide on the two held jobs' fixes, and on whether the workflows' own `schedule:` blocks should
-  stay. Ruling 399 says they stay, as the fallback.
+- Then decide whether the workflows' own `schedule:` blocks should stay. Ruling 399 says they stay,
+  as the fallback.

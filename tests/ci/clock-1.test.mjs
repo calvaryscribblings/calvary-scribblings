@@ -52,9 +52,14 @@ describe('CLOCK-1 · the clock reads the workflows\' own schedules', () => {
       for (const c of s.crons) assert.doesNotThrow(() => parseCron(c), c);
     }
   });
-  test('the two held workflows are held, with the reason (a double run there would do harm)', () => {
-    assert.deepEqual(SCHEDULES.filter((s) => s.held).map((s) => s.workflow).sort(), ['launch-check.yml', 'square-horizon.yml']);
-    for (const s of SCHEDULES.filter((x) => x.held)) assert.ok(s.held.length > 40);
+  test('none is held: all nine are dispatched (CLOCK-1.1 made the last two safe to run twice)', () => {
+    assert.deepEqual(SCHEDULES.filter((s) => s.held), []);
+    assert.equal(SCHEDULES.length, 9);
+  });
+  test('a held workflow is listed and never fired (the mechanism stays, for the next one found unsafe)', () => {
+    const r = due(at('2026-11-16T10:45:00Z'), {}, { schedules: [{ workflow: 'x.yml', crons: ['*/15 * * * *'], inputs: {}, held: 'reason' }] });
+    assert.equal(r.fire.length, 0);
+    assert.equal(r.held.length, 1);
   });
 });
 
@@ -72,8 +77,11 @@ describe('CLOCK-1 · a dispatched run does what the scheduled run does', () => {
       }
       for (const [k, d] of Object.entries(inputs)) if (d.required) assert.ok(k in sent, `${s.workflow}: required input "${k}" is not sent`);
     });
-    test(`${s.workflow}: the clock input is a marker only — no step reads it`, () => {
-      assert.ok(!/inputs\.clock/.test(src), 'inputs.clock must never reach a run script');
+    test(`${s.workflow}: the clock input never reaches a run script (an env value or an if: only)`, () => {
+      for (const job of Object.values(doc.jobs)) {
+        for (const step of job.steps || []) assert.ok(!/inputs\.clock|github\.event\.schedule/.test(step.run || ''), `${step.name || step.run}: interpolated into the script`);
+      }
+      void src;
     });
     test(`${s.workflow}: one run at a time, never cancelled mid-run`, () => {
       assert.ok(doc.concurrency?.group, 'no concurrency group');
@@ -82,13 +90,30 @@ describe('CLOCK-1 · a dispatched run does what the scheduled run does', () => {
   }
   test('the write-or-send switch each one reads is what the clock sets', () => {
     // A boolean `apply` the run script tests as "true" on a dispatch; push-announce's MODE.
-    for (const f of ['account-scrub.yml', 'covers.yml', 'index-reconcile.yml', 'withdrawals.yml']) {
+    for (const f of ['account-scrub.yml', 'covers.yml', 'index-reconcile.yml', 'withdrawals.yml', 'square-horizon.yml']) {
       assert.equal(SCHEDULES.find((s) => s.workflow === f).inputs.apply, 'true', f);
       assert.match(workflows[f].src, /inputs\.apply \}\}"? = "true"|IN_APPLY" = "true"/, f);
     }
     assert.equal(SCHEDULES.find((s) => s.workflow === 'push-announce.yml').inputs.mode, 'apply');
     assert.match(workflows['push-announce.yml'].src, /MODE: \$\{\{ github\.event_name == 'schedule' && 'apply' \|\| inputs\.mode \}\}/);
     assert.match(workflows['push-announce.yml'].src, /\s+apply\)\s+node scripts\/push\/announce\.mjs --apply/);
+  });
+  test('square-horizon: a clock run is a scheduled run (apply, and the liveness step)', () => {
+    const w = workflows['square-horizon.yml'];
+    const steps = w.doc.jobs.sweep.steps;
+    assert.equal(steps.find((x) => /Liveness/.test(x.name || '')).if, "github.event_name == 'schedule' || inputs.clock != ''");
+    assert.ok(w.doc.jobs.sweep['timeout-minutes'] <= 10, 'under the bell claim\'s lease');
+  });
+  test('launch-check: the gate and the check read the cron that fired, from a schedule or the clock alike', () => {
+    const steps = workflows['launch-check.yml'].doc.jobs.check.steps;
+    const gate = steps.find((x) => x.id === 'gate');
+    const check = steps.find((x) => /Check, and email/.test(x.name || ''));
+    for (const st of [gate, check]) assert.equal(st.env.SCHEDULE, '${{ github.event.schedule || inputs.clock }}');
+    assert.match(gate.run, /launch-check-gate\.mjs "\$SCHEDULE"/);
+    assert.match(check.run, /--email-if-red --slot "\$SCHEDULE" --apply/);
+    assert.match(check.run, /--email --slot "\$SCHEDULE" --apply/);
+    assert.equal(check.env.GUARD_SERVICE_ACCOUNT, check.env.LAUNCH_SERVICE_ACCOUNT);
+    assert.ok(workflows['launch-check.yml'].doc.jobs.check['timeout-minutes'] <= 10, 'under the email claim\'s lease');
   });
   test('index-reconcile: a dispatch\'s max default is the script\'s own default', async () => {
     const { DEFAULT_MAX_RECORDS } = await import('../../scripts/reconcile-index.mjs');
@@ -142,7 +167,7 @@ const count = (fired, wf) => fired.filter((f) => f.workflow === wf).length;
 
 describe('CLOCK-1 · what is due', () => {
   const T = at('2026-11-16T10:45:00Z');
-  test('on the minute: the */15 jobs; held ones are listed, never fired', () => {
+  test('on the minute: the */15 jobs', () => {
     const r = due(T, {});
     assert.deepEqual(r.fire.map((f) => f.workflow).sort(), ['account-scrub.yml', 'covers.yml', 'index-reconcile.yml', 'push-announce.yml']);
     assert.deepEqual(r.fire.find((f) => f.workflow === 'push-announce.yml').inputs, { mode: 'apply', clock: '*/15 * * * *' });
@@ -182,8 +207,8 @@ describe('CLOCK-1 · what is due', () => {
     assert.equal(count(fired, 'proofs-mail.yml'), 96);
     assert.equal(count(fired, 'withdrawals.yml'), 24);
     assert.equal(count(fired, 'backup-liveness.yml'), 1);
-    assert.equal(count(fired, 'square-horizon.yml'), 0);
-    assert.equal(count(fired, 'launch-check.yml'), 0);
+    assert.equal(count(fired, 'square-horizon.yml'), 24);
+    assert.equal(count(fired, 'launch-check.yml'), 3, 'a Monday: 00:10, 07:05 and 08:05 UTC; the gate keeps what London means');
     for (const f of fired) assert.equal(f.tickAt, f.slot, 'on time');
   });
   test('the same day with repeated ticks and skipped minutes (shorter than the window): the same counts, never a slot twice', () => {
@@ -212,7 +237,7 @@ describe('CLOCK-1 · what is due', () => {
 
 // London's clock changes. The clock fires in UTC, as GitHub does; London is the workflows' business.
 const londonDay = (ms) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date(ms));
-const unheld = SCHEDULES.map(({ held, ...s }) => s); // as if both were safe, to prove the pairing
+const unheld = SCHEDULES;
 const CHANGES = [
   { name: 'spring 2026 (29 Mar, 23 hours)', day: '2026-03-29', hours: 23 },
   { name: 'autumn 2026 (25 Oct, 25 hours)', day: '2026-10-25', hours: 25 },

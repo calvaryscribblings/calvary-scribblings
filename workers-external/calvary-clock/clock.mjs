@@ -4,16 +4,22 @@
 // minutes, ran 3 times in a day). The clock is a Cloudflare Worker on one cron trigger, every minute,
 // that asks GitHub to run each scheduled workflow on time with workflow_dispatch on main. It fires
 // each workflow by THAT WORKFLOW'S OWN cron expressions, copied below from the workflow files;
-// tests/clock/schedules.test.mjs reads every .github/workflows/*.yml and fails if a schedule changes
+// tests/ci/clock-1.test.mjs reads every .github/workflows/*.yml and fails if a schedule changes
 // without this table changing with it.
 //
 // The workflows keep their own `schedule:` triggers as the fallback, so a job can run twice for one
-// slot (the clock's dispatch and GitHub's late run). Only jobs proven safe for that are dispatched;
-// the others are HELD here, with the reason, and the clock leaves them to GitHub's schedule.
+// slot (the clock's dispatch and GitHub's late run). Every job here is safe for that (docs/CLOCK-1.md):
+// seven by construction, and since CLOCK-1.1 the two that were not, by a claim in the database (the
+// Square's bell is claimed per London night and measured as of 20:00; the launch check claims each
+// occasion's email). A job found unsafe again is HELD (`held: '<reason>'`): listed, never fired.
+//
+// A workflow's commented-out `schedule:` is its off switch (push-announce, square-horizon). The clock
+// does not get round it: tests/ci/clock-1.test.mjs fails while the clock still lists a workflow
+// with no schedule, so disarming means taking it out of this table (or holding it) in the same commit.
 //
 // Nothing in this file touches the network, the clock or a secret: every function takes `now`.
 // UTC throughout, like GitHub's cron. London's clock changes are the workflows' own business (the
-// launch-check gate, the horizon's 20:00 bell), and tests/clock/due.test.mjs proves the pairing holds.
+// launch-check gate, the horizon's 20:00 bell), and tests/ci/clock-1.test.mjs proves the pairing holds.
 
 export const REF = 'main';
 
@@ -32,20 +38,10 @@ export const SCHEDULES = [
   { workflow: 'backup-liveness.yml', crons: ['0 9 * * *'], inputs: {} },
   { workflow: 'covers.yml', crons: ['*/15 * * * *'], inputs: { apply: 'true' } },
   { workflow: 'index-reconcile.yml', crons: ['*/15 * * * *'], inputs: { apply: 'true' } },
-  {
-    workflow: 'launch-check.yml',
-    crons: ['10 23 29 9 *', '5 7 30 9 *', '10 23 * * 0', '10 0 * * 1', '5 7 * * *', '5 8 * * *'],
-    inputs: {},
-    held: 'a second run sends a second email (the Monday table always, the daily one when red); its gate also reads github.event.schedule, which a dispatch does not carry',
-  },
+  { workflow: 'launch-check.yml', crons: ['10 23 29 9 *', '5 7 30 9 *', '10 23 * * 0', '10 0 * * 1', '5 7 * * *', '5 8 * * *'], inputs: {} },
   { workflow: 'proofs-mail.yml', crons: ['7,22,37,52 * * * *'], inputs: {} },
   { workflow: 'push-announce.yml', crons: ['*/15 * * * *'], inputs: { mode: 'apply' } },
-  {
-    workflow: 'square-horizon.yml',
-    crons: ['5 * * * *'],
-    inputs: {},
-    held: 'a second run inside the 20:00 London hour sweeps again with a later clock, moving threads that turned 48 hours old after the bell, mid-session',
-  },
+  { workflow: 'square-horizon.yml', crons: ['5 * * * *'], inputs: { apply: 'true' } },
   { workflow: 'withdrawals.yml', crons: ['7 * * * *'], inputs: { apply: 'true' } },
 ];
 
