@@ -29,6 +29,7 @@ import { notesAction, loadDraft, saveDraft, readMargin } from '../../lib/series/
 import { C, DISPLAY, NOTES_CSS, labelStyle, questionStyle } from './tokens';
 import { CloseIcon, CheckIcon } from './Parts';
 import { useKeyboardInset } from '../useKeyboard';
+import GrowTextarea from '../GrowTextarea';
 
 let tmpSeq = 0;
 const tempIdOf = () => `tmp-${Date.now().toString(36)}-${(tmpSeq += 1)}`;
@@ -248,7 +249,7 @@ export default function Composer({ open, inst, ordinal, slug, questions = null, 
               </div>
             )}
 
-            <textarea
+            <GrowTextarea
               ref={field}
               value={text}
               aria-label={heading.q || heading.label}

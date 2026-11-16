@@ -30,6 +30,7 @@ import { Reaction, useReactionNote, useKeyedReactionNote } from '../../component
 import { DELETED_RESPONSE, DELETED_PIECE, PIECE_ID_RE, isTombstone } from '../../lib/deletedContent';
 import { isId } from '../../lib/ids';
 import { notifyEvent } from '../../lib/notifyClient';
+import GrowTextarea from '../../components/GrowTextarea';
 
 const REPORT_REASONS = ['Harmful content', 'Spam', 'Plagiarism', 'Other'];
 
@@ -759,7 +760,7 @@ export default function OpenPageDetailClient({ params }) {
             {/* Inline reply composer — collapses on submit/cancel. */}
             {replyOpen ? (
               <form onSubmit={(e) => submitReply(node, e)} style={{ marginTop: 12 }}>
-                <textarea
+                <GrowTextarea
                   value={replyDraft}
                   onChange={(e) => setReplyDraft(e.target.value)}
                   placeholder="Write a reply…"
@@ -1150,7 +1151,7 @@ export default function OpenPageDetailClient({ params }) {
           {/* Composer (signed-in) or sign-in prompt (signed-out). */}
           {user ? (
             <form onSubmit={submitComment} style={{ marginBottom: 30 }}>
-              <textarea
+              <GrowTextarea
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 placeholder="Add a comment…"

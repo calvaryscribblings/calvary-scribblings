@@ -26,6 +26,8 @@ import { assertId } from '../lib/ids';
 import { RETIRED_PATH, isRetired, retiredNotice } from '../lib/retiredStories';
 import { DUPLICATES_PATH, DUPLICATE_ALERT, openDuplicates, duplicateLine } from '../lib/bookstore/duplicates';
 import { loadWriterRoster, findWriterByHandle, normaliseHandle } from '../lib/writerRoster';
+import GrowTextarea from '../components/GrowTextarea';
+import { LONG_FORM } from '../lib/growBox';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
@@ -593,7 +595,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
               <button style={s.btnImg} onClick={() => setShowImageModal(true)}>🖼 Insert Image</button>
             </div>
           </div>
-          <textarea ref={textareaRef} style={s.textarea} value={form.content}
+          <GrowTextarea maxLines={LONG_FORM.DESK} ref={textareaRef} style={s.textarea} value={form.content}
             onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
             placeholder={'Type paragraphs as plain text, one per line.\n\nOr paste HTML: <p>A paragraph.</p>'} />
           <div style={s.hint}>
@@ -605,7 +607,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
 
         <div style={s.fg}>
           <label style={s.label}>Trailer Quote <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
-          <textarea rows={2} style={{ ...s.textarea, minHeight: 0, fontFamily: 'inherit' }} value={form.trailerQuote}
+          <GrowTextarea rows={2} style={{ ...s.textarea, minHeight: 0, fontFamily: 'inherit' }} value={form.trailerQuote}
             placeholder="One striking line from the story, quoted verbatim…"
             onChange={e => setForm(f => ({ ...f, trailerQuote: e.target.value }))} />
           <div style={s.hint}>One striking line from the story, quoted verbatim. Powers the featured-story trailer. 8–20 words. Leave empty to skip this story in the trailer rotation.</div>

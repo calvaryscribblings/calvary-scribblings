@@ -40,7 +40,12 @@ import { buildReport, contentKeyFor, convIdFor } from '../../lib/contentReports'
 import { THREAD_COPY } from '../../lib/squareThreads';
 import { sendDmImage, prepareImage, imageExpired, reportImage, DM_IMAGE_EXPIRED, DM_IMAGE_PREVIEW_NOTE } from '../../lib/dmImages';
 import { useKeyboardInset } from '../useKeyboard';
+
 import { isId } from '../../lib/ids';
+import GrowTextarea from '../GrowTextarea';
+
+/** Enter sends where there's a hardware keyboard (a fine pointer); on touch, return starts a line. */
+const sendsOnEnter = () => typeof window === 'undefined' || !window.matchMedia || !window.matchMedia('(pointer: coarse)').matches;
 
 const FF = 'Cormorant Garamond, Georgia, serif';
 const INK = (a) => `rgba(245,240,232,${a})`;
@@ -199,6 +204,22 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
     const el = scrollerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [kb.inset, kb.top, activeConv]);
+
+  // TEXT-W1 — as the box grows (or shrinks) the conversation above it gets shorter (or taller). A
+  // reader who was at the newest message stays at it; one who had scrolled up to reread is left there.
+  const atNewest = useRef(true);
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return undefined;
+    const onScroll = () => { atNewest.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24; };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    let last = el.clientHeight;
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => {
+      if (el.clientHeight !== last) { if (atNewest.current) el.scrollTop = el.scrollHeight; last = el.clientHeight; }
+    }) : null;
+    if (ro) ro.observe(el);
+    return () => { el.removeEventListener('scroll', onScroll); if (ro) ro.disconnect(); };
+  }, [activeConv]);
 
   useEffect(() => {
     if (!newMsgSearch.trim()) return undefined;
@@ -379,8 +400,8 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
       style={{ position: 'fixed', left: 0, right: 0, top: kb.top, bottom: kb.inset, background: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       {/* W55.2 — the container is the glass the keyboard leaves, so the box sits on the keyboard. With
           the keyboard up the panel takes all of it; without, 85% as before. */}
-      <div data-messages-panel style={{ background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, maxHeight: kb.inset > 0 ? '100%' : '85%', display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: kb.inset > 0 ? 0 : 'var(--cs-cookie-space, 0px)', boxSizing: 'border-box' }}>
-        <div style={{ padding: '10px 14px 10px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexShrink: 0 }}>
+      <div data-messages-panel style={{ background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, maxHeight: kb.inset > 0 ? '100%' : '85%', height: kb.inset > 0 ? '100%' : undefined, display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: kb.inset > 0 ? 0 : 'var(--cs-cookie-space, 0px)', boxSizing: 'border-box' }}>
+        <div data-messages-header style={{ padding: '10px 14px 10px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexShrink: 0 }}>
           {activeConv ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
               <button onClick={() => { setActiveConv(null); setPicking(false); setReportMsg(null); }} aria-label="Back to messages" style={{ ...sheetBtn, width: 44, height: 44, fontSize: '1rem', padding: 0, marginLeft: -12 }}>←</button>
@@ -521,7 +542,7 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
                         </label>
                       ))}
                     </div>
-                    <textarea value={note} onChange={(e) => setNote(e.target.value.slice(0, 300))} rows={2} placeholder="Anything a moderator should know (optional)"
+                    <GrowTextarea value={note} onChange={(e) => setNote(e.target.value.slice(0, 300))} rows={2} placeholder="Anything a moderator should know (optional)"
                       style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '8px 12px', color: '#f5f0e8', fontFamily: FF, fontSize: 16, resize: 'none', outline: 'none' }} />
                     {reportState === 'failed' && <div role="alert" style={{ fontSize: '0.85rem', color: '#d4537e', marginTop: 4 }}>That didn’t go through. Nothing was sent.</div>}
                     {/* Ruling 227 — the report is filed but the image wasn't held; Report again retries only the hold. */}
@@ -552,7 +573,7 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
                     <button onClick={() => setDmImageFile(null)} style={{ ...sheetBtn, minHeight: 44, fontSize: '0.82rem' }}>Remove</button>
                   </div>
                 )}
-                <div style={{ padding: '10px 20px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                <div data-dm-compose style={{ padding: '10px 20px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 8, alignItems: 'flex-end', flexShrink: 0 }}>
                   {canSendImages && (
                     <>
                       <button onClick={() => dmFileRef.current?.click()} aria-label="Add an image" style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(107,47,173,0.12)', border: '1px solid rgba(107,47,173,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
@@ -561,9 +582,14 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
                       <input ref={dmFileRef} type="file" accept="image/*" data-dm-file style={{ display: 'none' }} onChange={(e) => { setDmImageFile(e.target.files[0] || null); e.target.value = ''; }} />
                     </>
                   )}
-                  <input data-dm-field value={dmText} onChange={(e) => setDmText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendDM()}
-                    placeholder={`Message ${other.displayName || 'Reader'}…`}
-                    style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '9px 14px', fontSize: 16, color: INK(0.9), fontFamily: FF, outline: 'none', minWidth: 0 }} />
+                  {/* TEXT-W1 — a growing box (390), not a one-line input: a message can have lines.
+                      Enter sends and Shift+Enter starts a line where there is a hardware keyboard; on a
+                      phone or tablet the return key starts a line and the button sends, as in any
+                      messaging app (sendsOnEnter). */}
+                  <GrowTextarea data-dm-field rows={1} value={dmText} onChange={(e) => setDmText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && sendsOnEnter()) { e.preventDefault(); sendDM(); } }}
+                    placeholder={`Message ${other.displayName || 'Reader'}…`} aria-label={`Message ${other.displayName || 'Reader'}`}
+                    style={{ flex: 1, display: 'block', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '9px 14px', fontSize: 16, color: INK(0.9), fontFamily: FF, outline: 'none', minWidth: 0, resize: 'none', boxSizing: 'border-box', margin: 0 }} />
                   <button onClick={() => sendDM()} disabled={sending || (!dmText.trim() && !dmImageFile)} aria-label="Send message"
                     style={{ width: 44, height: 44, borderRadius: '50%', background: '#6b2fad', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, opacity: (!dmText.trim() && !dmImageFile) ? 0.4 : 1 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#f5f0e8" /></svg>

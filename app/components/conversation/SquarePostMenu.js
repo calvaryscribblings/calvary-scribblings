@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useKeyboardInset } from '../useKeyboard';
+import GrowTextarea from '../GrowTextarea';
 
 export function PinIcon({ size = 12 }) {
   return (
@@ -139,7 +140,7 @@ export function ReportModal({ post, onSubmit, onClose }) {
                 </label>
               ))}
             </div>
-            <textarea value={note} onChange={e => setNote(e.target.value.slice(0, 300))} rows={3} placeholder="Anything a moderator should know (optional)"
+            <GrowTextarea value={note} onChange={e => setNote(e.target.value.slice(0, 300))} rows={3} placeholder="Anything a moderator should know (optional)"
               className="sq-textarea" style={{ width: '100%', fontFamily: ff, fontSize: '0.88rem', marginBottom: 12 }} />
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={onClose} style={{ background: 'none', border: '1px solid rgba(245,240,232,0.2)', color: 'rgba(245,240,232,0.7)', padding: '8px 16px', borderRadius: 8, fontFamily: ff, fontSize: '0.9rem', cursor: 'pointer' }}>Cancel</button>

@@ -23,6 +23,8 @@ import { useAuth } from '../lib/AuthContext';
 import { useBell } from '../lib/useBell';
 import { badgeText, ariaLabel } from '../lib/bell';
 import { reactionsOf, withReactionCounts } from '../lib/squareReactions';
+import GrowTextarea from '../components/GrowTextarea';
+import { useKeyboardInset } from '../components/useKeyboard';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -412,6 +414,9 @@ function CommentHistoryModal({ uid, onClose, allStoriesMerged }) {
 }
 
 export default function ProfilePage() {
+  // TEXT-W1 / 391 — the edit sheet sits on the phone keyboard (useKeyboardInset), so the bio and Save
+  // are never under it.
+  const kb = useKeyboardInset();
   const router = useRouter();
   const [authUser, setAuthUser] = useState(null);
   const [profileData, setProfileData] = useState(null);
@@ -1028,8 +1033,9 @@ export default function ProfilePage() {
 
       {/* Edit modal */}
       {showEdit && (
-        <div className="pf-modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setShowEdit(false); }}>
-          <div className="pf-modal">
+        <div className="pf-modal-backdrop" data-keyboard-sheet onClick={e => { if (e.target === e.currentTarget) setShowEdit(false); }}
+          style={kb.inset > 0 ? { top: kb.top, bottom: kb.inset } : undefined}>
+          <div className="pf-modal" style={kb.inset > 0 ? { maxHeight: '100%' } : undefined}>
             <div className="pf-modal-header">
               <div className="pf-modal-title">Edit profile</div>
               <button className="pf-modal-close" onClick={() => setShowEdit(false)}>×</button>
@@ -1070,7 +1076,7 @@ export default function ProfilePage() {
             </div>
             <div className="pf-field">
               <label className="pf-field-label">Bio</label>
-              <textarea className="pf-field-textarea" value={editBio} onChange={e => setEditBio(e.target.value)} placeholder="Write a short bio…" rows={3} maxLength={240} />
+              <GrowTextarea className="pf-field-textarea" value={editBio} onChange={e => setEditBio(e.target.value)} placeholder="Write a short bio…" rows={3} maxLength={240} />
             </div>
             {saveError && <div className="pf-save-error">{saveError}</div>}
             <div className="pf-modal-actions">

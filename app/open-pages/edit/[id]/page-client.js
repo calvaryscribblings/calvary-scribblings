@@ -38,6 +38,8 @@ import {
   DEFAULT_GENRE,
   normalizeGenre,
 } from '../../../lib/openPages';
+import GrowTextarea from '../../../components/GrowTextarea';
+import { LONG_FORM } from '../../../lib/growBox';
 
 const TITLE_MAX = 200;
 const BODY_MAX = 50000;
@@ -641,7 +643,8 @@ export default function EditPageClient({ params }) {
             {imgError && <div style={{ color: '#e88', fontSize: '0.82rem', marginBottom: '0.6rem' }}>{imgError}</div>}
 
             {!preview ? (
-              <textarea
+              <GrowTextarea
+                maxLines={LONG_FORM.PAGE}
                 data-field-large=""
                 data-keyboard-own=""
                 ref={bodyRef}

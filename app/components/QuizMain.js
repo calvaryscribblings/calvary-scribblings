@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import GrowTextarea from './GrowTextarea';
 
 const MIN_ESSAY_CHARS = 30;
 
@@ -193,7 +194,7 @@ export default function QuizMain({ quizData, onSubmit }) {
               }}>
                 {q.question}
               </p>
-              <textarea
+              <GrowTextarea
                 value={essayAnswers[ei]}
                 onChange={e => {
                   const val = e.target.value;

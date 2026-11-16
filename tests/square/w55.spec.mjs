@@ -1,8 +1,8 @@
 // W55 — the reply box grows, Quote in the thread, a moderator's wording. Proven in real pages
 // against the EMULATOR.
 //
-//   · rulings 212, 216: the reply box on /square/p is 44, 64, 84px at one, two, three lines, and
-//     stays 84 at four, scrolling inside; Send sits beside the last line; the "Replying to" row,
+//   · rulings 212, 216, and since TEXT-W1 ruling 390: the reply box on /square/p is 44px at one
+//     line and 20px taller a line, to 144 at six, and stays 144 at seven, scrolling inside; Send sits beside the last line; the "Replying to" row,
 //     the mention list and the counter keep their places; the thread's foot grows with the bar;
 //     after a send the box is one line again
 //   · Quote on the thread's opening post, after "reply", shown exactly when "reply" is; it opens
@@ -101,7 +101,7 @@ const lines = (n) => Array.from({ length: n }, (_, i) => `line ${i + 1}`).join('
 
 // ── 1. the reply box (212, 216) ──────────────────────────────────────────────
 
-test('the box is 44, 64, 84 and 84px at one to four lines; past three it scrolls; Send sits by the last line', async ({ page }) => {
+test('the box is 44px at one line, 20px more a line to 144 at six, and 144 at seven, scrolling inside (390); Send sits by the last line', async ({ page }) => {
   await reset();
   const { errors } = await openThread(page, '-T1');
   const field = page.locator('[data-reply-field]');
@@ -119,7 +119,7 @@ test('the box is 44, 64, 84 and 84px at one to four lines; past three it scrolls
   await expect(field).toHaveCSS('padding-bottom', '11px');
 
   const heights = [];
-  for (const n of [1, 2, 3, 4]) {
+  for (const n of [1, 2, 3, 4, 5, 6, 7]) {
     await field.fill(lines(n));
     const b = await box(field);
     heights.push(b.height);
@@ -128,11 +128,11 @@ test('the box is 44, 64, 84 and 84px at one to four lines; past three it scrolls
     // the field grows upward: its bottom never moves
     expect(b.bottom).toBeCloseTo(at1.bottom, 0);
   }
-  expect(heights).toEqual([44, 64, 84, 84]);
+  expect(heights).toEqual([44, 64, 84, 104, 124, 144, 144]);
   await expect(field).toHaveCSS('border-top-left-radius', '22px');
   const scroll = await field.evaluate((el) => ({ sh: el.scrollHeight, ch: el.clientHeight, oy: getComputedStyle(el).overflowY }));
   expect(scroll.oy).toBe('auto');
-  expect(scroll.sh).toBeGreaterThan(scroll.ch);   // the fourth line is inside, scrolled to
+  expect(scroll.sh).toBeGreaterThan(scroll.ch);   // the seventh line is inside, scrolled to
 
   // a line that wraps grows the box the same as a newline does
   await field.fill('a long line that wraps '.repeat(6).trim());
@@ -165,7 +165,9 @@ test('"Replying to", the mention list and the counter keep their places as the b
   await field.fill('x '.repeat(125));
   const counter = page.getByText('250 / 300');
   await expect(counter).toBeVisible();
-  expect((await box(field)).height).toBe(84);
+  const grown = (await box(field)).height;          // however many lines 250 characters wrap to here
+  expect(grown).toBeGreaterThanOrEqual(84);
+  expect(grown).toBeLessThanOrEqual(144);
   const gap = (await box(counter)).top - (await box(field)).bottom;
   expect(gap).toBeGreaterThanOrEqual(0);
   expect(gap).toBeLessThan(8);
@@ -187,7 +189,7 @@ test('the foot of the thread grows with the bar, so the last reply never sits un
   const one = await clearOfBar();
   expect(one).toBeGreaterThan(0);
   await field.fill(lines(4));
-  expect((await box(field)).height).toBe(84);
+  expect((await box(field)).height).toBe(104);
   const three = await clearOfBar();
   expect(three).toBeGreaterThan(0);
   expect(three).toBeCloseTo(one, 0);              // the foot grew by exactly what the box did

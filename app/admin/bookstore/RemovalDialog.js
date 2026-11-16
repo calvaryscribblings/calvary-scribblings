@@ -32,6 +32,8 @@
 // tests/bookstore/withdrawal.test.mjs, and no second copy here to drift from it.
 import { useEffect, useState } from 'react';
 import { nameMatches } from '../../lib/bookstore/withdrawal';
+import GrowTextarea from '../../components/GrowTextarea';
+import { useKeyboardInset } from '../../components/useKeyboard';
 
 const s = {
   scrim: {
@@ -79,6 +81,7 @@ function endOfDayMs(isoDate) {
 }
 
 export function WithdrawDialog({ title, onCancel, onConfirm }) {
+  const kb = useKeyboardInset();   // TEXT-W1 / 391: the dialog keeps to the glass the keyboard leaves
   const [when, setWhen] = useState('');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -101,8 +104,8 @@ export function WithdrawDialog({ title, onCancel, onConfirm }) {
   }
 
   return (
-    <div style={s.scrim} role="dialog" aria-modal="true" aria-label={`Withdraw ${title.title}`}>
-      <div style={s.panel}>
+    <div style={kb.inset > 0 ? { ...s.scrim, top: kb.top, bottom: kb.inset, padding: '0.75rem' } : s.scrim} data-keyboard-sheet role="dialog" aria-modal="true" aria-label={`Withdraw ${title.title}`}>
+      <div style={kb.inset > 0 ? { ...s.panel, maxHeight: '100%' } : s.panel}>
         <div style={s.kicker}>Withdraw from the shop</div>
         <h3 style={s.h}>{title.title}</h3>
 
@@ -141,7 +144,7 @@ export function WithdrawDialog({ title, onCancel, onConfirm }) {
 
         <div style={s.fg}>
           <label style={s.label} htmlFor="wd-reason">Reason <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'rgba(255,255,255,0.35)' }}>— optional, never shown publicly</span></label>
-          <textarea id="wd-reason" style={s.textarea} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Licence expired, publisher request…" />
+          <GrowTextarea id="wd-reason" style={s.textarea} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Licence expired, publisher request…" />
         </div>
 
         <div style={s.actions}>
@@ -162,6 +165,7 @@ export function WithdrawDialog({ title, onCancel, onConfirm }) {
  * from it, and the two file lists. Nothing here recomputes any of that.
  */
 export function DeleteDialog({ title, preview, onCancel, onConfirm }) {
+  const kb = useKeyboardInset();   // TEXT-W1 / 391: the dialog keeps to the glass the keyboard leaves
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState(null);
@@ -184,8 +188,8 @@ export function DeleteDialog({ title, preview, onCancel, onConfirm }) {
   }
 
   return (
-    <div style={s.scrim} role="dialog" aria-modal="true" aria-label={`Delete ${title.title}`}>
-      <div style={s.panel}>
+    <div style={kb.inset > 0 ? { ...s.scrim, top: kb.top, bottom: kb.inset, padding: '0.75rem' } : s.scrim} data-keyboard-sheet role="dialog" aria-modal="true" aria-label={`Delete ${title.title}`}>
+      <div style={kb.inset > 0 ? { ...s.panel, maxHeight: '100%' } : s.panel}>
         <div style={{ ...s.kicker, ...s.kickerDanger }}>Delete permanently</div>
         <h3 style={s.h}>{title.title}</h3>
 

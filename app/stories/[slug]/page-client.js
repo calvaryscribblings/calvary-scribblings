@@ -41,6 +41,7 @@ import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, COMMENT_REACTI
 import { DELETED_RESPONSE, isTombstone } from '../../lib/deletedContent';
 import useShownResponses from '../../lib/useShownResponses';
 import { HIDDEN_RESPONSE } from '../../lib/storyResponses';
+import GrowTextarea from '../../components/GrowTextarea';
 
 
 
@@ -270,7 +271,7 @@ function ExerciseSection({ slug }) {
                     ))}
                   </div>
                 ) : (
-                  <textarea
+                  <GrowTextarea
                     value={answers[i] || ''}
                     onChange={e => setAnswers(a => a.map((v, idx) => idx === i ? e.target.value : v))}
                     placeholder="Write your response here…"

@@ -56,6 +56,7 @@ import { loadWriterRoster, findWriterByHandle } from '../../lib/writerRoster';
 import { InstalmentBody, ReadAction } from '../../series/instalment/[instalmentId]/page-instalment';
 import ReadersNotes, { QUESTIONS_STATE } from './ReadersNotes';
 import { NOTES_COPY } from '../../lib/series/notes';
+import GrowTextarea from '../../components/GrowTextarea';
 
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 const AUTOSAVE_MS = 600;
@@ -522,7 +523,7 @@ function NewSeries({ go, reload }) {
         </div>
         <div className="sa-field">
           <label className="sa-label" htmlFor="ns-syn">Synopsis</label>
-          <textarea id="ns-syn" className="sa-input" placeholder="For the series page" value={synopsis} onChange={(e) => setSynopsis(e.target.value)} />
+          <GrowTextarea id="ns-syn" className="sa-input" placeholder="For the series page" value={synopsis} onChange={(e) => setSynopsis(e.target.value)} />
         </div>
         <div className="sa-field">
           <span className="sa-label">Poster</span>
@@ -638,7 +639,7 @@ function OneSeries({ entry, user, go, reload, flash }) {
                 </div>
                 <div className="sa-field">
                   <label className="sa-label" htmlFor="es-syn">Synopsis</label>
-                  <textarea id="es-syn" className="sa-input" placeholder="For the series page" value={form.synopsis} onChange={(e) => setForm({ ...form, synopsis: e.target.value })} />
+                  <GrowTextarea id="es-syn" className="sa-input" placeholder="For the series page" value={form.synopsis} onChange={(e) => setForm({ ...form, synopsis: e.target.value })} />
                 </div>
                 <div className="sa-row">
                   <button type="button" className="sa-btn sa-btn-p" disabled={busy || !form.title.trim()} onClick={save}>{busy ? 'Saving…' : 'Save'}</button>
@@ -961,7 +962,7 @@ function InstalmentEditor({ entry, instalmentId, user, go, reload, onCreated }) 
             </div>
             <div className="sa-field">
               <label className="sa-label" htmlFor="ie-syn">Synopsis <span style={{ textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
-              <textarea id="ie-syn" className="sa-input" placeholder="A short paragraph for the instalment page" value={form.synopsis} onChange={(e) => change({ synopsis: e.target.value })} />
+              <GrowTextarea id="ie-syn" className="sa-input" placeholder="A short paragraph for the instalment page" value={form.synopsis} onChange={(e) => change({ synopsis: e.target.value })} />
             </div>
             <div className="sa-field">
               <span className="sa-label">Writer</span>

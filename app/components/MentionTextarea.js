@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { searchUsernames } from '../lib/mentions';
+import GrowTextarea from './GrowTextarea';
 
 export default function MentionTextarea({ value, onChange, placeholder, rows = 3, className = 'cs-textarea', autoFocus = false }) {
   const [suggestions, setSuggestions] = useState([]);
@@ -78,7 +79,7 @@ export default function MentionTextarea({ value, onChange, placeholder, rows = 3
 
   return (
     <div style={{ position: 'relative' }}>
-      <textarea
+      <GrowTextarea
         ref={taRef}
         className={className}
         value={value}

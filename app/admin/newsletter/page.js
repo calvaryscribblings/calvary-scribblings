@@ -11,6 +11,7 @@ import { londonWallToUtcIso, utcToLondonWall, scheduledMs, formatLondon } from "
 import { readWithDeadline, classifyFailure } from "../../lib/reliableRead";
 import Unavailable from "../../components/Unavailable";
 import { isId } from "../../lib/ids";
+import GrowTextarea from '../../components/GrowTextarea';
 
 const uuid = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -717,7 +718,7 @@ export default function NewsletterPage() {
                                 // to say that here than to let it look accepted.
                                 <div style={s.linkWarn}>Only http:// and https:// links are recognised — anything else mails as plain text.</div>
                               )}
-                              <textarea
+                              <GrowTextarea
                                 ref={(el) => {
                                   if (el) textareaRefs.current[b.id] = el;
                                   else delete textareaRefs.current[b.id];

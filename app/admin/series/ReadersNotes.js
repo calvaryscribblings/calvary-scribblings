@@ -36,6 +36,7 @@ import {
   EMPTY_SLOTS, slotsFrom, draftFields, slotsReady, slotIsReady, addOption, removeOption, slotsEmpty,
   publishState, counter, reviewItems, HELD_REASON, DECISION_LABEL,
 } from './notesModel';
+import GrowTextarea from '../../components/GrowTextarea';
 
 const AUTOSAVE_MS = 600; // the screen's own debounce (page.js)
 const LETTERS = ['A', 'B', 'C', 'D'];
@@ -263,7 +264,7 @@ export default function ReadersNotes({ inst, user, onStatus }) {
           <label className="sa-label" htmlFor="rn-sit" style={{ margin: 0 }}>{NOTES_COPY.adminSit}</label>
           <Ready on={slotIsReady('sit', slots)} />
         </div>
-        <textarea id="rn-sit" className="sa-input" disabled={locked} value={slots.sit}
+        <GrowTextarea id="rn-sit" className="sa-input" disabled={locked} value={slots.sit}
           placeholder="A question about how it felt, with nothing that happens in it"
           onChange={(e) => change({ ...slotsRef.current, sit: e.target.value })} />
         <Count text={slots.sit} max={QUESTION_MAX} />
@@ -276,7 +277,7 @@ export default function ReadersNotes({ inst, user, onStatus }) {
           <Ready on={slotIsReady('side', slots)} />
         </div>
         <label className="sa-label" htmlFor="rn-side" style={{ margin: 0 }}>The question</label>
-        <textarea id="rn-side" className="sa-input" disabled={locked} value={slots.side.text}
+        <GrowTextarea id="rn-side" className="sa-input" disabled={locked} value={slots.side.text}
           onChange={(e) => setSide({ text: e.target.value })} />
         <Count text={slots.side.text} max={QUESTION_MAX} />
         <div className="sa-stack" style={{ gap: 10 }}>
@@ -307,7 +308,7 @@ export default function ReadersNotes({ inst, user, onStatus }) {
           <label className="sa-label" htmlFor="rn-line" style={{ margin: 0 }}>{NOTES_COPY.adminLine}</label>
           <Ready on={slotIsReady('line', slots)} />
         </div>
-        <textarea id="rn-line" className="sa-input" disabled={locked} value={slots.line}
+        <GrowTextarea id="rn-line" className="sa-input" disabled={locked} value={slots.line}
           onChange={(e) => change({ ...slotsRef.current, line: e.target.value })} />
         <Count text={slots.line} max={QUESTION_MAX} />
       </div>

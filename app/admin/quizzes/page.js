@@ -8,6 +8,7 @@ import { quizApprovalMetaPaths } from '../../lib/quizApproval';
 import { readWithDeadline } from '../../lib/reliableRead';
 import { reconnectDatabase } from '../../lib/useReliable';
 import Unavailable from '../../components/Unavailable';
+import GrowTextarea from '../../components/GrowTextarea';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 const ADMIN_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
@@ -753,7 +754,7 @@ export default function QuizzesPage() {
             <div style={s.cardPurple}>
               <div style={s.fg}>
                 <label style={s.label}>Question</label>
-                <textarea
+                <GrowTextarea
                   style={{ ...s.textarea, minHeight: 80 }}
                   value={quiz.hardball?.question || ''}
                   onChange={e => setHardball('question', e.target.value)}
@@ -811,7 +812,7 @@ export default function QuizzesPage() {
                 <div style={s.num}>MCQ {i + 1} of {quiz.mcqs.length}</div>
                 <div style={s.fg}>
                   <label style={s.labelDim}>Question</label>
-                  <textarea
+                  <GrowTextarea
                     style={{ ...s.textarea, minHeight: 64 }}
                     value={mcq.question || ''}
                     onChange={e => setMcq(i, 'question', e.target.value)}
@@ -868,7 +869,7 @@ export default function QuizzesPage() {
                 <div style={s.num}>Essay {i + 1} of {quiz.essays.length}</div>
                 <div style={s.fg}>
                   <label style={s.labelDim}>Question</label>
-                  <textarea
+                  <GrowTextarea
                     style={{ ...s.textarea, minHeight: 64 }}
                     value={essay.question || ''}
                     onChange={e => setEssay(i, 'question', e.target.value)}

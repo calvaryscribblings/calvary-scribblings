@@ -19,9 +19,11 @@
 //                       it left under the keyboard, or one the keyboard's rise or its suggestion bar
 //                       covered later, stayed there while the reader typed.
 //
-// A field inside a fixed sheet is the sheet's business, and a field under [data-keyboard-own] keeps
-// itself in view (the Open Pages composer's bar, the thread's reply bar); KeyboardReveal leaves both
-// alone. It does nothing unless a keyboard is up (keyboardInset > 0), so a desktop page or an
+// A field under [data-keyboard-own] keeps itself in view (the Open Pages composer's bar, the thread's
+// reply bar); KeyboardReveal leaves it alone. A field inside a fixed sheet is the sheet's business:
+// the sheet keeps to the glass (useKeyboardInset), and since TEXT-W1 KeyboardReveal then brings the
+// field into view INSIDE the sheet's own scroll (a long form, the profile sheet's bio) — it never
+// moves the page for it. It does nothing unless a keyboard is up (keyboardInset > 0), so a desktop page or an
 // Android phone, whose layout viewport shrinks with its keyboard, is never moved.
 
 import { useEffect, useState } from 'react';
@@ -66,12 +68,14 @@ function isTextField(el) {
   if (el.tagName === 'INPUT') return TEXT_INPUTS.has((el.getAttribute('type') || '').toLowerCase());
   return el.isContentEditable === true;
 }
-function managedElsewhere(el) {
+/** 'own' (keeps itself), 'sheet' (inside a fixed sheet) or 'page' (in the page's flow). */
+function placeOf(el) {
+  let sheet = false;
   for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
-    if (n.hasAttribute('data-keyboard-own')) return true;
-    if (getComputedStyle(n).position === 'fixed') return true;
+    if (n.hasAttribute('data-keyboard-own')) return 'own';
+    if (getComputedStyle(n).position === 'fixed') sheet = true;
   }
-  return false;
+  return sheet ? 'sheet' : 'page';
 }
 
 export function KeyboardReveal() {
@@ -79,12 +83,14 @@ export function KeyboardReveal() {
     const vv = window.visualViewport;
     if (!vv) return undefined;
     let field = null;
+    let place = 'page';
     let raf = 0;
     let late = 0;
     const check = () => {
       raf = 0;
       if (!field || document.activeElement !== field) { field = null; return; }
       if (keyboardInset({ innerHeight: window.innerHeight, height: vv.height, offsetTop: vv.offsetTop }) <= 0) return;
+      if (place === 'sheet') { field.scrollIntoView({ block: 'nearest', inline: 'nearest' }); return; }
       const r = field.getBoundingClientRect();
       const by = revealBy({ fieldTop: r.top, fieldBottom: r.bottom, vvTop: vv.offsetTop, vvHeight: vv.height });
       if (by > 0) window.scrollBy({ top: by, left: 0, behavior: 'instant' });
@@ -92,7 +98,8 @@ export function KeyboardReveal() {
     const soon = () => { if (!raf) raf = requestAnimationFrame(check); };
     const onFocus = (e) => {
       const el = e.target;
-      field = isTextField(el) && !managedElsewhere(el) ? el : null;
+      place = isTextField(el) ? placeOf(el) : 'own';
+      field = place !== 'own' ? el : null;
       if (!field) return;
       soon();
       // The keyboard is still rising when focus lands; look again once it has.

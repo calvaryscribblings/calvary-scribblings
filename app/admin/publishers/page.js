@@ -7,6 +7,7 @@ import { useReliableLoad } from '../../lib/useReliable';
 import { readWithDeadline } from '../../lib/reliableRead';
 import AdminLoad from '../../components/AdminLoad';
 import { createPublisher, updatePublisher, setPublisherStatus } from '../../lib/bookstore/admin-writes';
+import GrowTextarea from '../../components/GrowTextarea';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
@@ -221,7 +222,7 @@ function PublisherForm({ form, setForm, editingSlug, saving, errors, onSave, onC
           </div>
           <div style={s.fg}>
             <label style={s.label}>Payment notes <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
-            <textarea
+            <GrowTextarea
               style={s.textarea}
               value={form.paymentNotes}
               placeholder="e.g. See offline payouts spreadsheet, row 3"

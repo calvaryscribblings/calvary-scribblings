@@ -4,6 +4,7 @@ import { db, storage } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { useReliableLoad } from '../../lib/useReliable';
 import AdminLoad from '../../components/AdminLoad';
+import GrowTextarea from '../../components/GrowTextarea';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
@@ -376,7 +377,7 @@ export default function AuthorsAdmin() {
                     </div>
                     <div style={s.fg}>
                       <label style={s.label}>Author bio <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(editorial / professional)</span></label>
-                      <textarea style={s.textarea} value={editForm.authorBio}
+                      <GrowTextarea style={s.textarea} value={editForm.authorBio}
                         placeholder="Editorial bio shown on the story page…"
                         onChange={(e) => setEditForm((f) => ({ ...f, authorBio: e.target.value }))} />
                       <div style={s.hint}>Stored as authorBio. The reader’s self-written bio is left untouched.</div>
@@ -428,7 +429,7 @@ export default function AuthorsAdmin() {
               </div>
               <div style={s.fg}>
                 <label style={s.label}>Bio</label>
-                <textarea style={s.textarea} value={guestForm.bio}
+                <GrowTextarea style={s.textarea} value={guestForm.bio}
                   placeholder="Guest author bio…"
                   onChange={(e) => setGuestForm((f) => ({ ...f, bio: e.target.value }))} />
               </div>

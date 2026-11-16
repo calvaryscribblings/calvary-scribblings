@@ -71,6 +71,8 @@ import { COUNTRY_CODES, COUNTRY_NAMES } from '../../lib/bookstore/countries';
 // one job is how a shop ends up quoting one number to an editor and another to a customer.
 import { formatPrice } from '../../bookstore/components/fields';
 import { parsePriceField, isValidPrice, isMixedFree, FREE_ALL_OR_NOTHING_ERROR, FREE_LABEL } from '../../lib/pricing';
+import GrowTextarea from '../../components/GrowTextarea';
+import { LONG_FORM } from '../../lib/growBox';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -1396,12 +1398,12 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
         <div style={s.sectionTitle}>Content</div>
         <div style={s.fg}>
           <label style={s.label}>Synopsis</label>
-          <textarea style={s.textarea} value={form.synopsis} onChange={(e) => setForm((f) => ({ ...f, synopsis: e.target.value }))} placeholder="Plain text or basic HTML." />
+          <GrowTextarea style={s.textarea} value={form.synopsis} onChange={(e) => setForm((f) => ({ ...f, synopsis: e.target.value }))} placeholder="Plain text or basic HTML." />
           <div style={s.hint}>Plain text or basic HTML. Shown on the title detail page.</div>
         </div>
         <div style={{ ...s.fg, marginTop: '1.1rem' }}>
           <label style={s.label}>Excerpt <span style={s.labelSoft}>(optional)</span></label>
-          <textarea style={{ ...s.textarea, ...s.textareaTall }} value={form.excerpt} onChange={(e) => setForm((f) => ({ ...f, excerpt: e.target.value }))} placeholder="First chapter or sample passage." />
+          <GrowTextarea maxLines={LONG_FORM.DESK} style={{ ...s.textarea, ...s.textareaTall }} value={form.excerpt} onChange={(e) => setForm((f) => ({ ...f, excerpt: e.target.value }))} placeholder="First chapter or sample passage." />
           <div style={s.hint}>First chapter or sample passage. Optional. Shown to non-purchasers.</div>
         </div>
       </div>
@@ -1411,7 +1413,7 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
         <div style={s.sectionTitle}>The Bookseller&rsquo;s Fields</div>
         <div style={s.fg}>
           <label style={s.label}>Back cover blurb <span style={s.labelSoft}>(optional, ≤ 280)</span></label>
-          <textarea style={{ ...s.textarea, minHeight: 90 }} maxLength={280} value={form.backCoverBlurb} onChange={(e) => setForm((f) => ({ ...f, backCoverBlurb: e.target.value }))} placeholder="Two punchy sentences." />
+          <GrowTextarea style={{ ...s.textarea, minHeight: 90 }} maxLength={280} value={form.backCoverBlurb} onChange={(e) => setForm((f) => ({ ...f, backCoverBlurb: e.target.value }))} placeholder="Two punchy sentences." />
           <div style={s.hint}>Printed on the book&rsquo;s back. Two punchy sentences, not a summary. Falls back to a truncated synopsis if empty. <span style={{ color: form.backCoverBlurb.length > 280 ? '#fcd34d' : 'rgba(255,255,255,0.35)' }}>{form.backCoverBlurb.length}/280</span></div>
         </div>
         <div style={{ ...s.fg, marginTop: '1.1rem' }}>
@@ -1421,7 +1423,7 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
         </div>
         <div style={{ ...s.fg, marginTop: '1.1rem' }}>
           <label style={s.label}>Shelf card <span style={s.labelSoft}>(optional, ≤ 160)</span></label>
-          <textarea style={{ ...s.textarea, minHeight: 70 }} maxLength={160} value={form.shelfCard} onChange={(e) => setForm((f) => ({ ...f, shelfCard: e.target.value }))} placeholder="The curator's note, in your voice." />
+          <GrowTextarea style={{ ...s.textarea, minHeight: 70 }} maxLength={160} value={form.shelfCard} onChange={(e) => setForm((f) => ({ ...f, shelfCard: e.target.value }))} placeholder="The curator's note, in your voice." />
           <div style={s.hint}>The curator&rsquo;s note, in your voice, signed &mdash; Calvary. NO fallback: leave empty and the book gets no card. Never invent one. <span style={{ color: form.shelfCard.length > 160 ? '#fcd34d' : 'rgba(255,255,255,0.35)' }}>{form.shelfCard.length}/160</span></div>
         </div>
         {/* R7.4 — THE HOUSE GLOSSARY. One entry per line, `word — definition`, because that
@@ -1429,7 +1431,7 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
             RTDB and what the reader looks up before it ever asks the internet. */}
         <div style={{ ...s.fg, marginTop: '1.1rem' }}>
           <label style={s.label}>House glossary <span style={s.labelSoft}>(optional, one per line)</span></label>
-          <textarea
+          <GrowTextarea
             style={{ ...s.textarea, minHeight: 130, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '0.8rem' }}
             value={form.glossary}
             onChange={(e) => setForm((f) => ({ ...f, glossary: e.target.value }))}
@@ -1515,7 +1517,7 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
         </div>
         <div style={{ ...s.fg, marginTop: '1.1rem' }}>
           <label style={s.label}>Author bio <span style={s.labelSoft}>(optional, &le; {AUTHOR_CAPS.authorBio})</span></label>
-          <textarea style={{ ...s.textarea, minHeight: 130 }} maxLength={AUTHOR_CAPS.authorBio} value={form.authorBio} onChange={(e) => setForm((f) => ({ ...f, authorBio: e.target.value }))} placeholder="Two or three sentences, publisher-supplied or written in house." />
+          <GrowTextarea style={{ ...s.textarea, minHeight: 130 }} maxLength={AUTHOR_CAPS.authorBio} value={form.authorBio} onChange={(e) => setForm((f) => ({ ...f, authorBio: e.target.value }))} placeholder="Two or three sentences, publisher-supplied or written in house." />
           <div style={s.hint}>
             Set in Cormorant at body size, under the photograph. Publisher-supplied for Linea House titles.
             <span style={{ color: form.authorBio.length > AUTHOR_CAPS.authorBio ? '#fcd34d' : 'rgba(255,255,255,0.35)' }}> {form.authorBio.length}/{AUTHOR_CAPS.authorBio}</span>

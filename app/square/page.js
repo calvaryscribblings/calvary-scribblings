@@ -26,6 +26,7 @@ import Bell from '../components/bell/Bell';
 import { INDEX_PATH } from '../lib/storyIndex';
 import { rememberStory } from '../lib/storyLive';
 import { REACTION_TYPES, withReactionCounts } from '../lib/squareReactions';
+import GrowTextarea from '../components/GrowTextarea';
 
 
 const FB = {
@@ -1120,7 +1121,7 @@ export default function SquarePage() {
                       upload path, because storage rules cannot read RTDB and the
                       Function that would mint the write does not exist. Its own round.
                   */}
-                  <textarea ref={textareaRef} className="sq-textarea" placeholder="What's on your mind? Type @ to mention someone…" value={text} onChange={e => handleTextChange(e.target.value)} rows={3} />
+                  <GrowTextarea ref={textareaRef} className="sq-textarea" placeholder="What's on your mind? Type @ to mention someone…" value={text} onChange={e => handleTextChange(e.target.value)} rows={3} />
                   {mentionQuery !== '' && <MentionDropdown query={mentionQuery} onSelect={insertMention} />}
                   {attachedStory && (
                     <div style={{ marginTop: 8 }}>
@@ -1219,7 +1220,7 @@ export default function SquarePage() {
 
                         {isEditing ? (
                           <div style={{ marginBottom: 8, position: 'relative' }}>
-                            <textarea ref={editTextareaRef} className="sq-textarea" value={editText} onChange={e => handleEditTextChange(e.target.value)} rows={3} autoFocus style={{ marginBottom: 6 }} />
+                            <GrowTextarea ref={editTextareaRef} className="sq-textarea" value={editText} onChange={e => handleEditTextChange(e.target.value)} rows={3} autoFocus style={{ marginBottom: 6 }} />
                             {mentionQueryEdit !== '' && <MentionDropdown query={mentionQueryEdit} onSelect={insertMentionEdit} />}
                             {editErr && <div style={{ fontSize: '0.72rem', color: '#f87171', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 6 }}>{editErr}</div>}
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>

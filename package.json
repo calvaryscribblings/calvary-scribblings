@@ -137,6 +137,7 @@
     "test:square:w55": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/square/playwright.w55.config.mjs\"",
     "test:square:w551": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/square/playwright.w551.config.mjs\"",
     "test:square:w552": "firebase emulators:exec --only auth,database,storage --project calvary-scribblings \"playwright test -c tests/square/playwright.w552.config.mjs\"",
+    "test:text:w1": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/text/playwright.text-w1.config.mjs\"",
     "test:square:report-image:emulator": "firebase emulators:exec --only database,storage --project demo-calvary-reads \"node --test --test-concurrency=1 tests/square/report-image.emulator.mjs\"",
     "test:proofs": "node --test tests/proofs/proofs.test.mjs tests/proofs/mail.test.mjs",
     "test:limits:emulator": "firebase emulators:exec --config firebase.proofs-test.json --only database --project demo-calvary-limits \"node --test --test-concurrency=1 tests/limits/*.emulator.mjs\"",

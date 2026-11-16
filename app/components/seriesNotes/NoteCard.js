@@ -12,6 +12,7 @@ import { Avatar, UserBadge, timeAgo } from '../conversation/ConversationKit';
 import { C, DISPLAY, labelStyle, questionStyle } from './tokens';
 import { MoreIcon, QuoteMark } from './Parts';
 import { asPost, authorMark } from './roomModel';
+import GrowTextarea from '../GrowTextarea';
 
 const useIsoLayout = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
@@ -127,7 +128,7 @@ function ReplyBox({ replyingTo, onSend, onCancel }) {
   return (
     <div style={{ marginTop: 10 }}>
       {replyingTo && <p style={{ fontFamily: DISPLAY, fontSize: 15, color: C.quiet, margin: '0 0 6px' }}>{NOTES_COPY.replyingTo(replyingTo)}</p>}
-      <textarea ref={ref} value={text} rows={3} aria-label={NOTES_COPY.reply} maxLength={REPLY_MAX}
+      <GrowTextarea ref={ref} value={text} rows={3} aria-label={NOTES_COPY.reply} maxLength={REPLY_MAX}
         onChange={(e) => setText(e.target.value)}
         style={{ width: '100%', boxSizing: 'border-box', fontFamily: DISPLAY, fontSize: 18, lineHeight: 1.5, color: C.cream, background: 'rgba(255,255,255,0.03)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', outline: 'none', resize: 'vertical' }} />
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>

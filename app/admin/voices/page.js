@@ -9,6 +9,7 @@ import { fireRebuild, requestRebuild, HOOKS } from '../../lib/rebuild';
 import { voiceNotice, voiceRebuildNeeded, rebuildEffect } from '../../lib/voicesOutcome';
 import Unavailable from '../../components/Unavailable';
 import { classifyFailure, readWithDeadline } from '../../lib/reliableRead';
+import GrowTextarea from '../../components/GrowTextarea';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
@@ -797,7 +798,7 @@ export default function VoicesAdmin() {
 
               <div style={s.fg}>
                 <label style={s.label}>Bio {optionalTagInline}</label>
-                <textarea style={s.textarea} value={form.bio}
+                <GrowTextarea style={s.textarea} value={form.bio}
                   placeholder="Longer prose for the author page…"
                   onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} />
                 <div style={s.hint}>Only on the author page — the card shows the message instead.</div>

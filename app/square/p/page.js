@@ -20,7 +20,7 @@
 // &reply=. The shape of a thread — two levels, the fold, the tombstones, who is notified — is
 // decided in app/lib/squareThreads.js, where the tests can reach it.
 
-import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Avatar, UserBadge, timeAgo, ReactionRow, SQUARE_REACTIONS } from '../../components/conversation/ConversationKit';
 import { resolveIdentities, identityOf } from '../../lib/squareIdentity';
@@ -39,6 +39,7 @@ import {
 } from '../../lib/squareThreads';
 import ReaderCard from '../../components/square/ReaderCard';
 import useSafety from '../../components/square/useSafety';
+import GrowTextarea from '../../components/GrowTextarea';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -66,11 +67,11 @@ const NOT_SENT = '#d4537e';
 const BAR = '#0b0815';
 const ANSWERING_TINT = 'rgba(107,47,173,0.10)';
 
-// W55 / rulings 212, 216 — the reply box grows to three lines as you write, then scrolls inside.
-// 16px type on a 20px line, 11px padding top and bottom, 1px border: 44, 64, 84px.
+// W55 / rulings 212, 216, and since TEXT-W1 ruling 390: the reply box grows as you write, to six
+// lines (GROW_LINES, the one rule for every box), then scrolls inside. 16px type on a 20px line, 11px
+// padding top and bottom, 1px border: 44px at rest, 144px at six lines.
 const BOX_LINE = 20;
 const BOX_ONE = 44;
-const BOX_MAX = BOX_ONE + 2 * BOX_LINE;
 
 function roomOpen() {
   const h = parseInt(new Date().toLocaleString('en-GB', { timeZone: 'Europe/London', hour: '2-digit', hour12: false }), 10);
@@ -284,17 +285,21 @@ function Thread() {
     return () => { vv.removeEventListener('resize', onChange); vv.removeEventListener('scroll', onChange); if (raf) cancelAnimationFrame(raf); };
   }, []);
 
-  // ── the box grows with what's written (212) ─────────────────────────────────
-  // Measured at one line, then grown to the words' height, capped at three; past that it scrolls.
-  // Runs on every change of text, so a send that clears the box takes it back to one line.
-  useLayoutEffect(() => {
+  // ── the box grows with what's written (390, GrowTextarea) ───────────────────
+  // The page's foot pads by however tall the bar's box is now, so the last reply is never under it.
+  // Runs after every render, and watches whichever box is there now (the bar comes and goes).
+  const watched = useRef({ el: null, ro: null });
+  useEffect(() => {
     const el = fieldRef.current;
-    if (!el) return;
-    el.style.height = `${BOX_ONE}px`;
-    const want = Math.min(BOX_MAX, Math.max(BOX_ONE, el.scrollHeight + 2));   // scrollHeight has no border
-    el.style.height = `${want}px`;
-    setBoxH(want);
+    const w = watched.current;
+    if (w.el === el) return;
+    if (w.ro) w.ro.disconnect();
+    w.el = el; w.ro = null;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    w.ro = new ResizeObserver(() => setBoxH(Math.round(el.getBoundingClientRect().height)));
+    w.ro.observe(el);
   });
+  useEffect(() => () => { if (watched.current.ro) watched.current.ro.disconnect(); }, []);
 
   const root = state.phase === 'ok' ? state.root : null;
   const rootId = root?.id || null;
@@ -547,7 +552,7 @@ function Thread() {
             )}
             {isEditing ? (
               <div>
-                <textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={2} autoFocus
+                <GrowTextarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={2} autoFocus
                   style={{ width: '100%', background: 'rgba(107,47,173,0.05)', border: '1px solid rgba(107,47,173,0.2)', borderRadius: 12, padding: '0.7rem 0.9rem', color: '#f5f0e8', fontFamily: FF, fontSize: '0.92rem', resize: 'none', outline: 'none', boxSizing: 'border-box' }} />
                 {editErr && <div style={{ fontSize: '0.75rem', color: '#f87171', fontFamily: FF }}>{editErr}</div>}
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center', marginTop: 4 }}>
@@ -700,12 +705,12 @@ function Thread() {
             )}
             {/* 216 — the row aligns to the bottom, so Send sits beside the last line. */}
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
-              <textarea ref={fieldRef} value={text} onChange={(e) => setBox(e.target.value)} rows={1}
+              <GrowTextarea ref={fieldRef} value={text} onChange={(e) => setBox(e.target.value)} rows={1}
                 placeholder={answering ? `Reply to ${answeringWho.displayName}…` : `Reply to ${who(root).displayName}…`}
                 aria-label="Reply"
                 onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canSend) send({ body: text.trim(), target: answering }); }}
                 data-reply-field
-                style={{ flex: 1, height: BOX_ONE, minHeight: BOX_ONE, maxHeight: BOX_MAX, borderRadius: 22, padding: '11px 16px', boxSizing: 'border-box', resize: 'none', overflowY: boxH >= BOX_MAX ? 'auto' : 'hidden', outline: 'none',
+                style={{ flex: 1, minHeight: BOX_ONE, borderRadius: 22, padding: '11px 16px', boxSizing: 'border-box', resize: 'none', outline: 'none',
                   background: 'rgba(245,240,232,0.04)', color: '#f5f0e8', fontFamily: FF, fontSize: 16, lineHeight: `${BOX_LINE}px`,
                   border: `1px solid ${answering ? 'rgba(201,168,76,0.45)' : INK(0.14)}` }} />
               <button onClick={() => send({ body: text.trim(), target: answering })} disabled={!canSend} aria-label="Send"

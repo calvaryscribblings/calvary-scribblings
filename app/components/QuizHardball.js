@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import GrowTextarea from './GrowTextarea';
 export default function QuizHardball({ hardball, onPass, onFail, onCheck, passed }) {
   const [answer, setAnswer] = useState('');
   const [status, setStatus] = useState('idle'); // 'idle' | 'checking' | 'failed'
@@ -174,7 +175,7 @@ export default function QuizHardball({ hardball, onPass, onFail, onCheck, passed
           {hardball.question}
         </p>
 
-        <textarea
+        <GrowTextarea
           value={answer}
           onChange={e => setAnswer(e.target.value)}
           disabled={status === 'checking'}

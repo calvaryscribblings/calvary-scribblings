@@ -31,6 +31,8 @@ import { COMPOSER_NOTE, INDEX_INVITATION } from '../../lib/openPagesCopy';
 import { renderMarkdown } from '../../lib/openPagesMarkdown';
 import { ComposerRail, ComposerBar, applyControl, RAIL_LEFT, BAR_HEIGHT, RAIL_MIN_WIDTH } from '../../components/ComposerRail';
 import { attachDropcap } from '../../lib/dropcap';
+import GrowTextarea from '../../components/GrowTextarea';
+import { LONG_FORM } from '../../lib/growBox';
 
 const TITLE_MAX = 200;
 const BODY_MAX = 50000;
@@ -304,13 +306,10 @@ export default function NewOpenPagePage() {
   }, [preview, body]);
 
   // The textarea grows with the writing: a scrollbar inside the measure would be a
-  // box, and the surface has no boxes.
-  useEffect(() => {
-    const ta = bodyRef.current;
-    if (!ta || preview) return;
-    ta.style.height = 'auto';
-    ta.style.height = `${ta.scrollHeight}px`;
-  }, [body, preview]);
+  // box, and the surface has no boxes. TEXT-W1: that is GrowTextarea's long-form limit
+  // (LONG_FORM.PAGE), which also keeps the page from jumping as it measures (the old
+  // `height: auto` here collapsed the box for a moment, and a long piece's page
+  // scrolled up to fit) and keeps the line being typed above the bar.
 
   // The rail inserts MARKDOWN — never rich text. There is no sanitiser in this repo
   // and R38 recorded that; a contentEditable model here would be a security decision
@@ -626,7 +625,9 @@ export default function NewOpenPagePage() {
         />
 
         {!preview ? (
-          <textarea
+          <GrowTextarea
+            maxLines={LONG_FORM.PAGE}
+            revealMargin={BAR_HEIGHT + 12}
             data-keyboard-own=""
             ref={bodyRef}
             value={body}

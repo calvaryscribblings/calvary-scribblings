@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import AuthModal from '../components/AuthModal';
 import { PROOFS_COPY as C, londonWhen, REPORT_MAX, REPORT_MIN } from '../lib/proofs';
+import GrowTextarea from '../components/GrowTextarea';
 
 const StoryPageClient = dynamic(() => import('../stories/[slug]/page-client'), { ssr: false });
 
@@ -154,7 +155,7 @@ function ReportSheet({ user, slug, reports, onClose, onFiled }) {
         <p>{C.reportHelp}</p>
         {state === 'sent' && <p className="pf-ok" role="status">{C.reportSent}</p>}
         <label htmlFor="pf-report-text" style={{ position: 'absolute', left: -9999 }}>{C.reportHeading}</label>
-        <textarea id="pf-report-text" className="pf-text" value={text} maxLength={REPORT_MAX + 200}
+        <GrowTextarea id="pf-report-text" className="pf-text" value={text} maxLength={REPORT_MAX + 200}
           placeholder={C.reportPlaceholder} onChange={(e) => { setText(e.target.value); if (state === 'sent') setState('idle'); }} />
         <div className="pf-count" aria-live="polite">{trimmed} / {REPORT_MAX}</div>
         {err && <p className="pf-err" role="alert">{err}</p>}
