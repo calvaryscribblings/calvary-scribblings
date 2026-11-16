@@ -44,6 +44,7 @@ function sourceFiles() {
   (function walk(dir) {
     for (const name of readdirSync(dir)) {
       const full = join(dir, name);
+      if (name.startsWith('.')) continue; // another suite's temporary build (free-titles' .quicklook.test-build.mjs) can vanish between readdir and stat
       if (statSync(full).isDirectory()) { walk(full); continue; }
       if (!/\.jsx?$/.test(name)) continue;
       out.push(relative(ROOT, full));
