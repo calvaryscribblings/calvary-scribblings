@@ -96,7 +96,7 @@ beforeEach(async () => {
 });
 
 const device = (uid) =>
-  set(`push_tokens/${uid}/key1`, { token: TOKEN(uid), platform: 'ios', appVersion: '1.7.1', updatedAt: T('2026-11-01T00:00:00Z'), pushCaps: 1 });
+  set(`push_tokens/${uid}/key1`, { token: TOKEN(uid), platform: 'ios', appVersion: '1.7.1', updatedAt: T('2026-11-01T00:00:00Z'), pushCaps: 2 });
 const queue = async () => (await get('push_queue')) || {};
 
 /** One notify request, its waitUntil work included (one request, as workerd counts it). */
