@@ -109,6 +109,11 @@ on:
     - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
+      clock:
+        description: 'Set by calvary-clock (CLOCK-1): the cron it fired. Leave blank by hand.'
+        required: false
+        default: ''
+        type: string
       slug:
         description: 'One slug only (blank = every eligible story)'
         required: false

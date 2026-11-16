@@ -43,6 +43,11 @@ on:
     - cron: '7 * * * *'
   workflow_dispatch:
     inputs:
+      clock:
+        description: 'Set by calvary-clock (CLOCK-1): the cron it fired. Leave blank by hand.'
+        required: false
+        default: ''
+        type: string
       apply:
         description: 'Write. Unticked, this only reports what is due.'
         required: false

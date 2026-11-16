@@ -15,6 +15,12 @@ on:
   schedule:
     - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
+    inputs:
+      clock:
+        description: 'Set by calvary-clock (CLOCK-1): the cron it fired. Leave blank by hand.'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read

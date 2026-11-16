@@ -82,6 +82,7 @@
     "test:voices:heights": "playwright test -c tests/voices/playwright.config.mjs",
     "test:build": "node --test tests/build/liveness.test.mjs",
     "test:redirects": "node --test tests/build/redirects-limits.test.mjs",
+    "test:clock": "node --test tests/ci/clock-1.test.mjs",
     "test:launch": "node --test tests/build/launch-literals.test.mjs",
     "test:doors": "node --test tests/build/doors-open.test.mjs",
     "test:no-u-prerender": "node --test tests/build/no-u-prerender.test.mjs",

@@ -41,6 +41,11 @@ on:
     - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
+      clock:
+        description: 'Set by calvary-clock (CLOCK-1): the cron it fired. Leave blank by hand.'
+        required: false
+        default: ''
+        type: string
       mode:
         description: 'dry-run (read only) · frequency · seed-dry-run · seed (WRITES, once) · apply (SENDS)'
         required: true

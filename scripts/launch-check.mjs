@@ -32,6 +32,7 @@ import { dictionaryLookup, DICT_BASE, DICT_SOURCE } from '../app/lib/dictionary.
 import { readServiceAccountFile, readSaKeySecret } from './security/service-account.mjs';
 import { readOnlyDb } from './safety/guard.mjs'; // SAFETY-1: read-only, enforced (any write throws)
 import { P4_ARMED, DRAIN_STALE_MS } from '../app/lib/pushP4.js';
+import { CLOCK_ARMED, CLOCK_HEARTBEAT_URL, judgeClockHeartbeat } from '../app/lib/clock.js';
 
 export const SITE = process.env.LAUNCH_SITE || 'https://calvaryscribblings.co.uk';
 export const GREEN = 'green';
@@ -149,6 +150,15 @@ export function judgeHeartbeat(name, { lastAt, staleMs, armed = true, unarmed = 
   if (!armed) return row(name, NYD, unarmed);
   const ev = `last ran ${fmt(lastAt)} (${ago(lastAt, now)}); stale after ${Math.round(staleMs / 60000)} min`;
   return row(name, Number.isFinite(lastAt) && now - lastAt <= staleMs ? GREEN : RED, ev);
+}
+
+/** CLOCK-1: the clock that dispatches the scheduled workflows. Its heartbeat is the Worker's own
+ *  GET /heartbeat (app/lib/clock.js); `armed` false until the go-live round. */
+export function judgeClock({ hb, armed }, now) {
+  const name = 'Job: clock (workflow dispatch)';
+  if (!armed) return row(name, NYD, 'not armed yet (the go-live round uploads the Worker and turns on its cron) — nothing is expected');
+  const { ok, evidence } = judgeClockHeartbeat(hb, now);
+  return row(name, ok ? GREEN : RED, evidence);
 }
 
 /** SIGNALS: nothing new in ops/money_failures or ops/publish_skips since the last check. */
@@ -349,6 +359,14 @@ export async function gather(now = Date.now(), { since: sinceArg } = {}) {
   const scrubHb = await val('ops/account_scrub');
   const pushHb = await val('ops/push_announcer');
   const drainHb = await val('ops/push_drain/lastRunAt');
+  // CLOCK-1: a GET of the Worker's public heartbeat, once armed. Times and a status code only.
+  let clockHb = null;
+  if (CLOCK_ARMED && CLOCK_HEARTBEAT_URL) {
+    try {
+      const r = await fetch(CLOCK_HEARTBEAT_URL, { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
+      clockHb = r.ok ? await r.json() : null;
+    } catch { /* unreadable: judged red */ }
+  }
   let pushArmed = false;
   try { pushArmed = pushScheduleArmed(readFileSync('.github/workflows/push-announce.yml', 'utf8')); } catch { /* treated as not armed */ }
 
@@ -379,6 +397,7 @@ export async function gather(now = Date.now(), { since: sinceArg } = {}) {
       scrub: { lastAt: Number(scrubHb?.lastRunAt) || NaN },
       push: { lastAt: Number(pushHb?.lastRunAt) || NaN, armed: pushArmed },
       drain: { lastAt: Number(drainHb) || NaN, armed: P4_ARMED },
+      clock: { hb: clockHb, armed: CLOCK_ARMED },
     },
     signals,
     dictionary,
@@ -399,6 +418,7 @@ export function judgeAll(g, now) {
     judgeHeartbeat('Job: push announcer', { lastAt: g.jobs.push.lastAt, staleMs: STALE.push, armed: g.jobs.push.armed }, now),
     // P4-B1: armed at switch-on (P4_ARMED in app/lib/pushP4.js, flipped with the Worker's cron).
     judgeHeartbeat('Job: personal-push drain', { lastAt: g.jobs.drain?.lastAt, staleMs: STALE.drain, armed: g.jobs.drain?.armed === true, unarmed: 'not armed yet (switch-on adds the Worker\'s cron) — nothing is expected' }, now),
+    judgeClock(g.jobs.clock || { armed: false }, now),
     judgeSignals(g.signals),
     judgeDictionary(g.dictionary),
     judgeCovers(g.covers, now),
