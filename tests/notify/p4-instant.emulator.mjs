@@ -62,8 +62,8 @@ beforeEach(async () => {
   await set(`cms_stories_index/${SLUG}`, { title: 'An Invented Story', authorUid: U.writer, published: true });
 });
 
-const device = (uid, { n = 1, platform = 'ios' } = {}) =>
-  set(`push_tokens/${uid}/key${n}`, { token: TOKEN(uid, n), platform, appVersion: '1.7.1', updatedAt: T('2026-11-01T00:00:00Z'), pushCaps: 1 });
+const device = (uid, { n = 1, platform = 'ios', caps = 2 } = {}) =>
+  set(`push_tokens/${uid}/key${n}`, { token: TOKEN(uid, n), platform, appVersion: '1.7.1', updatedAt: T('2026-11-01T00:00:00Z'), pushCaps: caps });
 const post = (pid, author, extra = {}) => set(`square_posts/${pid}`, { text: 'a post', authorUid: author, createdAt: 0, ...extra });
 const queue = async () => (await get('push_queue')) || {};
 
@@ -339,5 +339,27 @@ describe('item 4: read once, the number clears everywhere — POST /api/push/see
     const droid = await seen(U.dee, noon);
     assert.equal(droid.stats.instant.dropped.no_device, 1);
     assert.equal(expo.sent.length, 0);
+  });
+});
+
+describe('ruling 381: personal pushes and the number go only to phones on A62 or later (pushCaps 2)', () => {
+  /** A reply to Ada (a personal push), then Ada reads (the number-only push): what reaches Expo. */
+  async function replyThenRead(noon) {
+    await set(`inbox_state/${U.ada}/seenAt`, noon - 60 * 60000);
+    await benReplies(1, noon);
+    await set(`inbox_state/${U.ada}/seenAt`, noon + 10000);
+    await seen(U.ada, noon + 10000);
+    await drain(noon + 20000);
+    return expo.sent.map((m) => (m.title ? 'personal' : 'badge'));
+  }
+
+  test('a row at pushCaps 1 (A60, A61) gets neither the personal push nor the number', async () => {
+    await device(U.ada, { caps: 1 });
+    assert.deepEqual(await replyThenRead(T('2026-11-16T12:00:00Z')), []);
+  });
+
+  test('a row at pushCaps 2 (A62) gets both', async () => {
+    await device(U.ada, { caps: 2 });
+    assert.deepEqual(await replyThenRead(T('2026-11-16T12:00:00Z')), ['personal', 'badge']);
   });
 });

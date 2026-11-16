@@ -1,18 +1,18 @@
 # Personal pushes (P4)
 
-**Status (15 Nov 2026, P4-S0: switch-on built on branch `claude/p4-switch-on`, held until Ikenna's founder test).**
-- **What switch-on does** (one commit, live when that branch reaches main):
+**Status (16 Nov 2026, P4-S1): switch-on is live, with ruling 381's gate.** Ikenna's founder test passed (steps 1–15, the two Square steps included), and switch-on reached main in P4-S1.
+- **What switch-on did:**
   - `FOUNDERS_ONLY = false`: the drain, the instant send in notify and `/api/push/seen` act for every reader, not only the founders. Nothing else about a push changes: the same words, caps, hours (311 with 375) and drops (376).
-  - `CARD_LIVE.PEOPLE` and `CARD_LIVE['YOUR WRITING']` true: the web's push settings page draws PEOPLE for everyone and YOUR WRITING for writers. THE SQUARE stays held until P7.
-  - **No backlog goes out.** While founders only, every other reader's entry was dropped as `founders_only` the first time the drain read it, before any timing, so none waits for 08:00. Only entries queued in the minute before the deploy can still be sent, and they are fresh.
-  - The app's own cards come on in the app's own update at switch-on (372), not from this commit.
-- **Until that branch reaches main** the lines below hold: live, armed, founders only.
+  - `CARD_LIVE.PEOPLE` and `CARD_LIVE['YOUR WRITING']` true: the web's push settings page draws PEOPLE for everyone and YOUR WRITING for writers. THE SQUARE stays held until P7. The new-followers line reads "as they happen, except overnight" (379).
+  - **No backlog went out.** While founders only, every other reader's entry was dropped as `founders_only` the first time the drain read it, before any timing, so none waited for 08:00.
+- **381's gate: `PUSH_CAPS_MIN = 2`.** A62 writes `pushCaps: 2`, so personal pushes and the number-only push go only to phones on A62 or later; A60 and A61 phones (`pushCaps: 1`) keep story pushes only, which never read `pushCaps`. Until A62 reaches phones, no reader's device qualifies, founders' included, and every personal entry drops as `no_device`.
+- The app's own cards come on in its own update (A62), not from this commit.
 - **Rules: live** since 04:09 London (P4-B2, `npm run rules:deploy:db`).
-- **Code: live.** P4-B1 is on main, and P4-B3 adds the instant send, priority, threads and the badge-only push (`a1e99d48`). **Armed in P4-B3, founders only**: `PUSH_DRAIN_SECRET` is set on the Worker and on Pages Production, `P4_ARMED = true`, and the Worker's `* * * * *` cron is on.
+- **Code: live.** P4-B1 is on main, and P4-B3 adds the instant send, priority, threads and the badge-only push (`a1e99d48`). **Armed in P4-B3** (founders only until switch-on): `PUSH_DRAIN_SECRET` is set on the Worker and on Pages Production, `P4_ARMED = true`, and the Worker's `* * * * *` cron is on.
 - **The app: A60 live** since 05:38 London. It writes `pushCaps` and `installHash`, calls release, and creates the two channels. **One difference from this doc's plan:** for replies and mentions, A60 writes both `notify_prefs/{uid}/replies_mentions` and the old `users/{uid}/mentionNotifications`. The read (`prefOn`) agrees either way: notify_prefs's own value wins when present, and the old field is consulted only without one, so two equal values read the same.
 - **Rulings 365–369: ruled yes** on 14 Nov (`docs/COPY-RULINGS.md`).
 - **Rulings 375–377 (15 Nov), built in P4-B4:** messages, replies, mentions and quotes push at any hour (375); a push the reader has already seen is dropped (376); the settings page's moon note says so (377).
-- **Founders only** (`FOUNDERS_ONLY`) until switch-on; `false` on `claude/p4-switch-on`.
+- **Founders only** (`FOUNDERS_ONLY`) until switch-on; `false` since P4-S1.
 
 Replies, mentions, quotes, messages and follows leave for the reader's phone the moment the event
 lands, as a standard app's do: the notify call sends its own push (P4-B3). Reactions and responses arrive as one grouped line per post or story, at most hourly, and the first
@@ -101,8 +101,8 @@ launch check           ─► red when ops/push_drain/lastRunAt is > 5 min old, 
 2. Founders only, and not a founder → drop (`founders_only`).
 3. No eligible device → drop (`no_device`). A device is eligible when this account's row is that
    token's **newest** row across every account (a phone signed into a second account belongs to the
-   second), and the row carries `pushCaps >= 1`, which only A60 writes. A60 shares runtime 1.6.0 with
-   older builds, so `appVersion` can't tell them apart.
+   second), and the row carries `pushCaps >= PUSH_CAPS_MIN`: 2 since ruling 381, which A62 writes (A60
+   and A61 write 1). A60 shares runtime 1.6.0 with older builds, so `appVersion` can't tell them apart.
 4. The reader's switch is off → drop. The switch reads `prefOn`: replies and mentions, with no value
    of their own in `notify_prefs`, are off when `users/{uid}/mentionNotifications` is false (362).
 5. Nothing new since this record last pushed → drop (`nothing_new`).
@@ -274,7 +274,7 @@ switch-on: anything more than two hours past due is stale.
 6. **Switch-on**, one commit: `FOUNDERS_ONLY = false`, `CARD_LIVE.PEOPLE` and
    `CARD_LIVE['YOUR WRITING']` true, and the bell suite's ruling-337 expectations with them. The app's
    cards come on in the app's own update at switch-on, not in A60. **Built in P4-S0** on
-   `claude/p4-switch-on`, held; it reaches main in a short round after the founder test.
+   `claude/p4-switch-on`; **live in P4-S1** (16 Nov), with 381's `PUSH_CAPS_MIN = 2`.
 
 ## Ikenna's manual steps (to be checked against current Expo and Cloudflare docs before he gets them)
 
@@ -294,7 +294,7 @@ switch-on: anything more than two hours past due is stale.
 
 ## What A60 does (the app half)
 
-- Write `pushCaps: 1` and `installHash` (SHA-256, lower-case hex, of a random install id of 32–128 URL-safe characters it keeps to itself) on its own device row.
+- Write `pushCaps: 1` (A62 writes 2, ruling 381) and `installHash` (SHA-256, lower-case hex, of a random install id of 32–128 URL-safe characters it keeps to itself) on its own device row.
 - On reaching the signed-out state, whatever the cause, call `POST /api/push/release { installId }`.
 - Create the Android channels `people` and `your_writing` (its names, 368) before a push can name them.
 - The PEOPLE and YOUR WRITING cards writing `notify_prefs`. Stories per 359: on only when both fields are on, and switching sets both. Replies and mentions per 362.

@@ -63,8 +63,8 @@ beforeEach(async () => {
   await set(`cms_stories_index/${SLUG}`, { title: 'An Invented Story', authorUid: U.writer, published: true });
 });
 
-/** A device for `uid`, A60 or not. */
-const device = (uid, { n = 1, caps = 1, updatedAt = T('2026-11-01T00:00:00Z'), installHash } = {}) =>
+/** A device for `uid`: A62 (pushCaps 2) unless told otherwise. */
+const device = (uid, { n = 1, caps = 2, updatedAt = T('2026-11-01T00:00:00Z'), installHash } = {}) =>
   set(`push_tokens/${uid}/key${n}`, { token: TOKEN(uid, n), platform: 'ios', appVersion: '1.7.1', updatedAt, ...(caps ? { pushCaps: caps } : {}), ...(installHash ? { installHash } : {}) });
 
 async function notify(as, event, subjectId, now) {
@@ -455,8 +455,8 @@ describe('the drain', () => {
 
   test('a phone signed into a second account belongs to the newer; no pushCaps, no push', async () => {
     const now = T('2026-11-14T12:00:00Z');
-    await set(`push_tokens/${U.ada}/key1`, { token: TOKEN(U.ada), platform: 'ios', appVersion: '1.7.1', updatedAt: now - 2 * 86400000, pushCaps: 1 });
-    await set(`push_tokens/${U.cal}/key1`, { token: TOKEN(U.ada), platform: 'ios', appVersion: '1.7.1', updatedAt: now - 86400000, pushCaps: 1 });
+    await set(`push_tokens/${U.ada}/key1`, { token: TOKEN(U.ada), platform: 'ios', appVersion: '1.7.1', updatedAt: now - 2 * 86400000, pushCaps: 2 });
+    await set(`push_tokens/${U.cal}/key1`, { token: TOKEN(U.ada), platform: 'ios', appVersion: '1.7.1', updatedAt: now - 86400000, pushCaps: 2 });
     await device(U.dee, { caps: 0 });
     await benReplies(1, now);
     await post(id(200), U.dee);

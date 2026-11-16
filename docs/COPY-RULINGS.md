@@ -905,3 +905,10 @@ Recorded in P4-S0.1, on `claude/p4-switch-on`.
 - **378:** Switch-on goes ahead once the founder test's daytime steps pass, and its two Square steps follow at 8pm.
 - **379:** The new-followers line reads "as they happen, except overnight", on the app and the website. **Built (web) in P4-S0.1:** the `followers` row's `sub` in `app/lib/notifySettings.js` (follows keep 311's hold and wait for 08:00 under 375). The app's A62 carries the same words.
 - **380:** The app's notifications prompt reads: "New stories, never more than two a day, plus replies, mentions and messages as they happen. You choose which in Settings." The app's copy; nothing on the website.
+
+## 15 Nov 2026 (Ikenna): rulings 381 and 385
+
+Ruled yes on 15 Nov. Recorded in P4-S1.
+
+- **381:** Personal pushes go only to phones running A62 or later, so everyone who gets them has the switches and the new wording; phones on older versions keep getting story pushes until they update. **Built (web) in P4-S1:** `PUSH_CAPS_MIN = 2` in `app/lib/pushP4.js`. A62 writes `pushCaps: 2`; A60 and A61 write 1, so their rows get neither a personal push nor the number-only push.
+- **385:** The app's notifications prompt title reads "Know when a new story lands, or someone writes to you." The app's words; nothing changes on the website.

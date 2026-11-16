@@ -59,8 +59,12 @@ export const holdsForMorning = (kind) => !ANY_HOUR_KINDS.includes(kind);
 export const DM_READ_GRACE_MS = 15 * 1000;
 /** A chosen number: a push more than this long past when it should have gone is dropped, never sent late. */
 export const STALE_MS = 2 * 60 * 60 * 1000;
-/** A device row is eligible only when the app (A60) has written this capability or higher. */
-export const PUSH_CAPS_MIN = 1;
+/**
+ * A device row is eligible only when the app has written this capability or higher. Ruling 381: 2,
+ * which A62 writes, so every phone that gets a personal or number-only push has the switches and the
+ * new wording. A60 and A61 write 1 and keep story pushes only (those never read pushCaps).
+ */
+export const PUSH_CAPS_MIN = 2;
 /** The launch check turns red when the drain's last run is older than this (once P4_ARMED). */
 export const DRAIN_STALE_MS = 5 * 60 * 1000;
 /** One drain at a time: a run holds the lease this long. */
@@ -186,7 +190,7 @@ export const isFounder = (uid) => FOUNDER_UIDS.includes(uid);
 /**
  * The devices that speak for `uid`: one per token, and only where this account's row is that
  * token's NEWEST row across every account (a phone signed into a second account belongs to the
- * second), and only where the app has written pushCaps (A60). `tokens` is push_tokens.
+ * second), and only where the app has written pushCaps at PUSH_CAPS_MIN or above (A62, ruling 381). `tokens` is push_tokens.
  */
 export function devicesFor(uid, tokens) {
   const newest = new Map();

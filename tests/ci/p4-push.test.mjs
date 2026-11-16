@@ -27,13 +27,13 @@ describe('the switches stand as built for this round', () => {
     assert.equal(CARD_LIVE['YOUR WRITING'], true, 'switch-on: personal pushes are live, so their card is drawn (writers only)');
     assert.equal(CARD_LIVE['THE SQUARE'], false, 'held until P7');
   });
-  test('the numbers (366, 367, 369, the chosen two hours, five minutes, pushCaps 1)', () => {
+  test('the numbers (366, 367, 369, the chosen two hours, five minutes, pushCaps 2 by 381)', () => {
     assert.equal(MORNING_CAP, 3);
     assert.equal(CONVERSATION_INTERVAL_MS, 2 * MIN);
     assert.equal(DAILY_CAP, 20);
     assert.equal(STALE_MS, 2 * H);
     assert.equal(DRAIN_STALE_MS, 5 * MIN);
-    assert.equal(PUSH_CAPS_MIN, 1);
+    assert.equal(PUSH_CAPS_MIN, 2, 'ruling 381: A62 or later');
   });
   test('368: every personal kind names people or your_writing', () => {
     for (const [kind, k] of Object.entries(INBOX_KINDS)) {
@@ -247,11 +247,11 @@ describe('376: a push the reader has already seen is dropped (seen)', () => {
   });
 });
 
-describe('devices: the newest row speaks for a phone, and only an A60 phone (pushCaps)', () => {
+describe('devices: the newest row speaks for a phone, and only an A62 phone (pushCaps 2, ruling 381)', () => {
   const now = at('2026-11-14T12:00:00Z');
   const tokens = {
-    [A]: { k1: { token: TOKEN(1), platform: 'ios', appVersion: '1.7.1', updatedAt: now - D, pushCaps: 1 }, k2: { token: TOKEN(2), platform: 'ios', appVersion: '1.7.1', updatedAt: now, pushCaps: 1 }, k3: { token: TOKEN(3), platform: 'android', appVersion: '1.7.1', updatedAt: now } },
-    [B]: { k1: { token: TOKEN(1), platform: 'ios', appVersion: '1.7.1', updatedAt: now - H, pushCaps: 1 } },
+    [A]: { k1: { token: TOKEN(1), platform: 'ios', appVersion: '1.7.1', updatedAt: now - D, pushCaps: 2 }, k2: { token: TOKEN(2), platform: 'ios', appVersion: '1.7.1', updatedAt: now, pushCaps: 2 }, k3: { token: TOKEN(3), platform: 'android', appVersion: '1.7.1', updatedAt: now } },
+    [B]: { k1: { token: TOKEN(1), platform: 'ios', appVersion: '1.7.1', updatedAt: now - H, pushCaps: 2 } },
   };
   test('a phone signed into two accounts belongs to the newer one', () => {
     assert.deepEqual(devicesFor(A, tokens).map((d) => d.token), [TOKEN(2)]);
@@ -259,6 +259,12 @@ describe('devices: the newest row speaks for a phone, and only an A60 phone (pus
   });
   test('no pushCaps, no personal push (an older app on the same native version)', () => {
     assert.ok(!devicesFor(A, tokens).some((d) => d.token === TOKEN(3)));
+  });
+  test('381: a row at pushCaps 1 (A60, A61) is no device for a personal or number-only push; a row at 2 (A62) is', () => {
+    const t = (caps) => ({ [A]: { k1: { token: TOKEN(9), platform: 'ios', appVersion: '1.7.1', updatedAt: now, pushCaps: caps } } });
+    assert.deepEqual(devicesFor(A, t(1)), []);
+    assert.deepEqual(devicesFor(A, t(2)).map((d) => d.token), [TOKEN(9)]);
+    assert.deepEqual(devicesFor(A, t(3)).map((d) => d.token), [TOKEN(9)]);
   });
   test('a dead device comes off every account that holds it', () => {
     assert.deepEqual(rowsHolding([TOKEN(1)], tokens).sort((a, b) => (a.uid < b.uid ? -1 : 1)), [{ uid: A, tokenKey: 'k1' }, { uid: B, tokenKey: 'k1' }].sort((a, b) => (a.uid < b.uid ? -1 : 1)));
