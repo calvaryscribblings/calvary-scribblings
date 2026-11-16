@@ -68,14 +68,15 @@ function isTextField(el) {
   if (el.tagName === 'INPUT') return TEXT_INPUTS.has((el.getAttribute('type') || '').toLowerCase());
   return el.isContentEditable === true;
 }
-/** 'own' (keeps itself), 'sheet' (inside a fixed sheet) or 'page' (in the page's flow). */
-function placeOf(el) {
-  let sheet = false;
+/** { place, sheet }: place is 'own' (keeps itself), 'sheet' (inside a fixed sheet) or 'page' (in the
+ *  page's flow); `sheet` is the outermost fixed ancestor, when there is one. */
+function whereIs(el) {
+  let sheet = null;
   for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
-    if (n.hasAttribute('data-keyboard-own')) return 'own';
-    if (getComputedStyle(n).position === 'fixed') sheet = true;
+    if (n.hasAttribute('data-keyboard-own')) return { place: 'own', sheet: null };
+    if (getComputedStyle(n).position === 'fixed') sheet = n;
   }
-  return sheet ? 'sheet' : 'page';
+  return { place: sheet ? 'sheet' : 'page', sheet };
 }
 
 export function KeyboardReveal() {
@@ -86,11 +87,21 @@ export function KeyboardReveal() {
     let place = 'page';
     let raf = 0;
     let late = 0;
+    // A sheet keeps to the glass through React state (useKeyboardInset), so it shrinks a frame AFTER
+    // the visual viewport's resize, and a check made on that resize can see the sheet still at full
+    // height, find nothing to do, and never look again: the field was left under the keyboard until
+    // the next keystroke (TEXT-W1 re-verify, 1 in 2 runs of the profile sheet). So while a field in a
+    // sheet has focus, a change in the sheet's size, or the field's, is a reason to look again.
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => soon()) : null;
+    const watch = (els) => { if (!ro) return; ro.disconnect(); for (const e of els) if (e) ro.observe(e); };
     const check = () => {
       raf = 0;
-      if (!field || document.activeElement !== field) { field = null; return; }
+      if (!field || document.activeElement !== field) { field = null; watch([]); return; }
       if (keyboardInset({ innerHeight: window.innerHeight, height: vv.height, offsetTop: vv.offsetTop }) <= 0) return;
-      if (place === 'sheet') { field.scrollIntoView({ block: 'nearest', inline: 'nearest' }); return; }
+      // Instantly: globals.css makes every scroll smooth by default, and a smooth scroll here races the
+      // box's own re-measure (fitBox collapses and restores its height), which cancels it, leaving
+      // the field under the keyboard in about half of all tries (TEXT-W1, found on re-verify).
+      if (place === 'sheet') { field.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' }); return; }
       const r = field.getBoundingClientRect();
       const by = revealBy({ fieldTop: r.top, fieldBottom: r.bottom, vvTop: vv.offsetTop, vvHeight: vv.height });
       if (by > 0) window.scrollBy({ top: by, left: 0, behavior: 'instant' });
@@ -98,15 +109,17 @@ export function KeyboardReveal() {
     const soon = () => { if (!raf) raf = requestAnimationFrame(check); };
     const onFocus = (e) => {
       const el = e.target;
-      place = isTextField(el) ? placeOf(el) : 'own';
+      const where = isTextField(el) ? whereIs(el) : { place: 'own', sheet: null };
+      place = where.place;
       field = place !== 'own' ? el : null;
+      watch(place === 'sheet' ? [where.sheet, el] : []);
       if (!field) return;
       soon();
       // The keyboard is still rising when focus lands; look again once it has.
       clearTimeout(late);
       late = setTimeout(soon, 400);
     };
-    const onBlur = () => { setTimeout(() => { if (field && document.activeElement !== field) field = null; }, 0); };
+    const onBlur = () => { setTimeout(() => { if (field && document.activeElement !== field) { field = null; watch([]); } }, 0); };
     const onInput = (e) => { if (field && e.target === field) soon(); };
     document.addEventListener('focusin', onFocus);
     document.addEventListener('focusout', onBlur);
@@ -121,6 +134,7 @@ export function KeyboardReveal() {
       vv.removeEventListener('resize', soon);
       if (raf) cancelAnimationFrame(raf);
       clearTimeout(late);
+      if (ro) ro.disconnect();
     };
   }, []);
   return null;
