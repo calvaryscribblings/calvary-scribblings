@@ -4,16 +4,16 @@
 // heartbeat is the Worker's own GET /heartbeat: when it last ticked, its mode, and when GitHub last
 // accepted a dispatch from it. The launch check reads it the way it reads the drain's.
 //
-// NOT ARMED. The go-live round (docs/CLOCK-1.md) uploads the Worker, sets CLOCK_MODE to 'live', turns
-// on its cron, and then, in one commit, sets CLOCK_ARMED true and CLOCK_HEARTBEAT_URL to the Worker's
-// address. Until then the launch check's row reads "not armed yet".
+// ARMED in CLOCK-4 (17 Nov 2026): CLOCK_MODE is 'live' on the Worker and its cron runs every minute. The
+// first live dispatches (04:30 and 04:37 London) were accepted by GitHub. Set CLOCK_ARMED back to false
+// only together with unsetting CLOCK_MODE (docs/CLOCK-1.md).
 //
 // Plain data and arithmetic, no network.
 
 /** Armed with the Worker's cron, in the go-live round. */
-export const CLOCK_ARMED = false;
+export const CLOCK_ARMED = true;
 /** The Worker's heartbeat address (https://…/heartbeat). Set with CLOCK_ARMED. */
-export const CLOCK_HEARTBEAT_URL = null;
+export const CLOCK_HEARTBEAT_URL = 'https://calvary-clock.calvarymediauk.workers.dev/heartbeat';
 
 /** The clock ticks every minute, and some workflow is due at least every 8 minutes (:00 :05 :07 :15
  *  :22 :30 :37 :45 :52), so the last ACCEPTED dispatch is never more than ~8 minutes old when well.
