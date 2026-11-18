@@ -113,6 +113,7 @@
     "test:reconcile": "node --test tests/reconcile/reconcile.test.mjs",
     "test:unreleased": "firebase emulators:exec --only database --project calvary-scribblings \"node --test tests/unreleased/live-fallback.test.mjs\"",
     "test:unreleased:export": "node --test tests/build/unreleased-pages.test.mjs",
+    "test:canonical:export": "node --test tests/build/bookstore-canonical.test.mjs",
     "test:edge": "node --test tests/edge/guard.test.mjs",
     "test:edge:proof": "firebase emulators:exec --only database --project calvary-scribblings \"node --test tests/edge/preservation.proof.mjs\"",
     "reconcile:index": "node scripts/reconcile-index.mjs",

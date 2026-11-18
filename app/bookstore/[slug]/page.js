@@ -179,9 +179,12 @@ export async function generateMetadata({ params }) {
   const url = `https://calvaryscribblings.co.uk/bookstore/${slug}`;
   const images = title.coverUrl ? [{ url: title.coverUrl, alt: title.title }] : undefined;
   // No robots here — the shop is indexable (W38, ruling 131).
+  // SHOP-2 §4: its own canonical. The segment's layout says /bookstore for the front page; a title
+  // that inherited it told search engines every book was a duplicate of the shop's front page.
   return {
     title: `${title.title} — Calvary Scribblings Book Store`,
     description: desc,
+    alternates: { canonical: url },
     openGraph: { title: title.title, description: desc, url, siteName: 'Calvary Scribblings', images, type: 'book' },
     twitter: { card: 'summary_large_image', title: title.title, description: desc, images: title.coverUrl ? [title.coverUrl] : undefined },
   };

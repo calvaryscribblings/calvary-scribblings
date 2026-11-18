@@ -584,6 +584,12 @@ jobs:
         run: npm run test:unreleased:export
         if: ${{ !cancelled() }}
 
+      # SHOP-2 §4 — every Book Store title page is its own canonical (the segment's layout gave
+      # them all /bookstore). Over out/ as built above; names counts only.
+      - name: Book Store title pages carry their own canonical
+        run: npm run test:canonical:export
+        if: ${{ !cancelled() }}
+
       # R45 — THE QUIZ MARKER IS OFF THE CARDS, proved against what PAINTS.
       #
       # It runs HERE, after the build, and not in the hygiene job, for the same reason as the
