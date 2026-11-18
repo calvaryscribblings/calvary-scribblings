@@ -3,12 +3,14 @@
 > Reviewed 5 Nov 2026. Items marked pending wait on a ruling or a measurement.
 
 Written in RADIO-C0 (5 Nov 2026) from the code at `aca3a176` and Ikenna's ruling of one Calvary
-account across the website, Story Island and Calvary Radio, and later Calvary Films and Calvary
-Prints. Corrected in RADIO-B1 after review. Nothing here is built yet.
+account across the website, Story Island and Calvary Radio, and later Calvary Films and the
+Calvary Scribblings paperback shop at books.calvaryscribblings.co.uk. Corrected in RADIO-B1 after
+review; the paperback shop's handoff (§6.2) added in SHOP-2 (18 Nov 2026). Nothing here is built yet.
 
 **This repo owns the account.** It's the one Firebase Authentication project the website already
-signs readers into (`calvary-scribblings`). Story Island, Radio, and later Films and Prints, sign
-into the **same** project. They never run a second user store, and never copy profiles between
+signs readers into (`calvary-scribblings`). Story Island, Radio, and later Films, sign into the
+**same** project. The paperback shop never signs anyone in itself: the main site does it for the
+shop (§6.2). They never run a second user store, and never copy profiles between
 apps. A reader's uid is the same everywhere, so membership, purchases, positions, notifications
 and deletion follow them without any syncing.
 
@@ -162,12 +164,15 @@ iPhone path is wanted later, the keychain can carry **only the display name** to
   or links here.
 - **Membership:** tier, renewal or end date, and the way to manage it. The words are those of
   `/membership`, which is reached from here.
-- **The apps you've used:** Story Island and Radio, later Films and Prints. Each app records
+- **The apps you've used:** Story Island and Radio, later Films. Each app records
   itself at sign-in in `account_apps/{uid}/{app} = { firstAt, lastAt }` (owner-only, server
   time, added to `OWNED_NODES`). The page lists them so the reader knows what deleting the
   account reaches.
 - **Delete your Calvary account:** the existing endpoint and its modal, with the copy from
   `app/lib/accountDeletion.js`, rewritten to name every app.
+
+- **Paperback orders:** the reader's orders from the paperback shop at
+  books.calvaryscribblings.co.uk, from `print_orders/{uid}` (§6.2 (c)).
 
 It also serves as **the deletion link Google Play requires for both apps**.
 
@@ -197,13 +202,122 @@ It also serves as **the deletion link Google Play requires for both apps**.
 
 ---
 
-## 6. Calvary Films and Calvary Prints
+## 6. Calvary Films, and the paperback shop
 
-When either needs sign-in, it uses the same account under this contract: the same Firebase
-project, the same three ways in, "your Calvary account", the handshake (§4), a line in
-`webcredentials` (§3), a row in "The apps you've used" (§5), the deletion page (§5), and, as an
-app that creates accounts, an in-app "Delete your Calvary account" on the same endpoint. No new
-user store.
+### 6.1 Calvary Films
+
+When it needs sign-in, it uses the same account under this contract: the same Firebase project,
+the same three ways in, "your Calvary account", the handshake (§4), a line in `webcredentials`
+(§3), a row in "The apps you've used" (§5), the deletion page (§5), and, as an app that creates
+accounts, an in-app "Delete your Calvary account" on the same endpoint. No new user store.
+
+### 6.2 The Calvary Scribblings paperback shop (books.calvaryscribblings.co.uk)
+
+**Ruling (Ikenna, SHOP-2, 18 Nov 2026): option B, the handoff from the main site.** SHOP-1 laid out
+four ways for the shop to know a reader (A: the Firebase SDK on books.\*; B: a handoff from the main
+site; C: a shared session cookie on `.calvaryscribblings.co.uk`; D: guest checkout matched by email
+later). B was chosen.
+
+The shop is its own Worker (`calvaryprints`), with its own database and storage. **It never runs a
+user store, never holds a Firebase credential, never signs a reader in, and never learns a uid.**
+The main site does the signing-in and keeps the record. Because sign-in happens on
+calvaryscribblings.co.uk, books.\* does **not** need to be a Firebase authorized domain.
+
+This section is the contract only. **None of it is built.**
+
+#### (a) The handoff page: sign in, then back to the shop with a code
+
+- **Where:** a page on the main site, `/account/shop` (never claimed by an app; added to
+  `docs/APP-DEEP-LINKS.md` §4's list when built). The shop links to it with two parameters:
+  `return` (where to send the reader back) and `state` (the shop's own opaque value, echoed back
+  untouched so the shop can match the return to its session; ≤ 128 URL-safe characters, refused
+  otherwise).
+- **Sign in or sign up:** the page uses the site's own AuthModal (the same three ways in, §2). A new
+  account completes its handle and date of birth first, as everywhere. Signed in already, the page
+  asks only to confirm: "Keep this order in your Calvary account?" (copy to be ruled).
+- **The return address is allow-listed, exactly.** The allow-list is a constant in the repo: the
+  origin `https://books.calvaryscribblings.co.uk` and named paths on it. `return` must equal one
+  entry character for character. No prefix match, no pattern, no other host, no "same site": an
+  address not on the list is refused with a page that says so, and nobody is redirected (no open
+  redirect).
+- **The code:** on confirm, the page calls a Function with the reader's ID token. The Function mints
+  a code (32 random bytes, base64url), stores **only its SHA-256** at a server-only node
+  (`shop_handoff_codes/{sha256}` = `{ uid, exp }`, `.read`/`.write` false for every client), and the
+  page sends the reader to `return?code=…&state=…`.
+- **One-time and short-lived:** a code is good for **one** redemption and for **5 minutes** from
+  minting. Redeeming deletes it in the same conditional write that reads it (ETag), so two
+  redemptions at once file at most one order. An expired or used code is refused, and expired codes
+  are swept.
+- **When:** the handoff runs **after the order is paid**, from the shop's confirmation page, so the
+  code only has to live from sign-in to the shop's next server call, not across a checkout.
+  (Pending: if the shop wants the reader signed in *before* paying, the code must outlive checkout,
+  and this needs a ruling on a longer lifetime or a second call. The contract is written for
+  after-payment.)
+- **Rate-limited** per uid and per IP through the existing limiter; the page and the Function log
+  counts only, never a code, a uid or an order number.
+
+#### (b) Filing the order: one server-to-server call
+
+- **The call:** `POST /api/shop/print-order`, from the shop's Worker only, with
+  `Authorization: Bearer <secret>`. The secret is shared between Pages (`SHOP_ORDERS_SECRET`) and
+  the shop's Worker, compared in constant time, and added to `security/KEY-ROTATION.md` as a
+  two-holder value when built. Without it, or with a wrong one: 401 and nothing read.
+- **The body:** `{ code, order }`, where `order` is:
+  - `orderNo`: the shop's order number, `CS-` and digits (a new kind in `app/lib/ids.js`, derived
+    from the shop's real numbers when built; refused with a 400 otherwise, never cleaned);
+  - `date`: when it was paid (ms since epoch);
+  - `titles`: 1 to 50 of `{ title, copies }` (title a string ≤ 200 characters, copies an integer
+    1 to 99);
+  - `amount`: `{ minor, currency }` (an integer in the currency's minor unit, and `GBP` or `NGN`).
+  Nothing else: no address, no name, no email, no payment reference. The rules close the shape
+  (`$other: false`).
+- **What it does:** redeems the code (above) to a uid, and writes
+  `print_orders/{uid}/{orderNo}` = the order plus `filedAt`. It answers `200 { filed: true }` and
+  **never returns or echoes the uid**. Filing the same `orderNo` again for the same reader (a retry)
+  writes nothing new and answers 200; an `orderNo` already filed under another reader is refused
+  (409) and nothing is written.
+- **The node:** `print_orders/$uid/$orderNo`, `.read: auth.uid === $uid` (its owner; founders
+  read it through the Admin SDK in /admin when needed), `.write: false` for every client, founders
+  included. Only the Function writes it.
+
+#### (c) Where the reader sees them
+
+- A "Paperback orders" section of `/account` (§5): order number, date, titles and copies, amount.
+  Until ACCOUNT-B2 builds `/account`, a signed-in page `/account/orders` holds the same list and
+  moves into `/account` when it exists.
+- No link out to the shop's own order pages is promised here (the shop may change them).
+
+#### (d) Deletion
+
+- `print_orders` joins `OWNED_NODES` in `functions/api/account/_deletion.js`, so deleting the account
+  removes `print_orders/{uid}` with the rest, under the same step order and the scrub.
+- Any unredeemed `shop_handoff_codes` for the uid are deleted with it (they expire in 5 minutes
+  anyway).
+- **The shop's own copy of the order** (in its database) is the shop's: its retention and deletion
+  are set out by the shop, not by this repo. Because the shop never learns the uid, our deletion
+  cannot reach it, and the deletion copy (`app/lib/accountDeletion.js`) must not claim it does. It
+  says the order *history in your Calvary account* is removed, and points to the shop for the rest.
+
+#### (e) /privacy, before order history goes live
+
+`/privacy` must say what the account holds for paperback orders (order number, date, titles,
+copies, amount; no address or payment details), where it comes from (the shop, when the reader
+chose to keep the order in their account), and that deleting the account removes it. **That copy
+ships before or with the round that turns order history on**, never after. The copy is Ikenna's to
+rule.
+
+#### Estimate: four rounds
+
+1. **SHOP-B1, the nodes.** `print_orders` and `shop_handoff_codes` rules, the `orderNo` id kind,
+   `OWNED_NODES` and the scrub, emulator tests. Rules deployed. Nothing reachable yet.
+2. **SHOP-B2, the handoff page.** `/account/shop`, the code-minting Function, the exact allow-list,
+   the limiter, the copy (to be ruled), tests (allow-list refusals, one-time, expiry).
+3. **SHOP-B3, the filing call.** `POST /api/shop/print-order`, `SHOP_ORDERS_SECRET` on both
+   holders, `KEY-ROTATION.md`, idempotence and the 409, tests. A hand-off note for the shop.
+4. **SHOP-B4, the reader's view.** "Paperback orders" (or `/account/orders`), the `/privacy` and
+   deletion copy (ruled first), then turned on.
+
+B1 and B2 can share a round if the copy is ruled in advance. B4 waits on (e)'s copy.
 
 ---
 
@@ -223,6 +337,10 @@ user store.
    - The `/account/continue` claim for Story Island.
    - The key-rotation consumer map.
    - A hand-off note for both apps.
+
+5. **SHOP-B1 to SHOP-B4: the paperback shop's handoff and order history** (§6.2, four rounds).
+   Independent of ACCOUNT-B1 to B4, except that SHOP-B4's "Paperback orders" moves into `/account` once
+   ACCOUNT-B2 exists.
 
 ---
 
