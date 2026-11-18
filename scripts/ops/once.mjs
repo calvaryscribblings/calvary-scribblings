@@ -27,9 +27,20 @@ export function claimable(cur, now, leaseMs = LEASE_MS) {
 export const takeFn = (record, now, { leaseMs = LEASE_MS, free = () => false } = {}) =>
   (cur) => (free(cur) || claimable(cur, now, leaseMs) ? record : undefined);
 
-/** The transaction that settles it, only if it is still this run's. */
+/**
+ * The transaction that settles it, only if it is still this run's.
+ *
+ * SHOP-2 §1: null in, null out — never undefined. firebase-admin runs the function first against
+ * its local cache, which is empty (null) in a script with no listener, and undefined there ABORTS
+ * the transaction before it reaches the server. That is how every `sent`/`done` went missing from
+ * 17 Nov and GitHub's late run sent the launch check a second time. Null asks the server, which
+ * refuses the stale guess and runs this again with the claim. A claim that really is gone stays gone.
+ */
 export const settleFn = (runId, patch) =>
-  (cur) => (cur && typeof cur === 'object' && cur.runId === runId ? { ...cur, ...patch } : undefined);
+  (cur) => {
+    if (cur === null || cur === undefined) return null;
+    return typeof cur === 'object' && cur.runId === runId ? { ...cur, ...patch } : undefined;
+  };
 
 /** A run id for the record: the Actions run where there is one. Not a secret, and not a person. */
 export const runIdOf = (env = process.env, now = Date.now()) =>

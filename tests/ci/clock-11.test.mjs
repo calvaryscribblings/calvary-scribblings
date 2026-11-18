@@ -19,7 +19,7 @@ import YAML from 'yaml';
 import { ringBell, bellOf, HORIZON_MS } from '../../scripts/square/horizon.mjs';
 import { reportOnce, lastReportedAt, LEDGER } from '../../scripts/launch-check.mjs';
 import { shouldRun, emailMode, slotOf, slotKey } from '../../scripts/launch-check-gate.mjs';
-import { claimable, LEASE_MS } from '../../scripts/ops/once.mjs';
+import { claimable, settleFn, LEASE_MS } from '../../scripts/ops/once.mjs';
 import { SCHEDULES } from '../../workers-external/calvary-clock/clock.mjs';
 
 // ── the stand-in ────────────────────────────────────────────────────────────────────────────
@@ -310,5 +310,63 @@ describe('CLOCK-1.1 · launch-check: a dispatched run sends the right table', ()
   test('slotOf refuses a cron that is not the gate\'s', () => {
     assert.equal(slotOf('* * * * *', NOW), null);
     assert.equal(slotOf('5 8 * * *; rm -rf /', NOW), null);
+  });
+});
+
+// ── SHOP-2 §1: the claim was taken and never settled ────────────────────────────────────────
+// firebase-admin runs a transaction's function FIRST against its local cache, which a script
+// holding no listener has empty (null), and aborts there if the function returns undefined. Only
+// a defined answer goes to the server, which refuses it if the guess was wrong and the SDK runs the
+// function again with the real value. The stand-in above skipped that first call, so settleFn's
+// "undefined for null" passed here and aborted every settle in production (proven against the RTDB
+// emulator with the real SDK: the settle saw null, aborted, and the record stayed `claimed`).
+class ColdCacheDb extends FakeDb {
+  ref(path = '') {
+    const base = super.ref(path);
+    const snap = (v) => ({ val: () => v, exists: () => v !== null });
+    return {
+      ...base,
+      transaction: async (fn) => {
+        await yieldNow();
+        let guess = null;                       // the SDK's empty local cache
+        for (let i = 0; i < 25; i++) {
+          const next = fn(structuredClone(guess));
+          if (next === undefined) return { committed: false, snapshot: snap(guess) };
+          const cur = this.read(path);
+          if (JSON.stringify(cur) === JSON.stringify(guess)) { this.write(path, next); return { committed: true, snapshot: snap(next) }; }
+          guess = cur;                          // the server refused the stale guess: run again
+        }
+        throw new Error('maxretry');
+      },
+    };
+  }
+}
+
+describe('SHOP-2 §1 · a claim settles under firebase-admin\'s cold cache', () => {
+  test('launch-check: the morning run records `sent`, and GitHub\'s late run that afternoon sends nothing', async () => {
+    const db = new ColdCacheDb(); const send = sender();
+    assert.equal((await reportOnce(db, { key: KEY, now: NOW, runId: 'clock', wantEmail: true, send })).state, 'sent');
+    assert.equal(db.read(`${LEDGER}/${KEY}/state`), 'sent', 'the settle reached the server');
+    const late = await reportOnce(db, { key: KEY, now: NOW + 9 * H, runId: 'github', wantEmail: true, send });
+    assert.deepEqual(late, { state: 'stood-down', prior: 'sent' });
+    assert.equal(send.calls, 1, 'one email for the 08:05 slot');
+  });
+  test('launch-check: a failed send is recorded `failed` under the cold cache too', async () => {
+    const db = new ColdCacheDb(); const send = sender({ fail: 1 });
+    await assert.rejects(reportOnce(db, { key: KEY, now: NOW, runId: 'a', wantEmail: true, send }), /NOT sent/);
+    assert.equal(db.read(`${LEDGER}/${KEY}/state`), 'failed');
+  });
+  test('square-horizon: the 20:05 bell records `done`, and a run at 20:40 moves nothing', async () => {
+    const db = new ColdCacheDb(room());
+    assert.equal((await ringBell(db, at(5), { apply: true, runId: 'clock', log: quiet })).action, 'swept');
+    assert.equal(db.read('square_horizon/bell/state'), 'done');
+    const r = await ringBell(db, at(40), { apply: true, runId: 'github', log: quiet });
+    assert.equal(r.action, 'already-rung');
+    assert.equal(db.writes.filter((p) => p === 'square_archive/old').length, 1, 'archived once');
+  });
+  test('settleFn never aborts on the cache\'s null, and still never writes over another run\'s claim', () => {
+    assert.equal(settleFn('r', { state: 'sent' })(null), null, 'null in, null out: the SDK then asks the server');
+    assert.equal(settleFn('r', { state: 'sent' })({ state: 'claimed', runId: 'other' }), undefined);
+    assert.deepEqual(settleFn('r', { state: 'sent' })({ state: 'claimed', runId: 'r', at: 1 }), { state: 'sent', runId: 'r', at: 1 });
   });
 });
