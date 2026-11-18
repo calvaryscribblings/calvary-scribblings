@@ -308,3 +308,31 @@ drain secret has no other copy than these two homes.
   expecting the drain to use it.
 - **Proving it without sending:** `POST /api/push/drain?dry=1` with the secret reads, decides and answers
   without writing or calling Expo. (No such call is made from this repo's scripts.)
+
+## 10. The Paystack secret keys: two holders (SHOP-2, 18 Nov 2026)
+
+Paystack gives the account **one test secret key and one live secret key**, and the same key both
+authorises API calls and signs every webhook (there is no separate webhook secret). Regenerating a
+key in Paystack's dashboard ends the old one for **every** holder at once, so a rotation updates
+all of them together, in the same few minutes.
+
+Since SHOP-2 there are two holders: this site, and the **paperback shop's Worker** (`calvaryprints`,
+serving books.calvaryscribblings.co.uk). The shop's Worker, its secrets and its repo are not managed
+from here: this table names where the key lives, not how the shop reads it.
+
+| # | Value | Consumer | Where it's set | What breaks without it |
+|---|---|---|---|---|
+| 10.1 | Paystack **live** secret key | Cloudflare Pages secret `PAYSTACK_SECRET_KEY` | dash.cloudflare.com, then Workers & Pages, then `calvary-scribblings`, then Settings, then Variables and Secrets, **Production** only | Naira checkout for books and memberships, the verify call, and the webhook: every event answers 400 "Invalid signature", so no naira purchase is granted or revoked |
+| 10.2 | Paystack **test** secret key, **now**; the **live** key **at the shop's launch** | Cloudflare Worker `calvaryprints`, its own secret | dash.cloudflare.com, then Workers & Pages, then `calvaryprints`, then Settings, then Variables and Secrets (the secret's name is the shop's, recorded in its repo) | The paperback shop's checkout and verify calls, and any webhook signature the shop checks |
+| 10.3 | test and live keys, for the hand-run scripts | Codespaces secrets `PAYSTACK_TEST_SECRET_KEY`, `PAYSTACK_LIVE_SECRET_KEY` | github.com, then Settings, then Codespaces, then the repo's secrets | `scripts/money/membership-parity.mjs`, `scripts/money/rename-plans.mjs` |
+
+- **The order:** regenerate in Paystack, then set 10.1 and 10.2 (and 10.3) within the same minutes.
+  Between the regenerate and the update, each holder's webhook refuses every event as badly signed;
+  Paystack retries for up to 72 hours, so nothing is lost if both are updated promptly.
+- **Pages secrets apply from the next deployment.** After changing 10.1, redeploy (or push) before
+  expecting the webhook to verify with it. A Worker secret applies as soon as it is saved.
+- **The shop's events reach this site's webhook too** (one account, one webhook URL per mode on
+  Paystack's side). Since SHOP-2 §2 they are answered `200 {received:true, ignored:'shop'}` and nothing
+  else, but only once the signature verifies, which is why both holders must carry the same key.
+- **Changed Codespaces secrets are not in a running shell** (W3): restart the codespace after 10.3.
+- **Never print one.** To prove a key works, use the endpoint or script that holds it; never echo it.
