@@ -177,6 +177,28 @@ export function extractIdentity(data) {
   return { uid: uid || null, titleId: titleId || null };
 }
 
+/**
+ * SHOP-2 §2. Is this the paperback shop's event? The shop (books.calvaryscribblings.co.uk, its own
+ * Worker) takes money through the same Paystack account, so its events reach this endpoint signed
+ * with our key. Its transaction references start "shop-"; a Book Store or membership reference
+ * never does (they are `cs.`/`ms.`/`mp.`, or one Paystack generated). Every reference an event
+ * carries is looked at, because a refund's own `reference` is not its transaction's. An event with
+ * no reference at all is the shop's when its metadata.order starts "CS-" (the shop's order number).
+ *
+ * Exported for tests.
+ */
+export function isShopEvent(data) {
+  const refs = [data?.reference, data?.transaction?.reference, data?.transaction_reference, data?.data?.reference]
+    .filter((r) => typeof r === 'string' && r);
+  if (refs.length) return refs.some((r) => r.startsWith('shop-'));
+  const metas = [data?.metadata, data?.transaction?.metadata];
+  return metas.some((m) => {
+    let o = m;
+    if (typeof o === 'string') { try { o = JSON.parse(o); } catch { return false; } }
+    return typeof o?.order === 'string' && o.order.startsWith('CS-');
+  });
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Server-side transaction verification.
 // ──────────────────────────────────────────────────────────────────────────
@@ -445,6 +467,11 @@ export async function onRequestPost(context) {
 
   const data = event?.data;
   if (!data || typeof data !== 'object') return new Response('Missing data', { status: 400 });
+
+  // SHOP-2 §2: the paperback shop's events — charges, refunds, disputes, reversals alike — are its
+  // own Worker's business. Answered before any routing: no read, no write, no money_failures
+  // record, no email, and nothing of it logged.
+  if (isShopEvent(data)) return json({ received: true, ignored: 'shop' });
 
   // Past this line the request is provably from Paystack, so every exit is a 200.
   // W3 / MON-04: a failure a retry could fix answers 500 so Paystack redelivers (every

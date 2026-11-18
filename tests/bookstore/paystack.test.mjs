@@ -293,3 +293,100 @@ test('price: junk NGN values are refused rather than charged', () => {
   assert.equal(selectNgnAmount({}).ok, false);
   assert.equal(selectNgnAmount(null).ok, false);
 });
+
+// ── SHOP-2 §2: the paperback shop's events are not ours ─────────────────────────────────────
+// The paperback shop (books.calvaryscribblings.co.uk, its own Worker) takes its money through the
+// same Paystack account, so its events arrive here signed with our key. Its transaction references
+// start "shop-"; an event with no reference is the shop's when its metadata.order starts "CS-".
+// After the signature check and the body parse, before any routing, write or email, such an event
+// is answered 200 {received:true, ignored:'shop'} and nothing else happens: no fetch (so no read,
+// no write, no money_failures record, no email) and nothing logged.
+import { onRequestPost } from '../../functions/api/bookstore/paystack-webhook.js';
+import { generateKeyPairSync } from 'node:crypto';
+
+const PEM = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' });
+const ENV = { PAYSTACK_SECRET_KEY: SECRET, FIREBASE_CLIENT_EMAIL: 'probe@example.invalid', FIREBASE_PRIVATE_KEY: PEM };
+
+/** Deliver one event to the real handler with fetch and the console stubbed; report what it did. */
+async function deliver(event, { signature } = {}) {
+  const body = JSON.stringify(event);
+  const fetches = []; const logged = [];
+  const realFetch = globalThis.fetch; const real = { log: console.log, error: console.error, warn: console.warn, info: console.info };
+  globalThis.fetch = async (url) => { fetches.push(String(url)); return new Response('{"error":"offline"}', { status: 503 }); };
+  for (const k of Object.keys(real)) console[k] = (...a) => logged.push(a.join(' '));
+  try {
+    const request = new Request('https://calvaryscribblings.co.uk/api/bookstore/paystack-webhook', {
+      method: 'POST', headers: { 'x-paystack-signature': signature ?? sign(body), 'content-type': 'application/json' }, body,
+    });
+    const res = await onRequestPost({ request, env: ENV, waitUntil: () => {} });
+    const text = await res.text();
+    let json = null; try { json = JSON.parse(text); } catch { /* not JSON */ }
+    return { status: res.status, json, text, fetches, logged };
+  } finally {
+    globalThis.fetch = realFetch; Object.assign(console, real);
+  }
+}
+const SHOP_REF = 'shop-7Q2X9K4M1P';
+const assertIgnoredShop = (r) => {
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.json, { received: true, ignored: 'shop' });
+  assert.deepEqual(r.fetches, [], 'no read, no write, no email');
+  assert.deepEqual(r.logged, [], 'nothing of it logged');
+};
+
+test('shop: charge.success with a shop- reference is ignored, even if its metadata names a uid and a title', async () => {
+  assertIgnoredShop(await deliver({ event: 'charge.success', data: { reference: SHOP_REF, amount: 650000, currency: 'NGN', metadata: { order: 'CS-10023', uid: UID, titleId: TITLE_ID } } }));
+});
+test('shop: refund.processed on a shop- transaction is ignored', async () => {
+  assertIgnoredShop(await deliver({ event: 'refund.processed', data: { transaction_reference: SHOP_REF, amount: 650000, status: 'processed' } }));
+});
+test('shop: refund.pending and refund.failed on a shop- transaction are ignored', async () => {
+  for (const event of ['refund.pending', 'refund.failed']) assertIgnoredShop(await deliver({ event, data: { transaction_reference: SHOP_REF } }));
+});
+test('shop: charge.dispute.create on a shop- transaction is ignored', async () => {
+  assertIgnoredShop(await deliver({ event: 'charge.dispute.create', data: { transaction: { reference: SHOP_REF, id: 1 }, status: 'awaiting-merchant-feedback' } }));
+});
+test('shop: dispute.create (the bare spelling) on a shop- transaction is ignored', async () => {
+  assertIgnoredShop(await deliver({ event: 'dispute.create', data: { transaction: { reference: SHOP_REF } } }));
+});
+test('shop: charge.reversed on a shop- transaction is ignored', async () => {
+  assertIgnoredShop(await deliver({ event: 'charge.reversed', data: { reference: SHOP_REF } }));
+});
+test('shop: an event with no reference whose metadata.order starts CS- is ignored (on data or on its transaction)', async () => {
+  assertIgnoredShop(await deliver({ event: 'charge.success', data: { metadata: { order: 'CS-10023' } } }));
+  assertIgnoredShop(await deliver({ event: 'charge.dispute.create', data: { transaction: { metadata: { order: 'CS-10023' } } } }));
+});
+test('shop: a shop- reference on a refund whose own reference is something else is still the shop\'s', async () => {
+  assertIgnoredShop(await deliver({ event: 'refund.processed', data: { reference: 'rf_1a2b3c', transaction_reference: SHOP_REF } }));
+});
+
+// Controls: the Book Store and the signature are untouched.
+test('control: a Book Store charge.success still routes to the grant (its first call is the verify for its reference)', async () => {
+  const ref = buildPaystackReference(UID, TITLE_ID);
+  const r = await deliver({ event: 'charge.success', data: { reference: ref, metadata: { order: 'CS-10023' } } });
+  assert.notDeepEqual(r.json, { received: true, ignored: 'shop' });
+  assert.ok(r.fetches[0]?.includes(`/transaction/verify/${encodeURIComponent(ref)}`), 'reached handleGrant');
+});
+test('control: a Book Store refund still routes to the revoke, a membership refund to the membership module', async () => {
+  const ref = buildPaystackReference(UID, TITLE_ID);
+  const book = await deliver({ event: 'refund.processed', data: { transaction_reference: ref } });
+  assert.notDeepEqual(book.json, { received: true, ignored: 'shop' });
+  assert.ok(book.fetches.length > 0, 'reached handleRevoke');
+  const ms = await deliver({ event: 'refund.processed', data: { transaction_reference: 'ms.abc.def.0123abcd' } });
+  assert.notDeepEqual(ms.json, { received: true, ignored: 'shop' });
+  assert.ok(ms.fetches.length > 0, 'reached the membership module');
+});
+test('control: an unrouted event is acknowledged by name as before; "shop" elsewhere in a reference, or CS- with a reference, is not the shop\'s', async () => {
+  const r = await deliver({ event: 'transfer.success', data: { reference: 'tr_123' } });
+  assert.deepEqual(r.json, { received: true, ignored: 'transfer.success' });
+  const mid = await deliver({ event: 'charge.success', data: { reference: 'cs.shop-x.y.0123abcd' } });
+  assert.notDeepEqual(mid.json, { received: true, ignored: 'shop' });
+  const withRef = await deliver({ event: 'charge.success', data: { reference: buildPaystackReference(UID, TITLE_ID), metadata: { order: 'CS-1' } } });
+  assert.notDeepEqual(withRef.json, { received: true, ignored: 'shop' });
+});
+test('control: a shop event with a bad signature is still refused, 400, before anything else', async () => {
+  const r = await deliver({ event: 'charge.success', data: { reference: SHOP_REF } }, { signature: 'ab'.repeat(64) });
+  assert.equal(r.status, 400);
+  assert.match(r.text, /Invalid signature/);
+  assert.deepEqual(r.fetches, []);
+});
