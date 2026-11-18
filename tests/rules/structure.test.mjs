@@ -132,8 +132,9 @@ const DELIBERATELY_OPEN = new Map([
 // node existed at all. That is the transferable lesson: "constrained as tightly as this node
 // permits" is a claim, and it decays.
 //
-// STILL NOT LISTED, and worth saying why: subscribers/$entry (`newData.exists()`) is
-// deliberately writable by signed-out readers and equally un-wipeable — see commit 456bf90.
+// STILL NOT LISTED, and worth saying why: subscribers/$entry is deliberately writable by signed-out
+// readers and equally un-wipeable — see commit 456bf90. Since SHOP-2 §3 it is create-only
+// (`!data.exists() && newData.exists()`): an existing entry cannot be changed by any client.
 
 // A write expression is "constrained" if it references any of these.
 // Matched case-INSENSITIVELY, because `newData.` and `data.` differ only in case
