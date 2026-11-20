@@ -2,6 +2,7 @@
 //
 // A story push reads "New {form} by {author} · {trailer quote}". This table is the {form}:
 // one phrase per live category/subcategory, lower case because it sits mid-sentence after
+// "New" (except a column's name, which keeps its capital: 'Spotlight', ruled 20 Nov 2026), after
 // "New". Proposed in the push round (23 Sep 2026) from the live index — 183 visible stories,
 // 34 category/subcategory pairs in use — and from the full vocabulary in app/lib/taxonomy.js,
 // so a subcategory nobody has filed under yet already has an answer.
@@ -46,9 +47,10 @@ export const SUBCATEGORY_FORM = {
     Tech: 'tech piece', Science: 'science piece', Business: 'business piece',
     Finance: 'finance piece', Sport: 'sport piece', Politics: 'politics piece',
     Culture: 'culture piece',
-    // SPOT-1 (20 Nov 2026): DRAFTED, not yet ruled — "New spotlight by {author}". The one row
-    // in this table Ikenna has not seen; the subcategory itself was ruled the same day.
-    Spotlight: 'spotlight',
+    // RULED — Ikenna, 20 Nov 2026 (SPOT-1.1): "New Spotlight by {author} · {quote}". Capital S,
+    // because it is the column's name: the ONE proper noun in this table, and the only phrase the
+    // lower-case rule in tests/push/push.test.mjs lets through (PROPER_NOUN_FORMS there).
+    Spotlight: 'Spotlight',
   },
   inspiring: {
     'Personal Essay': 'personal essay', Essay: 'essay', Overcoming: 'inspiring piece',

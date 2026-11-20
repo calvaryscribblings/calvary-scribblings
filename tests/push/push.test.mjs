@@ -218,6 +218,12 @@ describe('payload — RULED: title, then "New {form} by {author} · {quote}", by
     });
   });
 
+  test('SPOT-1.1 — a Spotlight reads "New Spotlight by {author} · {quote}", capital S (ruled 20 Nov 2026)', () => {
+    const { message } = storyMessage('s', story({ category: 'news', subcategory: 'Spotlight' }));
+    assert.equal(message.body, 'New Spotlight by Dera Okaro · She kept the door open an inch.');
+    assert.equal(storyMessage('s', story({ category: 'news', subcategory: 'Culture' })).message.body, 'New culture piece by Dera Okaro · She kept the door open an inch.');
+  });
+
   test('BYLINE FIRST — the collapsed Android line is the byline', () => {
     const { message } = storyMessage('s', story());
     assert.match(message.body, /^New short story by Dera Okaro/);
@@ -478,8 +484,15 @@ describe('forms — RULED table, and it covers the whole taxonomy', () => {
     }
   });
 
+  // SPOT-1.1 (ruled 20 Nov 2026): a column's name keeps its capital. This list is the whole
+  // exception; any other capitalised phrase still fails.
+  const PROPER_NOUN_FORMS = { 'news/Spotlight': 'Spotlight' };
   test('the phrases are lower case mid-sentence words, and an unknown category falls back to "story"', () => {
-    for (const p of allPairs()) assert.match(p.form, /^[a-z][a-z -]*$/, `${p.category}/${p.subcategory}: ${p.form}`);
+    for (const p of allPairs()) {
+      const key = `${p.category}/${p.subcategory}`;
+      if (key in PROPER_NOUN_FORMS) { assert.equal(p.form, PROPER_NOUN_FORMS[key], key); continue; }
+      assert.match(p.form, /^[a-z][a-z -]*$/, `${key}: ${p.form}`);
+    }
     assert.equal(formFor('nonsense', ''), 'story');
     assert.equal(formFor('poetry', 'Not A Sub'), 'poem');
   });

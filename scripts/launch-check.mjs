@@ -112,7 +112,11 @@ export function judgeFreeWeek({ archive, thisWeek, poem, spotlight = null }, now
  */
 export function pickFreeWeekSamples(index, now) {
   const prose = Object.entries(index || {}).map(([slug, r]) => ({ ...r, slug }))
-    .filter((r) => r.published !== false && !servesAsReader(r) && Number.isFinite(r.publishedAtMs))
+    // SPOT-1.1: live NOW, not merely indexed. The index holds exactly the live stories today, but
+    // a sample must never be a story /api/story would answer 404 for, so a future publishAt or
+    // publishedAtMs is refused here too, whatever the index's rules become.
+    .filter((r) => r.published !== false && !servesAsReader(r) && Number.isFinite(r.publishedAtMs) && r.publishedAtMs <= now
+      && !(typeof r.publishAt === 'string' && Date.parse(r.publishAt) > now))
     .sort((a, b) => b.publishedAtMs - a.publishedAtMs);
   const sample = (r) => !isFreeByPolicy(r) && r.category !== 'news' && freeUntilFor(r) !== null;
   return {

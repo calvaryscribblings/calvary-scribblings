@@ -238,6 +238,11 @@ describe('SPOT-1 · the built-HTML check and the launch check', () => {
     assert.equal(s.spotRec.slug, 'spot');
     // with only Spotlights in the archive, there is no archive sample rather than a Spotlight one
     assert.equal(pickFreeWeekSamples({ spotOld: index.spotOld }, NOW).archiveRec, null);
+    // SPOT-1.1: only a LIVE Spotlight is ever the sample: never a scheduled one, even if indexed
+    const future = { spotSoon: story({ publishedAtMs: NOW + DAY, publishAt: new Date(NOW + DAY).toISOString() }) };
+    assert.equal(pickFreeWeekSamples({ ...index, ...future }, NOW).spotRec.slug, 'spot');
+    assert.equal(pickFreeWeekSamples({ x: story({ publishedAtMs: NOW - DAY, publishAt: new Date(NOW + DAY).toISOString() }) }, NOW).spotRec, null);
+    assert.equal(pickFreeWeekSamples({ x: story({ published: false, publishedAtMs: NOW - DAY }) }, NOW).spotRec, null);
     // the key wins over a stored slug field
     assert.equal(pickFreeWeekSamples({ fic: { ...index.fic, slug: 'other' } }, NOW).archiveRec.slug, 'fic');
   });
@@ -295,8 +300,8 @@ describe('SPOT-1 · the taxonomy', () => {
     assert.equal(matchStories(shelf, 'spotlight').length, 1);
     assert.ok(subjectRuns([spotlight]).some((r) => r.label === 'Spotlight'));
   });
-  test('a push names it (drafted wording, awaiting a ruling)', () => {
-    assert.equal(formFor('news', 'Spotlight'), 'spotlight');
+  test('a push names it "New Spotlight by …" (ruled 20 Nov 2026, capital S: the column\'s name)', () => {
+    assert.equal(formFor('news', 'Spotlight'), 'Spotlight');
   });
 });
 
