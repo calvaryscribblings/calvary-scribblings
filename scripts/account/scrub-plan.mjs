@@ -44,6 +44,7 @@
 //           stub users/{uid} a webhook might have written), so a missed path is caught later.
 
 import { instStats, foldSummary } from '../../app/lib/series/notes.js';
+import { SHOP_CODE_KEY } from '../../functions/api/account/_deletion.js';
 
 const isObj = (v) => v && typeof v === 'object';
 const entries = (v) => (isObj(v) ? Object.entries(v) : []);
@@ -61,6 +62,8 @@ export const SCAN_NODES = [
   // W46 — Readers' Notes
   'series_notes', 'series_notes_held', 'series_note_replies', 'series_sides', 'series_room_members',
   'series_note_underlines', 'series_instalments', 'series_notes_summary',
+  // SHOP-B1 — the paperback shop's two nodes (backstop only: the endpoint deletes both)
+  'print_orders', 'shop_handoff_codes',
 ];
 
 const authoredBy = (rec, uid) => isObj(rec) && (rec.authorUid === uid || rec.uid === uid);
@@ -453,6 +456,11 @@ export function planScrub(uid, snap, { now = Date.now() } = {}) {
   if (snap.dm_muted?.[uid] !== undefined && snap.dm_muted?.[uid] !== null) backstop(`dm_muted/${uid}`);
   for (const node of ['inbox_state', 'notify_prefs']) if (snap[node]?.[uid] !== undefined && snap[node]?.[uid] !== null) backstop(`${node}/${uid}`);
   if (snap.userNode !== null && snap.userNode !== undefined) backstop(`users/${uid}`);
+  // SHOP-B1 — an order filed, or a code minted, after the endpoint's owned step ran: a code
+  // minted just before the deletion and redeemed by the shop just after it files an order the
+  // endpoint never saw. Both go here, on the next tick.
+  if (snap.print_orders?.[uid] !== undefined && snap.print_orders?.[uid] !== null) backstop(`print_orders/${uid}`);
+  for (const [h, c] of entries(snap.shop_handoff_codes)) if (isObj(c) && c.uid === uid && SHOP_CODE_KEY.test(h)) backstop(`shop_handoff_codes/${h}`);
 
   // A tombstone is written whole: nothing may be removed beneath it separately, and nothing
   // beneath a removed path may be set.
@@ -477,4 +485,31 @@ export function dropCovered(paths) {
   const out = [];
   for (const p of sorted) if (!out.some((a) => p.startsWith(`${a}/`))) out.push(p);
   return out;
+}
+
+/**
+ * SHOP-B1 — THE EXPIRED-CODE SWEEP. A paperback-shop handoff code (shop_handoff_codes/{sha256} =
+ * { uid, exp }) is good for 5 minutes and one redemption; redeeming deletes it. One the shop never
+ * redeemed would otherwise keep a uid on the node for ever. Every scrub run (every 15 minutes) removes each code
+ * whose exp has passed, and any entry that is not a well-formed code at all: a key that is not a
+ * SHA-256, or a value without a uid and a numeric exp. Only keys of the right shape are built into
+ * paths; a malformed key is reported, never written to.
+ *
+ * Expiry is the redeemer's test, not this sweep's: SHOP-B3 refuses an expired code whether or not
+ * the sweep has reached it. The sweep only bounds how long a dead code sits there (≤ 5 + 15 min).
+ *
+ * @returns {{ nulls: string[], expired: number, malformed: number, unaddressable: number, live: number }}
+ */
+export function planCodeSweep(codes, now = Date.now()) {
+  const nulls = [];
+  let expired = 0; let malformed = 0; let unaddressable = 0; let live = 0;
+  for (const [h, c] of entries(codes)) {
+    const wellFormed = isObj(c) && typeof c.uid === 'string' && c.uid !== '' && typeof c.exp === 'number' && Number.isFinite(c.exp);
+    const dead = !wellFormed || c.exp <= now;
+    if (!dead) { live++; continue; }
+    if (!SHOP_CODE_KEY.test(h)) { unaddressable++; continue; }
+    if (wellFormed) expired++; else malformed++;
+    nulls.push(`shop_handoff_codes/${h}`);
+  }
+  return { nulls, expired, malformed, unaddressable, live };
 }

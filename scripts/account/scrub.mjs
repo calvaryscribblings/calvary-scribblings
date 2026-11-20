@@ -29,7 +29,7 @@ import { initializeApp, cert, applicationDefault } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { planScrub, SCAN_NODES } from './scrub-plan.mjs';
+import { planScrub, planCodeSweep, SCAN_NODES } from './scrub-plan.mjs';
 import { planOwned, handlesOf, OWNED_NODES, STORAGE_PREFIXES, membershipAction } from '../../functions/api/account/_deletion.js';
 import { runPrivateSweep } from './private-fields.mjs';
 import { randomRef, LOG_REF_RE } from '../ops/redact.mjs';
@@ -173,6 +173,21 @@ export async function runScrub(db, { apply = false, now = Date.now, log = consol
   return summary;
 }
 
+/**
+ * SHOP-B1 — remove expired (and malformed) paperback-shop handoff codes. Counts only in the log:
+ * never a code, a hash or a uid. One multi-path update through the guard.
+ */
+export async function runCodeSweep(db, { apply = false, now = Date.now } = {}) {
+  const plan = planCodeSweep((await db.ref('shop_handoff_codes').get()).val(), now());
+  if (apply && plan.nulls.length) {
+    const u = {};
+    for (const p of plan.nulls) u[p] = null;
+    await db.ref().update(u);
+  }
+  const { nulls, ...counts } = plan;
+  return { removed: apply ? nulls.length : 0, wouldRemove: apply ? 0 : nulls.length, ...counts };
+}
+
 /** Everything a deletion of this LIVE uid would remove. Read-only. */
 export async function preview(db, uid, email) {
   const get = async (p) => (await db.ref(p).get()).val();
@@ -182,6 +197,7 @@ export async function preview(db, uid, email) {
   const owned = planOwned(uid, {
     user, following: await get(`following/${uid}`), followers: await get(`followers/${uid}`),
     handles, subscribers: email ? await get('subscribers') : null, waitlist: email ? await get('bookstore_waitlist') : null,
+    codes: await get('shop_handoff_codes'),
   }, email);
   const ownedPresent = {};
   for (const p of Object.keys(owned)) {
@@ -236,6 +252,8 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     console.log(`[scrub] ${args.includes('--apply') ? 'APPLIED' : 'report only'}: ${JSON.stringify(s)}`);
     const p = await runPrivateSweep(db, { apply: args.includes('--apply') });
     console.log(`[private] ${args.includes('--apply') ? 'APPLIED' : 'report only'}: ${JSON.stringify(p)}`);
+    const c = await runCodeSweep(db, { apply: args.includes('--apply') });
+    console.log(`[shop codes] ${args.includes('--apply') ? 'APPLIED' : 'report only'}: ${JSON.stringify(c)}`);
     // W7: the heartbeat scripts/launch-check.mjs reads. Written only after an applied run has
     // finished both sweeps, so a run that threw before here leaves it stale, and stale is red.
     if (args.includes('--apply')) {

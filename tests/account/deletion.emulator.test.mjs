@@ -13,7 +13,7 @@ import { initializeApp, deleteApp } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 import { runDeletion, realIo, StepError } from '../../functions/api/account/_deletion.js';
 import { writeMembership, writePass } from '../../functions/api/membership/_membership.js';
-import { runScrub, preview } from '../../scripts/account/scrub.mjs';
+import { runScrub, runCodeSweep, preview } from '../../scripts/account/scrub.mjs';
 import { openGuard } from '../../scripts/safety/guard.mjs';
 // SAFETY-1: with SAFETY_GUARD_WRAP=1 the same suite runs with the database handed through the guard,
 // exactly as the scheduled job hands it in production (scripts/safety/guard.mjs adminDb). Run it with
@@ -134,6 +134,16 @@ const fixture = () => ({
   story_authors: { leaving: { uid: T, name: 'Leaving Reader' } },
   subscribers: { s1: { email: 'Leaving@Example.com' }, s2: { email: 'stays@example.com' } },
   bookstore_waitlist: { w1: { email: EMAIL }, w2: { email: 'stays@example.com' } },
+  // SHOP-B1 — the paperback shop's two nodes: their orders and codes go; A's stay.
+  print_orders: {
+    [T]: { 'CS-7KQ2MX': { date: 1, titles: { 0: { title: 'A Book', copies: 1 } }, amount: { minor: 1299, currency: 'GBP' }, filedAt: 2 }, 'CS-AAAA11': { date: 3, filedAt: 4 } },
+    [A]: { 'CS-BBBB22': { date: 5, filedAt: 6 } },
+  },
+  shop_handoff_codes: {
+    ['a'.repeat(64)]: { uid: T, exp: 9_999_999_999_999 },
+    ['b'.repeat(64)]: { uid: T, exp: 1 },
+    ['c'.repeat(64)]: { uid: A, exp: 9_999_999_999_999 },
+  },
   // ── KEPT ─────────────────────────────────────────────────────────────────────────────
   memberships: { [T]: { tier: 'gold', rail: 'stripe', status: 'active', stripeSubscriptionId: 'sub_T', stripeCustomerId: 'cus_T' } },
   bookstore_purchases: { [T]: { title1: { amount: 499, stripePaymentIntent: 'pi_1' } } },
@@ -329,6 +339,42 @@ describe('the whole deletion, endpoint then scrub', () => {
     await db.ref(`deletions/${T}`).set({ uid: T, requestedAt: 1, updatedAt: 1, steps: { membership: 1 } });
     await runScrub(await guarded(db), { apply: true, log() {}, ...scrubHands([]) });
     assert.equal((await db.ref('comments/story/c1').get()).val().text, 'mine');
+  });
+});
+
+describe('SHOP-B1 · the paperback shop\'s nodes', () => {
+  test('the endpoint alone removes their orders and their codes, and nobody else\'s', async () => {
+    await runDeletion(T, EMAIL, ioFor([]), quiet);
+    const after = (await db.ref().get()).val();
+    assert.equal(after.print_orders?.[T], undefined);
+    assert.deepEqual(Object.keys(after.print_orders[A]), ['CS-BBBB22']);
+    assert.deepEqual(Object.keys(after.shop_handoff_codes), ['c'.repeat(64)]);
+    assert.equal(after.shop_handoff_codes['c'.repeat(64)].uid, A);
+  });
+  test('an order filed and a code minted AFTER the endpoint ran are taken by the scrub', async () => {
+    await runDeletion(T, EMAIL, ioFor([]), quiet);
+    // the race: a code minted just before the deletion, redeemed by the shop just after it
+    await db.ref().update({ [`print_orders/${T}/CS-LATE01`]: { date: 7, filedAt: 8 }, [`shop_handoff_codes/${'d'.repeat(64)}`]: { uid: T, exp: 9_999_999_999_999 } });
+    await runScrub(await guarded(db), { apply: true, log() {}, ...scrubHands([]) });
+    const after = (await db.ref().get()).val();
+    assert.equal(after.print_orders?.[T], undefined);
+    assert.deepEqual(Object.keys(after.print_orders[A]), ['CS-BBBB22']);
+    assert.deepEqual(Object.keys(after.shop_handoff_codes), ['c'.repeat(64)]);
+  });
+  test('the sweep removes expired and malformed codes only, and never an address it cannot vouch for', async () => {
+    await db.ref('shop_handoff_codes').set({
+      ['1'.repeat(64)]: { uid: A, exp: Date.now() + 60_000 },     // live: stays
+      ['2'.repeat(64)]: { uid: A, exp: Date.now() - 1 },          // expired: goes
+      ['3'.repeat(64)]: { uid: A },                               // no exp: malformed, goes
+      'not-a-hash': { uid: A, exp: 1 },                           // unaddressable: left, counted
+    });
+    const dry = await runCodeSweep(await guarded(db), { apply: false });
+    assert.deepEqual(dry, { removed: 0, wouldRemove: 2, expired: 1, malformed: 1, unaddressable: 1, live: 1 });
+    assert.equal(Object.keys((await db.ref('shop_handoff_codes').get()).val()).length, 4, 'a dry run writes nothing');
+    const res = await runCodeSweep(await guarded(db), { apply: true });
+    assert.equal(res.removed, 2);
+    assert.deepEqual(Object.keys((await db.ref('shop_handoff_codes').get()).val()).sort(), ['1'.repeat(64), 'not-a-hash']);
+    assert.ok(!JSON.stringify(res).includes(A), 'counts only');
   });
 });
 

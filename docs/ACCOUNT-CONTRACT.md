@@ -223,7 +223,13 @@ user store, never holds a Firebase credential, never signs a reader in, and neve
 The main site does the signing-in and keeps the record. Because sign-in happens on
 calvaryscribblings.co.uk, books.\* does **not** need to be a Firebase authorized domain.
 
-This section is the contract only. **None of it is built.**
+**Rulings (Ikenna, 20 Nov 2026).** **403:** the handoff runs **after payment**, from the shop's
+confirmation page, which carries both account buttons (sign in, create an account). There is no
+sign-in at checkout. **404:** deleting a Calvary account removes `print_orders/{uid}`, and the deletion
+copy says that the shop keeps its own record of paid orders and points the reader to the shop for it.
+
+**Built so far:** SHOP-B1 (20 Nov 2026), the two nodes, their rules, the `orderNo` id kind, deletion and
+the scrub. Nothing writes either node until B2 and B3, so nothing is reachable yet.
 
 #### (a) The handoff page: sign in, then back to the shop with a code
 
@@ -243,16 +249,20 @@ This section is the contract only. **None of it is built.**
 - **The code:** on confirm, the page calls a Function with the reader's ID token. The Function mints
   a code (32 random bytes, base64url), stores **only its SHA-256** at a server-only node
   (`shop_handoff_codes/{sha256}` = `{ uid, exp }`, `.read`/`.write` false for every client), and the
-  page sends the reader to `return?code=…&state=…`.
+  page sends the reader to `return?code=…&state=…`. **The key is the SHA-256 as 64 lowercase hex
+  characters** (`SHOP_CODE_KEY` in `functions/api/account/_deletion.js`); deletion and the sweep build a
+  path only from a key of that shape. `exp` is ms since epoch, the last instant the code is good for
+  (a code is expired once `exp <= now`).
 - **One-time and short-lived:** a code is good for **one** redemption and for **5 minutes** from
   minting. Redeeming deletes it in the same conditional write that reads it (ETag), so two
-  redemptions at once file at most one order. An expired or used code is refused, and expired codes
-  are swept.
-- **When:** the handoff runs **after the order is paid**, from the shop's confirmation page, so the
-  code only has to live from sign-in to the shop's next server call, not across a checkout.
-  (Pending: if the shop wants the reader signed in *before* paying, the code must outlive checkout,
-  and this needs a ruling on a longer lifetime or a second call. The contract is written for
-  after-payment.)
+  redemptions at once file at most one order. An expired or used code is refused. **Expired codes are
+  swept by the account scrub** (`planCodeSweep` / `runCodeSweep` in `scripts/account/`, every 15 minutes
+  on `.github/workflows/account-scrub.yml`), along with any malformed entry, so a dead code holds a uid
+  for at most about 20 minutes. The sweep only bounds that; refusing an expired code is the redeemer's
+  job, whether or not the sweep has reached it.
+- **When (ruling 403):** the handoff runs **after the order is paid**, from the shop's confirmation
+  page, which shows both account buttons. There is no sign-in at checkout, so the code only has to
+  live from sign-in to the shop's next server call.
 - **Rate-limited** per uid and per IP through the existing limiter; the page and the Function log
   counts only, never a code, a uid or an order number.
 
@@ -263,14 +273,16 @@ This section is the contract only. **None of it is built.**
   the shop's Worker, compared in constant time, and added to `security/KEY-ROTATION.md` as a
   two-holder value when built. Without it, or with a wrong one: 401 and nothing read.
 - **The body:** `{ code, order }`, where `order` is:
-  - `orderNo`: the shop's order number, `CS-` and digits (a new kind in `app/lib/ids.js`, derived
-    from the shop's real numbers when built; refused with a 400 otherwise, never cleaned);
+  - `orderNo`: the shop's order number, **`CS-` and six of A–Z and 0–9** (the shop's own example:
+    `CS-7KQ2MX`). The kind `orderNo` in `app/lib/ids.js` (SHOP-B1) refuses anything else with a 400
+    and never cleans it: no upper-casing, no trimming. ⚠ **An assumption for the shop to confirm:**
+    no live order number has been seen from this repo. If the real format differs, the kind changes
+    before B3 files a single order. (An earlier draft of this section said `CS-` and digits.)
   - `date`: when it was paid (ms since epoch);
   - `titles`: 1 to 50 of `{ title, copies }` (title a string ≤ 200 characters, copies an integer
     1 to 99);
   - `amount`: `{ minor, currency }` (an integer in the currency's minor unit, and `GBP` or `NGN`).
-  Nothing else: no address, no name, no email, no payment reference. The rules close the shape
-  (`$other: false`).
+  Nothing else: no address, no name, no email, no payment reference.
 - **What it does:** redeems the code (above) to a uid, and writes
   `print_orders/{uid}/{orderNo}` = the order plus `filedAt`. It answers `200 { filed: true }` and
   **never returns or echoes the uid**. Filing the same `orderNo` again for the same reader (a retry)
@@ -278,7 +290,38 @@ This section is the contract only. **None of it is built.**
   (409) and nothing is written.
 - **The node:** `print_orders/$uid/$orderNo`, `.read: auth.uid === $uid` (its owner; founders
   read it through the Admin SDK in /admin when needed), `.write: false` for every client, founders
-  included. Only the Function writes it.
+  included. Only the Function writes it. In `database.rules.json` since SHOP-B1 (deploy pending), with
+  `tests/rules/shop-b1.test.mjs` for every actor (owner, another reader, signed out, both founders),
+  list reads of both parent nodes included.
+
+#### (b2) The server's writes: NO RULE BINDS THEM, so the code is the only check
+
+**This binds SHOP-B2 and SHOP-B3. Read it before writing either Function.**
+
+- **The credential.** Both Functions write with the Firebase **service account's OAuth access token**:
+  `mintAccessToken(FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, SCOPES)` from
+  `functions/api/bookstore/_lib.js`, sent as `Authorization: Bearer` to the database's REST API.
+  This is the same credential `/api/story`, the bookstore webhooks and the account-deletion endpoint
+  already use.
+- **No rule binds it.** A service-account token is an admin credential. The Realtime Database skips
+  **every** rule for it: `.read`, `.write` **and `.validate`**. `.write: false` on both nodes stops
+  clients and nothing else. A `.validate` on either node would never run for these writes, so
+  **none is written, and nothing may count on one**.
+- **So B3's code enforces the order's shape**, before anything is written: `orderNo` through
+  `assertId('orderNo', …)` (a bad one is a 400, never cleaned); `date` a finite number; `titles` an
+  array of 1 to 50 `{ title, copies }`, title a string of at most 200 characters, copies an integer
+  1 to 99; `amount` `{ minor, currency }`, minor a non-negative integer, currency exactly `GBP` or
+  `NGN`. **Every other field is dropped by building the record from the named fields**, never by
+  spreading the body. The written record is exactly those fields plus `filedAt`. Tests must send a
+  body with extra fields (an address, an email, a `uid`) and prove none reaches the database.
+- **And B3's code enforces one-time use.** Redeem with a conditional write: GET
+  `shop_handoff_codes/{sha256}.json` with `X-Firebase-ETag: true`, check `exp > now`, then DELETE it
+  with `if-match: <etag>`. Only a 200 on that DELETE redeems; a 412 means someone else redeemed it
+  first, and the call answers as for a used code. The order is written only after a successful
+  redemption. The key is built only from a hash of the presented code (64 lowercase hex), never from
+  the body.
+- **And B2's code enforces the code's shape:** it writes exactly `{ uid, exp }`, uid the verified
+  token's, exp now + 5 minutes, at a key it computed, and nothing else.
 
 #### (c) Where the reader sees them
 
@@ -289,14 +332,23 @@ This section is the contract only. **None of it is built.**
 
 #### (d) Deletion
 
-- `print_orders` joins `OWNED_NODES` in `functions/api/account/_deletion.js`, so deleting the account
-  removes `print_orders/{uid}` with the rest, under the same step order and the scrub.
-- Any unredeemed `shop_handoff_codes` for the uid are deleted with it (they expire in 5 minutes
-  anyway).
+- **Built in SHOP-B1.** `print_orders` is in `OWNED_NODES` in `functions/api/account/_deletion.js`
+  (ruling 404), so deleting the account removes `print_orders/{uid}` with the rest, in the `owned`
+  step, in the usual step order.
+- Any unredeemed `shop_handoff_codes` for the uid are deleted in the same `owned` update, found by the
+  `uid` inside each entry (the owned step reads the whole node, which stays small: codes live 5
+  minutes and are swept every 15). The step costs 15 subrequests now, not 14.
+- **The scrub is the backstop for the one race this has.** A code minted just before the deletion
+  and redeemed by the shop just after the `owned` step files an order the endpoint never saw. The
+  scrub's next pass removes `print_orders/{uid}` and any code carrying the uid
+  (`scripts/account/scrub-plan.mjs`). Proven on the emulator (`tests/account/deletion.emulator.test.mjs`).
 - **The shop's own copy of the order** (in its database) is the shop's: its retention and deletion
   are set out by the shop, not by this repo. Because the shop never learns the uid, our deletion
-  cannot reach it, and the deletion copy (`app/lib/accountDeletion.js`) must not claim it does. It
-  says the order *history in your Calvary account* is removed, and points to the shop for the rest.
+  cannot reach it, and the deletion copy (`app/lib/accountDeletion.js`) must not claim it does.
+  **Ruling 404:** the copy says the order history in the Calvary account is removed, that **the shop
+  keeps its own record of paid orders**, and points the reader to the shop for it. The words are
+  written with B4's copy and ruled before order history goes live. SHOP-B1 does not change the
+  deletion copy, because nothing can file an order yet.
 
 #### (e) /privacy, before order history goes live
 
@@ -309,7 +361,8 @@ rule.
 #### Estimate: four rounds
 
 1. **SHOP-B1, the nodes.** `print_orders` and `shop_handoff_codes` rules, the `orderNo` id kind,
-   `OWNED_NODES` and the scrub, emulator tests. Rules deployed. Nothing reachable yet.
+   `OWNED_NODES` and the scrub, the expired-code sweep, emulator tests. **Built 20 Nov 2026 (committed,
+   not pushed); rules deploy still to come.** Nothing reachable yet.
 2. **SHOP-B2, the handoff page.** `/account/shop`, the code-minting Function, the exact allow-list,
    the limiter, the copy (to be ruled), tests (allow-list refusals, one-time, expiry).
 3. **SHOP-B3, the filing call.** `POST /api/shop/print-order`, `SHOP_ORDERS_SECRET` on both

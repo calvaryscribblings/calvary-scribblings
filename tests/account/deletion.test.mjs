@@ -469,3 +469,39 @@ test('planScrub · W49: their series_read_ledger entries go; the counts and othe
   assert.ok(!plan.nulls.some((p) => p.startsWith('series_reads')));
   assert.equal(plan.counts.seriesReads, 2);
 });
+
+// ── SHOP-B1: the paperback shop's two nodes ───────────────────────────────────────────────
+describe('SHOP-B1 · deletion reaches the shop nodes', () => {
+  test('print_orders is deleted whole with the account (ruling 404), not kept', () => {
+    assert.ok(OWNED_NODES.includes('print_orders'));
+    assert.ok(!('print_orders' in KEPT_NODES));
+    assert.equal(planOwned(T, {}, null)[`print_orders/${T}`], null);
+  });
+  test('their handoff codes go, by the uid inside; another reader\'s stay; a malformed key is never a path', async () => {
+    const { SHOP_CODE_KEY } = await import('../../functions/api/account/_deletion.js');
+    const mine = 'a'.repeat(64), theirs = 'b'.repeat(64);
+    const u = planOwned(T, { codes: { [mine]: { uid: T, exp: 1 }, [theirs]: { uid: A, exp: 1 }, 'bad/../key': { uid: T, exp: 1 }, ['c'.repeat(64)]: 'junk' } }, null);
+    assert.equal(u[`shop_handoff_codes/${mine}`], null);
+    assert.ok(!(`shop_handoff_codes/${theirs}` in u));
+    assert.equal(Object.keys(u).filter((k) => k.startsWith('shop_handoff_codes/')).length, 1);
+    assert.ok(SHOP_CODE_KEY.test(mine) && !SHOP_CODE_KEY.test('A'.repeat(64)) && !SHOP_CODE_KEY.test('a'.repeat(63)));
+  });
+  test('the rules for both nodes are exactly as §6.2 states', () => {
+    const rules = JSON.parse(readFileSync(new URL('../../database.rules.json', import.meta.url), 'utf8')).rules;
+    assert.deepEqual(rules.shop_handoff_codes, { '.read': false, '.write': false });
+    assert.deepEqual(rules.print_orders, { $uid: { '.read': 'auth != null && auth.uid === $uid', '.write': false } });
+  });
+  test('the sweep plan: expired and malformed go, live stays, an unaddressable key is counted and left', async () => {
+    const { planCodeSweep } = await import('../../scripts/account/scrub-plan.mjs');
+    const now = 1_795_000_000_000;
+    const p = planCodeSweep({
+      ['1'.repeat(64)]: { uid: A, exp: now + 1 },
+      ['2'.repeat(64)]: { uid: A, exp: now },          // exp is the last good instant's end: now is expired
+      ['3'.repeat(64)]: { uid: A, exp: 'soon' },
+      'not-a-hash': { uid: A, exp: 0 },
+    }, now);
+    assert.deepEqual(p.nulls.sort(), [`shop_handoff_codes/${'2'.repeat(64)}`, `shop_handoff_codes/${'3'.repeat(64)}`]);
+    assert.deepEqual({ expired: p.expired, malformed: p.malformed, unaddressable: p.unaddressable, live: p.live }, { expired: 1, malformed: 1, unaddressable: 1, live: 1 });
+    assert.deepEqual(planCodeSweep(null, now).nulls, []);
+  });
+});

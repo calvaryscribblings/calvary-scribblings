@@ -46,6 +46,7 @@ const ID_RULES = {
   draftId: { re: /^[1-9][0-9]{12}$/, max: 13 },
   uid: { re: /^[A-Za-z0-9]+$/, max: 64 },
   sendId: { re: /^[A-Za-z0-9_-]{20}$/, max: 20 },
+  orderNo: { re: /^CS-[A-Z0-9]{6}$/, max: 9 },
 };
 
 function isId(kind, value) {

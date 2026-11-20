@@ -68,6 +68,15 @@ describe('1 · the check on its own', () => {
     }
   });
 
+  test('SHOP-B1 orderNo: "CS-" and six of A-Z 0-9; anything else refused, never cleaned', () => {
+    for (const v of ['CS-7KQ2MX', 'CS-000000', 'CS-ZZZZZZ', 'CS-A1B2C3']) assert.ok(isId('orderNo', v), v);
+    for (const v of ['cs-7kq2mx', 'CS-7kq2mx', 'Cs-7KQ2MX', 'CS7KQ2MX', 'CS-7KQ2M', 'CS-7KQ2MXX', 'CS--KQ2MX',
+      ' CS-7KQ2MX', 'CS-7KQ2MX ', 'CS-7KQ2MX\n', 'CS-7KQ_MX', 'CS-7KQ.MX', 'CS-7KQ/MX', 'XX-7KQ2MX', 'CS-123456789', '123456', 'CS-']) {
+      assert.equal(isId('orderNo', v), false, JSON.stringify(v));
+    }
+    assert.throws(() => assertId('orderNo', 'cs-7kq2mx'), (e) => e instanceof IdError && e.status === 400 && e.kind === 'orderNo');
+  });
+
   test('assertId returns the id unchanged, or throws an IdError carrying 400', () => {
     assert.equal(assertId('slug', 'the-call'), 'the-call');
     assert.throws(() => assertId('slug', '../x'), IdError);
