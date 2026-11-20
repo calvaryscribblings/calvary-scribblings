@@ -179,6 +179,7 @@ now            = server clock
 1.  story missing, or published === false            →  404 not_found        (§5)
 2.  story is reader-mode                             →  200 access:'reader'  (§4.4)
 3.  category === 'poetry'                            →  200 access:'full'   reason:'poetry'
+3b. category === 'news' && subcategory === 'Spotlight' → 200 access:'full' reason:'spotlight'  (§3.3a)
 4.  now <= freeUntilMs                               →  200 access:'full'   reason:'free_window'
 5.  slug is in the most-recent-5 floor               →  200 access:'full'   reason:'recent_floor'
 6.  tierAtLeast(effectiveTier(scalar, detail), 'gold') → 200 access:'full'   reason:'tier'
@@ -279,6 +280,29 @@ preview of it.
 If stanza markup ever lands across the verse corpus, this exemption becomes a
 policy choice rather than a technical necessity, and *that* is the conversation to
 have then. Today it is not a choice.
+
+### 3.3a Spotlights are exempt entirely (SPOT-1, 20 Nov 2026)
+
+**A Spotlight is always `access:'full'`, `reason:'spotlight'`.** No window, no tier, at any
+age, signed out included: the treatment poetry has (§3.3). Ikenna's ruling: *every Spotlight
+is free to read, now and in future.*
+
+- **What a Spotlight is.** A story with `category === 'news'` and `subcategory === 'Spotlight'`,
+  matched exactly (the label is the stored key, `app/lib/taxonomy.js`; `SPOTLIGHT` there is the
+  one spelling). The subcategory sits straight after Culture in News & Updates. `'Spotlight'`
+  under any other category means nothing, and neither does a title that starts "Spotlight:"
+  (titles keep that prefix by ruling; the title is not the test).
+- **Where it is decided.** Branch 3b, checked where poetry is: after reader-mode, before the
+  free week. One predicate, `freeByPolicy` / `isFreeByPolicy` in `app/lib/storyAccess.js`,
+  answers "never locks" for both, and every surface that treats a story as never locking asks
+  it: the grant, `isGateable`, the static build's lock plan (`buildInlinePlan`: full body,
+  `lockAtMs` null), the built-HTML check and the launch check.
+- **Why it is policy and not technique.** Poetry is exempt because a preview would mutilate it.
+  A Spotlight is exempt because the house decided it should be read by everyone. Same
+  treatment, different reason, so the `reason` is different too (§4.5).
+- **The app.** Same branch, same position, same reason string; the parity fixture
+  (`app/lib/storyAccess.parity.json`, v2) carries the cases. A client still never decides
+  entitlement itself (§2.1): it renders what `/api/story` answered.
 
 ### 3.4 The archive floor is `'gold'`
 
@@ -516,6 +540,7 @@ boolean cannot pick between them.
 | `free_window`  | `full`        | inside the 7-day window; free to everyone       |
 | `recent_floor` | `full`        | one of the 5 newest; free regardless of age     |
 | `poetry`       | `full`        | poetry, always free (§3.3)                      |
+| `spotlight`    | `full`        | a Spotlight, always free to everyone (§3.3a)    |
 | `tier`         | `full`        | outside every grant; the reader's tier opened it|
 | `archive`      | `preview`     | outside every grant, tier `free`                |
 | `reader_mode`  | `reader`      | body lives at `readerHref`                      |

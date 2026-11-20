@@ -76,11 +76,20 @@ export const CATEGORIES = [
  * are neighbours in sense — an elegy is a formal grief poem — and the row reads as a pair.
  * Nothing is filed under it yet, so by the rule above it draws no tab until something is.
  */
+/**
+ * SPOTLIGHT (SPOT-1, Ikenna's ruling, 20 Nov 2026) is a News & Updates subcategory that is also a
+ * POLICY: every story filed under it is free to everyone, in full, at any age, the way poetry is
+ * (isFreeByPolicy in app/lib/storyAccess.js, which imports this constant rather than spelling the
+ * word a second time). It sits straight after Culture, where the four Spotlights were filed before
+ * it existed. Titles keep their "Spotlight:" prefix; the subcategory, not the title, is the test.
+ */
+export const SPOTLIGHT = Object.freeze({ category: 'news', subcategory: 'Spotlight' });
+
 const POETRY = ['Love', 'Grief', 'Elegy', 'Political', 'Nature', 'Spiritual', 'Spoken Word'];
 const NOVEL = ['Novel', 'Novella', 'Serial'];
 
 export const SUBCATEGORIES = {
-  news: ['Op-Ed', 'Essay', 'Music', 'Film', 'Tech', 'Science', 'Business', 'Finance', 'Sport', 'Politics', 'Culture'],
+  news: ['Op-Ed', 'Essay', 'Music', 'Film', 'Tech', 'Science', 'Business', 'Finance', 'Sport', 'Politics', 'Culture', SPOTLIGHT.subcategory],
   flash: ['Romance', 'Horror', 'Humour', 'Drama', 'Thriller', 'Slice of Life'],
   short: ['Romance', 'Horror', 'Humour', 'Drama', 'Thriller', 'Slice of Life', 'Mystery', 'Sci-Fi', 'Historical', 'Fantasy'],
   poetry: POETRY,

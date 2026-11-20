@@ -16,7 +16,7 @@
 // Members lose nothing: /api/story answers them with the full body a moment later, exactly as
 // it does on a page built after the switch.
 
-import { grantFor, freeUntilFor, GATE_ON_MS } from './storyAccess.js';
+import { grantFor, freeUntilFor, isFreeByPolicy, GATE_ON_MS } from './storyAccess.js';
 
 // Longer than any build (a few minutes) plus the gap to the scheduled rebuild after a London
 // Monday midnight (the calvary-newsletter Worker's */15 tick fires the deploy hook).
@@ -29,13 +29,13 @@ export const BUILD_LOOKAHEAD_MS = 3 * 3600000;
  *               BUILD_LOOKAHEAD_MS later, so a build that deploys after a boundary cannot carry
  *               a body that has just gone to the archive
  *   lockAtMs    for a full page: the instant a signed-out reader stops being entitled to it
- *               (its week's end, or the 30 Sept switch, whichever is later); null for poetry,
- *               which never locks
+ *               (its week's end, or the 30 Sept switch, whichever is later); null for a story
+ *               free by policy (poetry, a Spotlight), which never locks
  */
 export function buildInlinePlan(rec, now = Date.now()) {
   const openAt = (t) => grantFor(rec, { tier: 'free', now: t }).access === 'full';
   const inlineFull = openAt(now) && openAt(now + BUILD_LOOKAHEAD_MS);
-  if (!inlineFull || (rec && rec.category === 'poetry')) return { inlineFull, lockAtMs: null, previewLockAtMs: null };
+  if (!inlineFull || isFreeByPolicy(rec)) return { inlineFull, lockAtMs: null, previewLockAtMs: null };
   const freeUntil = freeUntilFor(rec);
   const weekEnd = freeUntil === null ? 0 : freeUntil + 1;
   // previewLockAtMs (W4b): the same instant with the 30 Sept switch taken away — the end of the
@@ -75,6 +75,9 @@ export function scriptSafeJson(value) {
  * round-trip to take it back.
  */
 export function lockScript(lockAtMs, previewHtml, previewLockAtMs = null) {
+  // SPOT-1: null means NEVER (poetry, a Spotlight). Number(null) is 0, a lock at the epoch, so
+  // null is refused by name; the page also emits the script only when lockAtMs is set.
+  if (lockAtMs === null || lockAtMs === undefined) return '';
   const at = Number(lockAtMs);
   if (!Number.isFinite(at)) return '';
   const pat = Number(previewLockAtMs);

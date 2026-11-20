@@ -16,7 +16,7 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { grantFor } from '../app/lib/storyAccess.js';
+import { grantFor, isFreeByPolicy } from '../app/lib/storyAccess.js';
 import { cutPreview } from '../app/lib/previewCut.js';
 
 const args = process.argv.slice(2);
@@ -46,6 +46,17 @@ export function endingOf(html, rec = {}) {
   return null;
 }
 
+/**
+ * What this check does with a published record at `now`: 'skip' (reader-mode, or free by policy:
+ * poetry or a Spotlight, whose built page carries its whole body by rule), 'archive' (its ending
+ * must NOT be in the page) or 'free' (this week's, allowed in full). Pure, so the rule is tested.
+ */
+export function classifyForCheck(rec, now) {
+  const g = grantFor(rec, { tier: 'free', now });
+  if (g.access === 'reader' || isFreeByPolicy(rec)) return 'skip';
+  return g.access === 'preview' ? 'archive' : 'free';
+}
+
 async function main() {
   const stories = await (await fetch(`${DB}/cms_stories.json`)).json();
   let archive = 0; let free = 0; let leaks = 0; let skipped = 0;
@@ -53,19 +64,19 @@ async function main() {
     if (!rec || rec.published === false) continue;
     const html = join(OUT, 'stories', `${slug}.html`);
     if (!existsSync(html)) { skipped++; continue; }
-    const g = grantFor(rec, { tier: 'free', now });
-    if (g.access === 'reader' || g.reason === 'poetry') { skipped++; continue; }
+    const kind = classifyForCheck(rec, now);
+    if (kind === 'skip') { skipped++; continue; }
     const ending = endingOf(rec.content, rec);
     if (!ending) { skipped++; continue; }
     const txt = join(OUT, 'stories', `${slug}.txt`);
     const inHtml = readFileSync(html, 'utf8').includes(ending);
     const inTxt = existsSync(txt) && readFileSync(txt, 'utf8').includes(ending);
-    if (g.access === 'preview') {
+    if (kind === 'archive') {
       archive++;
       if (inHtml || inTxt) { leaks++; console.log(`LEAK  ${slug}  ending in ${[inHtml && 'html', inTxt && 'txt'].filter(Boolean).join('+')}`); }
     } else free++;
   }
-  console.log(`at ${new Date(now).toISOString()}: ${archive} archive pages checked, ${leaks} carry their ending; ${free} free pages; ${skipped} skipped (poetry, reader-mode, no page).`);
+  console.log(`at ${new Date(now).toISOString()}: ${archive} archive pages checked, ${leaks} carry their ending; ${free} free pages; ${skipped} skipped (free by policy: poetry or Spotlight; reader-mode; no page).`);
   process.exit(leaks ? 1 : 0);
 }
 

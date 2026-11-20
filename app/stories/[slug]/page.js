@@ -77,7 +77,7 @@ export async function generateStaticParams() {
 // HTML they had just downloaded.
 //
 // So the build inlines THE PREVIEW for any story that could be gated, and the full
-// body only for stories that are free to everyone by policy (poetry). The preview is
+// body only for stories that are free to everyone by policy (poetry, Spotlights). The preview is
 // public by definition, first paint still arrives with real words and no round-trip,
 // and the remainder — for a reader entitled to it — comes from /api/story after
 // hydration.
@@ -100,8 +100,8 @@ export default async function StoryPage({ params }) {
 
       // ── WHY THIS IS NOT isGateable() ──────────────────────────────────────
       // isGateable() answers a RUNTIME question — "could the endpoint ever gate
-      // this?" — and it says no for three different reasons: poetry (free by
-      // policy), reader-mode (served at /reader), and UNPUBLISHED. Only the first
+      // this?" — and it says no for three different reasons: free by policy
+      // (poetry, a Spotlight), reader-mode (served at /reader), and UNPUBLISHED. Only the first
       // of those means "safe to ship in full".
       //
       // Reusing it here would have inlined the complete text of all 15 hidden
@@ -111,7 +111,8 @@ export default async function StoryPage({ params }) {
       // and are fetchable by anyone who guesses the slug.
       //
       // The build's question is narrower and is asked directly: is this story free
-      // to EVERYONE, always? Poetry is (contract §3.3). Nothing else is.
+      // to EVERYONE, always? Poetry is (contract §3.3), and so is a Spotlight (SPOT-1):
+      // isFreeByPolicy in app/lib/storyAccess.js. Nothing else is.
       //
       // ── W4: THE BUILD ASKS THE SAME POLICY, WITH A LOOKAHEAD ──────────────────
       // The full body is inlined only if a SIGNED-OUT reader may read it in full both at
@@ -147,7 +148,7 @@ export default async function StoryPage({ params }) {
       // signed-out reader stops being entitled to it, and the preview to show from then on.
       // Until the scheduled rebuild after that instant replaces this HTML, the inline check in
       // the page (StoryLock, page-client.js) swaps the body for the preview before paint.
-      // Poetry never locks (null). The preview is a prefix of what is already here, so carrying
+      // A story free by policy (poetry, a Spotlight) never locks (null). The preview is a prefix of what is already here, so carrying
       // it exposes nothing.
       let lockAtMs = null;
       let previewLockAtMs = null;   // W4b: the founder preview's instant — the end of the week

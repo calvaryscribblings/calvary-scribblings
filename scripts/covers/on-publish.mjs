@@ -92,7 +92,7 @@ import {
   RETIRED_NODE, storiesInScope,
   BUCKET, DB_URL, SOURCE_NODE, WIDTHS,
   assertStoryScope, coverDir, coverFlipPaths, deriveFrom, rtdbPatch, accessToken, readBody,
-  sha12, uploadCoverSet, urlPointsAt,
+  sha12, uploadCoverSet, urlPointsAt, logName,
 } from './store.mjs';
 import { openGuard, pushId } from '../safety/guard.mjs';
 import { isId } from '../../app/lib/ids.js';
@@ -117,8 +117,9 @@ async function fetchStories() {
   const rr = await fetch(`${DB_URL}/${RETIRED_NODE}.json`);
   if (!rr.ok) throw new Error(`${RETIRED_NODE} read failed: HTTP ${rr.status}`);
   const { stories, skippedRetired } = storiesInScope(all, await rr.json());
-  // By slug only — slugs are public; nothing else about the record is printed (W12).
-  for (const slug of skippedRetired) console.log(`skipped (retired): ${slug}`);
+  // A count only. A retired story is never released again, so its slug is never printed:
+  // Actions logs are public (W12, UNRELEASED-1).
+  if (skippedRetired.length) console.log(`skipped (retired): ${skippedRetired.length}`);
   return stories;
 }
 
@@ -236,14 +237,14 @@ async function main() {
   let stories = await fetchStories();
   if (only) {
     stories = stories.filter((s) => s.slug === only);
-    if (!stories.length) { console.error(`no published or held story with slug: ${only}`); process.exit(2); }
+    if (!stories.length) { console.error('no published or held story with that slug (the slug is not printed: Actions logs are public)'); process.exit(2); }
   }
 
   // Series is out of scope BY RULING — see store.mjs and CLAUDE.md. Asserted every run.
   assertStoryScope(SOURCE_NODE, stories);
   const nameless = stories.filter((s) => !s.slug || !String(s.story.title ?? '').trim());
   if (nameless.length) {
-    console.error(`REFUSED — ${nameless.length} record(s) without a slug or a title: ${nameless.map((s) => s.slug).join(', ')}`);
+    console.error(`REFUSED — ${nameless.length} record(s) without a slug or a title: ${nameless.map((s) => logName(s.slug, s.story)).join(', ')}`);
     process.exit(4);
   }
 
@@ -273,13 +274,13 @@ async function main() {
       a = assess(entry);
     } catch (e) {
       failed++;
-      console.log(`✗ ${entry.slug} — render failed: ${e.message}`);
+      console.log(`✗ ${logName(entry.slug, entry.story)} — render failed: ${e.message}`);
       continue;
     }
     if (!a.stale) { current++; continue; }
     stale.push(a);
     if (!APPLY) {
-      console.log(`· ${a.slug.padEnd(46)} ${a.reasons.join(', ')}`);
+      console.log(`· ${logName(a.slug, a.story).padEnd(46)} ${a.reasons.join(', ')}`);
       continue;
     }
     try {
@@ -295,7 +296,7 @@ async function main() {
       await rtdbPatch(guard, coverFlipPaths(a.slug, a.story, { ...urls, coverHash: hash }, extras, bodyRec));
       flipped++;
       console.log(
-        `✓ ${a.slug.padEnd(46)} ${a.plan.livery.key.padEnd(10)} ${a.plan.title.size}px×${a.plan.title.lines.length}` +
+        `✓ ${logName(a.slug, { ...a.story, ...extras }).padEnd(46)} ${a.plan.livery.key.padEnd(10)} ${a.plan.title.size}px×${a.plan.title.lines.length}` +
         `  ${sha12(a.png)}${a.pending !== null ? '  +descriptor' : ''}` +
         `${extras.published === true ? '  PUBLISHED' : a.held ? '  cover only (scheduled)' : ''}`,
       );
@@ -314,7 +315,7 @@ async function main() {
       await sleep(DELAY_MS);
     } catch (e) {
       failed++;
-      console.log(`✗ ${a.slug} — ${e.message}`);
+      console.log(`✗ ${logName(a.slug, a.story)} — ${e.message}`);
     }
   }
 

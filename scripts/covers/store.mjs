@@ -88,6 +88,18 @@ export function storiesInScope(all, retired) {
   return { stories, skippedRetired };
 }
 
+/**
+ * How a log line names a record. ACTIONS LOGS ARE PUBLIC, and a story that is not live has no
+ * public name (UNRELEASED-1): so a record is named by its slug only while it is live now, and
+ * otherwise as '(not yet live)'. A held story, a scheduled one and a retired one are all
+ * unreleased. Found in CLOCK-5/SPOT-1: a push run's dry run on 31 Oct listed 28 held stories by
+ * slug, and the apply run's "cover only (scheduled)" line named every scheduled story it covered.
+ */
+export function logName(slug, story, now = Date.now()) {
+  const live = isIndexed(story) && !(typeof story?.publishAt === 'string' && Date.parse(story.publishAt) > now);
+  return live ? slug : '(not yet live)';
+}
+
 /** The directory a render belongs in. A pure function of the slug and the bytes — see (3). */
 export const coverDir = (slug, png) => `${NEW_PREFIX}/${slug}/${sha12(png)}`;
 

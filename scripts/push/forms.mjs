@@ -46,6 +46,9 @@ export const SUBCATEGORY_FORM = {
     Tech: 'tech piece', Science: 'science piece', Business: 'business piece',
     Finance: 'finance piece', Sport: 'sport piece', Politics: 'politics piece',
     Culture: 'culture piece',
+    // SPOT-1 (20 Nov 2026): DRAFTED, not yet ruled — "New spotlight by {author}". The one row
+    // in this table Ikenna has not seen; the subcategory itself was ruled the same day.
+    Spotlight: 'spotlight',
   },
   inspiring: {
     'Personal Essay': 'personal essay', Essay: 'essay', Overcoming: 'inspiring piece',

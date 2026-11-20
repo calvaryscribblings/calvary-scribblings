@@ -11,14 +11,19 @@ alone; no deploy happens at that moment.
 - **The archive** is open to Gold and Platinum, counted through the effective tier, so a day or
   week pass opens it.
 - **Poetry stays free.** **News locks** like fiction. **No most-recent-5 floor.**
+- **Every Spotlight stays free** (SPOT-1, Ikenna's ruling, 20 Nov 2026): a News & Updates story
+  filed under the Spotlight subcategory is free to everyone, in full, at any age, like poetry
+  (`full` / `spotlight`). Other news still locks. One predicate, `isFreeByPolicy`, answers "never
+  locks" for poetry and Spotlights alike.
 - **The Series tier gate** switches on at the same instant.
 - **Code:** `app/lib/storyAccess.js` (`grantFor`, `gatingOn`, `GATE_ON_MS` derived from `LAUNCH`) and
   `app/lib/londonWeek.js`.
 
 ## Parity with the app
 
-The fixture is `app/lib/storyAccess.parity.json`. It holds 22 grant cases and 4 week cases, and the
-expected values are written by hand, not generated. The web runs it in
+The fixture is `app/lib/storyAccess.parity.json` (version 2 since SPOT-1). It holds 28 grant cases
+(SPOT-1 added six) and 4 week cases, and the expected access and reason are written by hand, not
+generated. The web runs it in
 `tests/ci/story-access.test.mjs`. Each case is `grantFor(story, { tier, now })` → `{ access, reason,
 freeUntilMs }`, where `tier` is the **effective** tier.
 

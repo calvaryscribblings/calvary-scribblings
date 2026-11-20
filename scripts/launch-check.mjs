@@ -30,7 +30,7 @@ import { readFileSync } from 'node:fs';
 import { createSign } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { execSync } from 'node:child_process';
-import { GATE_ON_MS, gatingOn, freeUntilFor, servesAsReader } from '../app/lib/storyAccess.js';
+import { GATE_ON_MS, gatingOn, freeUntilFor, servesAsReader, isFreeByPolicy, isSpotlight } from '../app/lib/storyAccess.js';
 import { endingOf } from './check-built-gate.mjs';
 import { LAUNCH_DATE_SHORT } from '../app/lib/launch.js';
 import { dictionaryLookup, DICT_BASE, DICT_SOURCE } from '../app/lib/dictionary.js';
@@ -75,14 +75,21 @@ const ago = (ms, now) => (Number.isFinite(ms) ? `${Math.round((now - ms) / 60000
 const row = (name, status, evidence) => ({ name, status, evidence });
 const said = (r) => (r ? `${r.status ?? '?'} ${r.access ?? r.code ?? ''}${r.reason ? `/${r.reason}` : ''}` : 'no answer');
 
-/** FREE WEEK: signed-out /api/story for an archive story, this week's, and a poem. */
-export function judgeFreeWeek({ archive, thisWeek, poem }, now) {
+/**
+ * FREE WEEK: signed-out /api/story for an archive story, this week's, a poem, and a Spotlight.
+ *
+ * SPOT-1: every Spotlight is free to everyone (isFreeByPolicy in app/lib/storyAccess.js), so the
+ * row also asks about the newest one and expects full/spotlight. While nothing is filed as a
+ * Spotlight it says so and stays out of the verdict: an empty subcategory is not a failure.
+ */
+export function judgeFreeWeek({ archive, thisWeek, poem, spotlight = null }, now) {
   const ev = [
     `archive "${archive?.slug ?? '—'}" → ${said(archive?.res)}`,
     `this week "${thisWeek?.slug ?? '(none published this week)'}" → ${thisWeek ? said(thisWeek.res) : '—'}`,
     `poem "${poem?.slug ?? '—'}" → ${said(poem?.res)}`,
+    spotlight ? `spotlight "${spotlight.slug}" → ${said(spotlight.res)}` : 'spotlight (no story is filed as a Spotlight yet) → —',
   ].join('; ');
-  const all = [archive, thisWeek, poem].filter(Boolean);
+  const all = [archive, thisWeek, poem, spotlight].filter(Boolean);
   if (!archive || !poem) return row('Free week', RED, `could not pick the stories to ask about. ${ev}`);
   if (all.some((x) => !x.res || x.res.status !== 200)) return row('Free week', RED, ev);
   if (!gatingOn(now)) {
@@ -93,8 +100,27 @@ export function judgeFreeWeek({ archive, thisWeek, poem }, now) {
   }
   const ok = archive.res.access === 'preview' && archive.res.reason === 'archive'
     && (!thisWeek || (thisWeek.res.access === 'full' && thisWeek.res.reason === 'free_week'))
-    && poem.res.access === 'full' && poem.res.reason === 'poetry';
+    && poem.res.access === 'full' && poem.res.reason === 'poetry'
+    && (!spotlight || (spotlight.res.access === 'full' && spotlight.res.reason === 'spotlight'));
   return row('Free week', ok ? GREEN : RED, ev);
+}
+
+/**
+ * The stories the Free week row asks about, from the live index (newest first). The archive and
+ * this-week samples are never free by policy, so neither is ever a poem or a Spotlight; news is
+ * left out of both as it always was. Pure, so the choice is tested.
+ */
+export function pickFreeWeekSamples(index, now) {
+  const prose = Object.entries(index || {}).map(([slug, r]) => ({ ...r, slug }))
+    .filter((r) => r.published !== false && !servesAsReader(r) && Number.isFinite(r.publishedAtMs))
+    .sort((a, b) => b.publishedAtMs - a.publishedAtMs);
+  const sample = (r) => !isFreeByPolicy(r) && r.category !== 'news' && freeUntilFor(r) !== null;
+  return {
+    archiveRec: prose.find((r) => sample(r) && freeUntilFor(r) < now) || null,
+    weekRec: prose.find((r) => sample(r) && freeUntilFor(r) >= now) || null,
+    poemRec: prose.find((r) => r.category === 'poetry') || null,
+    spotRec: prose.find((r) => isSpotlight(r)) || null,
+  };
 }
 
 /** STATIC PAGES (1): the live build ran after the latest London midnight. */
@@ -347,19 +373,16 @@ export async function gather(now = Date.now(), { since: sinceArg } = {}) {
   const val = async (p) => (await db.ref(p).get()).val();
 
   // Pick the stories from the live index: the newest archive prose story, the newest of this
-  // week's, and the newest poem. Reader-mode stories are EPUBs and are not asked about.
+  // week's, the newest poem and the newest Spotlight. Reader-mode stories are EPUBs and are not
+  // asked about.
   const index = (await val('cms_stories_index')) || {};
-  const prose = Object.entries(index).map(([slug, r]) => ({ slug, ...r }))
-    .filter((r) => r.published !== false && !servesAsReader(r) && Number.isFinite(r.publishedAtMs))
-    .sort((a, b) => b.publishedAtMs - a.publishedAtMs);
-  const archiveRec = prose.find((r) => r.category !== 'poetry' && r.category !== 'news' && freeUntilFor(r) !== null && freeUntilFor(r) < now);
-  const weekRec = prose.find((r) => r.category !== 'poetry' && r.category !== 'news' && freeUntilFor(r) !== null && freeUntilFor(r) >= now);
-  const poemRec = prose.find((r) => r.category === 'poetry');
-  const [aRes, wRes, pRes] = await Promise.all([archiveRec, weekRec, poemRec].map((r) => (r ? askStory(r.slug) : null)));
+  const { archiveRec, weekRec, poemRec, spotRec } = pickFreeWeekSamples(index, now);
+  const [aRes, wRes, pRes, sRes] = await Promise.all([archiveRec, weekRec, poemRec, spotRec].map((r) => (r ? askStory(r.slug) : null)));
   const freeWeek = {
     archive: archiveRec ? { slug: archiveRec.slug, res: aRes } : null,
     thisWeek: weekRec ? { slug: weekRec.slug, res: wRes } : null,
     poem: poemRec ? { slug: poemRec.slug, res: pRes } : null,
+    spotlight: spotRec ? { slug: spotRec.slug, res: sRes } : null,
   };
 
   const build = await fetch(`${SITE}/build.json?t=${now}`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null);

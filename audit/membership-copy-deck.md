@@ -61,6 +61,8 @@ Sits directly under the hero, **before** the cards. It is the argument, not a fo
 >
 > All poetry is free. Always, and to everyone.
 >
+> Every Spotlight is free. Always, and to everyone.
+>
 > The Square is free — every conversation and every competition in it.
 >
 > Every quiz on every free story is free to take.

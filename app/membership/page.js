@@ -520,6 +520,7 @@ export default function MembershipPage() {
             <p>Every story published this week, Monday to Sunday, is free to read, in full, to anyone who finds it.</p>
             <p>On Monday the week’s stories join the archive together, and a new free week begins.</p>
             <p>All poetry is free. Always, and to everyone.</p>
+            <p>Every Spotlight is free. Always, and to everyone.</p>
             <p>{nb('The Square is free — every conversation and every competition in it.')}</p>
             <p>Every quiz on every free story is free to take.</p>
           </div>

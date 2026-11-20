@@ -177,7 +177,9 @@ jobs:
           if [ "$EVENT_NAME" = "schedule" ] || [ "$IN_APPLY" = "true" ]; then
             args+=(--apply)
           fi
-          echo "node scripts/covers/on-publish.mjs ${args[*]}"
+          # SPOT-1: never echo the slug. Actions logs are public, and a hand-run's slug can name an
+          # unreleased story. Say what kind of run this is; the run's title says the same.
+          echo "node scripts/covers/on-publish.mjs${IN_SLUG:+ --slug (one title, not printed)}$( [ "$EVENT_NAME" = "schedule" ] || [ "$IN_APPLY" = "true" ] && printf ' --apply' )"
           node scripts/covers/on-publish.mjs "${args[@]}" 2>&1 | node scripts/ops/log-guard.mjs
 
       - name: Shred the key

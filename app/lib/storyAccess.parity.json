@@ -1,6 +1,6 @@
 {
- "version": 1,
- "about": "W4 story access parity fixture. grantFor(story, {tier, now}) must give expect for every case, on the web (app/lib/storyAccess.js) and in the app (lib/storyAccess.ts). tier is the EFFECTIVE tier. Times are ms since epoch; the ISO strings are for humans.",
+ "version": 2,
+ "about": "W4 story access parity fixture. grantFor(story, {tier, now}) must give expect for every case, on the web (app/lib/storyAccess.js) and in the app (lib/storyAccess.ts). tier is the EFFECTIVE tier. Times are ms since epoch; the ISO strings are for humans. v2 (SPOT-1, 20 Nov 2026): a Spotlight (category 'news', subcategory 'Spotlight', exact) is free by policy like poetry, reason 'spotlight'.",
  "gateOnMs": 1790722800000,
  "gateOnIso": "2026-09-29T23:00:00.000Z",
  "weeks": [
@@ -380,6 +380,108 @@
    "expect": {
     "access": "reader",
     "reason": "reader_mode",
+    "freeUntilMs": 1788735599999
+   }
+  },
+  {
+   "name": "SPOT-1: an archive Spotlight is free to a signed-out reader",
+   "story": {
+    "category": "news",
+    "subcategory": "Spotlight",
+    "published": true,
+    "publishedAtMs": 1788253200000
+   },
+   "tier": "free",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "full",
+    "reason": "spotlight",
+    "freeUntilMs": 1788735599999
+   }
+  },
+  {
+   "name": "SPOT-1: an archive Spotlight is full/spotlight for a member too (the policy answers before the tier)",
+   "story": {
+    "category": "news",
+    "subcategory": "Spotlight",
+    "published": true,
+    "publishedAtMs": 1788253200000
+   },
+   "tier": "gold",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "full",
+    "reason": "spotlight",
+    "freeUntilMs": 1788735599999
+   }
+  },
+  {
+   "name": "SPOT-1: a Spotlight published this week is full/spotlight, not free_week",
+   "story": {
+    "category": "news",
+    "subcategory": "Spotlight",
+    "published": true,
+    "publishedAtMs": 1790724600000
+   },
+   "tier": "free",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "full",
+    "reason": "spotlight",
+    "freeUntilMs": 1791154799999
+   }
+  },
+  {
+   "name": "SPOT-1: News \u00b7 Culture of the same age is archive (Spotlight is the subcategory, not the desk)",
+   "story": {
+    "category": "news",
+    "subcategory": "Culture",
+    "published": true,
+    "publishedAtMs": 1788253200000
+   },
+   "tier": "free",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "preview",
+    "reason": "archive",
+    "freeUntilMs": 1788735599999
+   }
+  },
+  {
+   "name": "SPOT-1: 'Spotlight' as a subcategory outside news has no effect",
+   "story": {
+    "category": "short",
+    "subcategory": "Spotlight",
+    "published": true,
+    "publishedAtMs": 1788253200000
+   },
+   "tier": "free",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "preview",
+    "reason": "archive",
+    "freeUntilMs": 1788735599999
+   }
+  },
+  {
+   "name": "SPOT-1: the match is exact \u2014 'spotlight' in lower case is not a Spotlight",
+   "story": {
+    "category": "news",
+    "subcategory": "spotlight",
+    "published": true,
+    "publishedAtMs": 1788253200000
+   },
+   "tier": "free",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "preview",
+    "reason": "archive",
     "freeUntilMs": 1788735599999
    }
   }

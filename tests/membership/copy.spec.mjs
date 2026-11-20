@@ -75,6 +75,8 @@ test('the argument renders before any price', async ({ page }) => {
   await expect(free).toContainText('On Monday the week’s stories join the archive together, and a new free week begins.');
   await expect(free).not.toContainText('five most recent');
   await expect(free).toContainText('All poetry is free. Always, and to everyone.');
+  // SPOT-1 (Ikenna's ruling, 20 Nov 2026): directly under the poetry line, in the same style.
+  await expect(free).toContainText('Every Spotlight is free. Always, and to everyone.');
   await expect(free).toContainText('The Square is free — every conversation and every competition in it.');
   await expect(free).toContainText('Every quiz on every free story is free to take.');
   await expect(free).toContainText('None of that is a trial, and none of it expires.');

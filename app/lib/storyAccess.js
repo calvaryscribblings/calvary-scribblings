@@ -47,6 +47,7 @@
 import { LAUNCH } from './launch.js';
 import { londonMidnightUtc, londonWeekEnd } from './londonWeek.js';
 import { tierAtLeast } from './membership.js';
+import { SPOTLIGHT } from './taxonomy.js';
 
 const MONTHS = [
   'jan', 'feb', 'mar', 'apr', 'may', 'jun',
@@ -257,12 +258,42 @@ export function freeUntilFor(story) {
 }
 
 /**
+ * FREE BY POLICY — the one test for "this story never locks, for anyone, at any age".
+ *
+ *   'poetry'     category 'poetry' (§3.3: a preview stops a poem mid-breath)
+ *   'spotlight'  News & Updates filed under the Spotlight subcategory (SPOT-1, Ikenna's ruling,
+ *                20 Nov 2026: "every Spotlight is free to read, now and in future"; the same
+ *                treatment as poetry)
+ *   null         everything else: the free week, then the archive
+ *
+ * Every place that treats a story as never locking asks THIS, not the category: the grant below,
+ * isGateable, the static build's lock plan (storyLock.js), the built-HTML check and the launch
+ * check. The typography that keys on poetry (drop caps, verse) is a different question and does
+ * not ask it.
+ *
+ * The subcategory is matched exactly, as every surface matches it (taxonomy.js: the label is the
+ * key), and only inside news: the same word filed under any other category is nothing.
+ */
+export function freeByPolicy(story) {
+  const s = story || {};
+  if (s.category === 'poetry') return 'poetry';
+  if (s.category === SPOTLIGHT.category && s.subcategory === SPOTLIGHT.subcategory) return 'spotlight';
+  return null;
+}
+
+/** Is this story free to everyone, always, by policy (poetry or a Spotlight)? */
+export const isFreeByPolicy = (story) => freeByPolicy(story) !== null;
+
+/** A News & Updates story filed under Spotlight. */
+export const isSpotlight = (story) => freeByPolicy(story) === 'spotlight';
+
+/**
  * Could this story ever be gated at all?
  *
  * FALSE for reader-mode (its body is an EPUB behind a public URL — this endpoint
- * does not serve it and does not pretend to gate it) and for poetry (14 of the 15
- * live poetry records carry no stanza markup, so a preview stops a poem
- * mid-breath). Also false for anything unpublished.
+ * does not serve it and does not pretend to gate it) and for anything free by policy:
+ * poetry (14 of the 15 live poetry records carry no stanza markup, so a preview stops a
+ * poem mid-breath) and Spotlights (SPOT-1). Also false for anything unpublished.
  *
  * (It was also the set the most-recent-5 floor counted over; the floor was dropped in W4.)
  */
@@ -272,7 +303,7 @@ export function isGateable(story) {
   // servesAsReader, not isReaderMode: a record with the erroneous category-only
   // shape is still routed to /reader, so it is never a prose story that can be gated.
   if (servesAsReader(s)) return false;
-  if (s.category === 'poetry') return false;
+  if (isFreeByPolicy(s)) return false;
   return true;
 }
 
@@ -324,7 +355,7 @@ export function hasStaticPage(story) {
  *   grantFor(story, { tier, now, forceGate }) → { access, reason, freeUntilMs }
  *
  *     access  'full' | 'preview' | 'reader'
- *     reason  'reader_mode' | 'poetry' | 'gating_off' | 'free_week' | 'tier' | 'archive'
+ *     reason  'reader_mode' | 'poetry' | 'spotlight' | 'gating_off' | 'free_week' | 'tier' | 'archive'
  *
  * `tier` is the reader's EFFECTIVE tier (effectiveTier() in app/lib/membership.js, pass
  * included). `forceGate` applies the gate before its date — the founder-only preview, and
@@ -346,7 +377,8 @@ export function policyGrantFor(story, { tier = 'free', now = Date.now() } = {}) 
   const freeUntilMs = freeUntilFor(s);
 
   if (servesAsReader(s)) return { access: 'reader', reason: 'reader_mode', freeUntilMs };
-  if (s.category === 'poetry') return { access: 'full', reason: 'poetry', freeUntilMs };
+  const policy = freeByPolicy(s);
+  if (policy) return { access: 'full', reason: policy, freeUntilMs };
   if (freeUntilMs !== null && now <= freeUntilMs) return { access: 'full', reason: 'free_week', freeUntilMs };
   if (tierAtLeast(tier, ARCHIVE_MIN_TIER)) return { access: 'full', reason: 'tier', freeUntilMs };
   return { access: 'preview', reason: 'archive', freeUntilMs };
