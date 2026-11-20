@@ -34,7 +34,7 @@
 //            seen from here (the shop's database is its own). Lower case, a longer or shorter
 //            run, or any other prefix is refused, never upper-cased or trimmed into shape. If the
 //            shop's real format differs, this line changes before SHOP-B3 files a single order.
-//            (In the newsletter Worker's copy for byte-identity only; nothing there uses it.)
+//            Defined after the Worker's mirror block, below: the Worker never uses it.
 //
 // THE NEWSLETTER WORKER CARRIES A COPY of the block between the two MIRROR markers below
 // (workers-external/calvary-newsletter.worker.js; it is pasted into the Cloudflare dashboard and
@@ -46,7 +46,6 @@ const ID_RULES = {
   draftId: { re: /^[1-9][0-9]{12}$/, max: 13 },
   uid: { re: /^[A-Za-z0-9]+$/, max: 64 },
   sendId: { re: /^[A-Za-z0-9_-]{20}$/, max: 20 },
-  orderNo: { re: /^CS-[A-Z0-9]{6}$/, max: 9 },
 };
 
 function isId(kind, value) {
@@ -55,6 +54,15 @@ function isId(kind, value) {
   return typeof value === "string" && value.length > 0 && value.length <= rule.max && rule.re.test(value);
 }
 // ── END ID RULES MIRROR ──
+
+// ── KINDS THE NEWSLETTER WORKER NEVER SEES ──
+// Added AFTER the mirror, so the block above stays byte-identical to the live calvary-newsletter
+// Worker and nothing there has to be uploaded for a kind it never uses. isId() reads ID_RULES at
+// call time, so a kind added here is checked exactly like one inside the block. A kind the Worker
+// DOES use goes inside the block (and into the Worker) instead.
+Object.assign(ID_RULES, {
+  orderNo: { re: /^CS-[A-Z0-9]{6}$/, max: 9 },   // SHOP-B1: the paperback shop's order number (see above)
+});
 
 export { ID_RULES, isId };
 

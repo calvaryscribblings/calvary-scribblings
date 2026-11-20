@@ -77,6 +77,14 @@ describe('1 · the check on its own', () => {
     assert.throws(() => assertId('orderNo', 'cs-7kq2mx'), (e) => e instanceof IdError && e.status === 400 && e.kind === 'orderNo');
   });
 
+  test('SHOP-B1 orderNo lives OUTSIDE the Worker mirror: the newsletter Worker never needs it', () => {
+    const ids = src('app/lib/ids.js');
+    const a = ids.indexOf('// ── ID RULES MIRROR'), b = ids.indexOf('// ── END ID RULES MIRROR ──');
+    assert.equal(ids.slice(a, b).includes('orderNo'), false);
+    assert.equal(src('workers-external/calvary-newsletter.worker.js').includes('orderNo'), false);
+    assert.ok(ID_RULES.orderNo, 'still a kind every caller can check');
+  });
+
   test('assertId returns the id unchanged, or throws an IdError carrying 400', () => {
     assert.equal(assertId('slug', 'the-call'), 'the-call');
     assert.throws(() => assertId('slug', '../x'), IdError);
