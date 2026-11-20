@@ -39,6 +39,15 @@
 # than shipped half-done.
 name: covers
 
+# CLOCK-5 — the run's title says what it did, because the runs list carries no dispatch inputs and
+# the launch check's Covers row counts only runs that WROTE over the whole library. A dispatch is
+# "covers · apply · library", "covers · dry run · library", "covers · apply · one title", …; every
+# other run is "covers · <event>". It reads the same input the reconcile step does
+# (github.event.inputs.apply == 'true'). The slug itself never goes in the title: titles are
+# public, and a slug can name an unreleased story. tests/ci/clock-5.test.mjs evaluates this
+# expression and checks it against COVERS_WRITE_TITLE in scripts/launch-check.mjs.
+run-name: "${{ github.event_name == 'workflow_dispatch' && format('covers · {0} · {1}', github.event.inputs.apply == 'true' && 'apply' || 'dry run', github.event.inputs.slug != '' && 'one title' || 'library') || format('covers · {0}', github.event_name) }}"
+
 on:
   schedule:
     # Every 15 minutes. The run costs a minute of rendering and three RTDB reads

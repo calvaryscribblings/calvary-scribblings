@@ -216,20 +216,56 @@ export function judgeCovers({ lastReconcileOkAt, held }, now) {
   return row('Covers', stale || n > 0 ? RED : GREEN, ev);
 }
 
-/** When the covers workflow last reconciled successfully on its schedule, from Actions. */
+// ── WHICH covers RUNS COUNT AS A RECONCILE ─────────────────────────────────────────────
+//
+// CLOCK-5. This used to read only `event=schedule` runs. Since CLOCK-1 the clock dispatches covers
+// every 15 minutes (apply true) and GitHub's own schedule fires only some of the time, so the row
+// read 5–8 hours stale on 17, 18 and 19 Nov while the library reconciled on time, and the daily
+// check emailed red for it each day.
+//
+// A run counts when its `reconcile covers` job succeeded AND it wrote over the whole library:
+//   · GitHub's schedule (always --apply, never a slug);
+//   · a dispatch, the clock's or a person's, with apply ticked and no slug.
+// A dry run never counts; it writes nothing. Nor does a one-title run: it reconciles one story and
+// says nothing about the rest of the library, which is what this row judges.
+// A dispatch's inputs are not in the runs list, so covers.yml names each run by them (its
+// `run-name`), and that title is read here. tests/ci/clock-5.test.mjs evaluates the workflow's own
+// expression and holds the two together. A dispatch from before the run-name has the bare title
+// "covers" and does not count: unknown is not a write.
+export const COVERS_WRITE_TITLE = 'covers · apply · library';
+export function reconcileWrote(run) {
+  if (!run) return false;
+  if (run.event === 'schedule') return true;
+  if (run.event === 'workflow_dispatch') return run.display_title === COVERS_WRITE_TITLE;
+  return false;
+}
+
+/**
+ * The newest qualifying run whose `reconcile covers` job succeeded: its completion time (ms), or NaN.
+ * `runs` newest first, as the runs list gives them; `jobsOf(run)` resolves to that run's jobs.
+ * Looks at no more than `maxLookups` runs' jobs.
+ */
+export async function lastReconcileOkFrom(runs, jobsOf, { maxLookups = 12 } = {}) {
+  let looked = 0;
+  for (const run of runs || []) {
+    if (!reconcileWrote(run)) continue;
+    if (looked++ >= maxLookups) break;
+    const jobs = (await jobsOf(run)) || [];
+    const rec = jobs.find((j) => j.name === 'reconcile covers');
+    if (rec && rec.conclusion === 'success') return Date.parse(rec.completed_at || run.updated_at);
+  }
+  return NaN;
+}
+
+/** When the covers workflow last reconciled the library successfully (any run that wrote), from Actions. */
 async function lastReconcileOk() {
   const token = process.env.GITHUB_TOKEN || (() => { try { return execSync('gh auth token', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return ''; } })();
   const repo = process.env.GITHUB_REPOSITORY || 'calvaryscribblings/calvary-scribblings';
   if (!token) return NaN;
   const gh = (path) => fetch(`https://api.github.com/repos/${repo}/${path}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } })
     .then((r) => (r.ok ? r.json() : null)).catch(() => null);
-  const runs = (await gh('actions/workflows/covers.yml/runs?event=schedule&status=success&per_page=5'))?.workflow_runs || [];
-  for (const run of runs) {
-    const jobs = (await gh(`actions/runs/${run.id}/jobs`))?.jobs || [];
-    const rec = jobs.find((j) => j.name === 'reconcile covers');
-    if (rec && rec.conclusion === 'success') return Date.parse(rec.completed_at || run.updated_at);
-  }
-  return NaN;
+  const runs = (await gh('actions/workflows/covers.yml/runs?status=completed&per_page=50'))?.workflow_runs || [];
+  return lastReconcileOkFrom(runs, async (run) => (await gh(`actions/runs/${run.id}/jobs`))?.jobs || []);
 }
 
 export const DICTIONARY_PROBE = 'serendipity';

@@ -287,7 +287,7 @@ export function highlightParts(text, rawQuery) {
 // of them, and it would break the one thing this screen is for — a page you can read down.
 //
 // So the groups are CAPPED and the cap is stated. The kicker already prints the true total,
-// so nothing is hidden: a reader sees "STORIES 191", the first 60, and a line saying how many
+// so nothing is hidden: a reader sees "STORIES 191", the first GROUP_CAP, and a line saying how many
 // more there are. That is how an index behaves — it tells you the extent and shows you the
 // beginning.
 //
@@ -296,9 +296,10 @@ export function highlightParts(text, rawQuery) {
 // SEARCH IS EVER TRUNCATED. It was 50 when Drama stood at 42. A cap of 40 was tried first and
 // it clipped "drama" with a "2 more" line, which is the worst of both: it interrupts the one
 // query most likely to be typed and saves nothing worth saving. W37 (11 Oct 2026): Drama
-// reached 51, so the cap moved to 60, the same headroom again. If the largest subject passes
+// reached 51, so the cap moved to 60, the same headroom again. CLOCK-5 (20 Nov 2026): Drama
+// reached 60, so the cap moved to 69, nine above it as W37 left it. If the largest subject passes
 // it, raise it — tests/ci/search-index.test.mjs measures the live shelf and fails first.
-export const GROUP_CAP = 60;
+export const GROUP_CAP = 69;
 
 /** The rows a group paints, and how many it is holding back. Never hides the true count. */
 export function capGroup(rows) {
