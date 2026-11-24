@@ -592,6 +592,22 @@ describe('/account/shop on the site', () => {
     assert.match(read('docs/COPY-RULINGS.md'), /SHOP-B2/);
   });
 
+  test('only the shop page skips "Check your inbox." (ruling, 24 Nov 2026)', () => {
+    const users = [];
+    const walk = (dir) => {
+      for (const name of readdirSync(dir)) {
+        const p = join(dir, name);
+        if (statSync(p).isDirectory()) walk(p);
+        else if (/\.m?jsx?$/.test(name) && /<AuthModal\b[^>]*\bskipVerify\b/.test(readFileSync(p, 'utf8'))) users.push(relative(ROOT, p));
+      }
+    };
+    walk(join(ROOT, 'app'));
+    assert.deepEqual(users, ['app/account/shop/page.js']);
+    const modal = read('app/components/AuthModal.js');
+    assert.match(modal, /export default function AuthModal\(\{ onClose, skipVerify = false \}\)/, 'off unless asked for');
+    assert.match(modal, /if \(skipVerify\) \{ onClose\(\); return; \}\n\s*switchMode\('verify'\);/, 'skipped only after the account and its email');
+  });
+
   test('a failure never goes back to the shop: "Not now" stays in every error state, and the request is bounded', () => {
     const page = read('app/account/shop/page.js');
     // Every failure path sets an error and returns the page to 'ask', where "Not now" is drawn enabled.

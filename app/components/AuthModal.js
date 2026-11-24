@@ -25,7 +25,11 @@ import { markSignupInFlight } from '../lib/profileCompletion';
 // shared resend path exists to prevent. Behaviour here is identical — this modal reads
 // err.message and nothing else.
 
-export default function AuthModal({ onClose }) {
+// `skipVerify` (SHOP-B2, Ikenna's ruling, 24 Nov 2026): on the paperback shop's handoff page ONLY, a new email account
+// goes straight on instead of to the "Check your inbox." screen. The verification email still goes;
+// the reader is not asked to leave the tab the shop's session lives in. Everywhere else the screen
+// stays exactly as it is. The shop handoff browser spec (test:shop-handoff) proves both.
+export default function AuthModal({ onClose, skipVerify = false }) {
   const [mode, setMode] = useState('signin');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -133,6 +137,7 @@ export default function AuthModal({ onClose }) {
         settle();
         if (mailError) console.error('[AuthModal] verification mail failed:', mailError);
 
+        if (skipVerify) { onClose(); return; }
         switchMode('verify');
         if (mailError) {
           setError(`Your account was created, but we couldn't send the verification email (${mailError}) — tap Resend below.`);

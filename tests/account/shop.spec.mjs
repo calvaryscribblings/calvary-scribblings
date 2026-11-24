@@ -228,3 +228,57 @@ test('a request that never answers fails after its timeout, and "Not now" comes 
   expect(seen.shop).toEqual([]);
   await expectNotNowBack(page, seen);
 });
+
+// ── Ruling (Ikenna, 24 Nov 2026): on /account/shop ONLY, a new email account skips "Check your inbox." ──
+
+/** Sign up by email in the open AuthModal. Records the verification-mail requests the page makes. */
+async function signUpByEmail(page, { name, handle, email }) {
+  const mail = [];
+  await page.route('**/api/auth/send-verification', (route) => {
+    mail.push(route.request().method());
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+  });
+  const modal = page.locator('.auth-backdrop');
+  await modal.getByRole('button', { name: /Create one/ }).click();
+  await modal.getByPlaceholder('Your name').fill(name);
+  await modal.locator('#auth-handle').fill(handle);
+  await modal.getByPlaceholder('you@example.com').fill(email);
+  const pw = modal.locator('input[type="password"]');
+  await pw.nth(0).fill('correct-horse-9');
+  await pw.nth(1).fill('correct-horse-9');
+  await modal.locator('input[type="date"]').fill('1990-05-05');
+  await modal.getByRole('button', { name: 'Create account' }).click();
+  return mail;
+}
+
+const VERIFY_TITLE = 'Check your inbox.';
+const stamp = () => `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
+
+test('on /account/shop a new email account skips "Check your inbox.": the email still goes, and the question is next, in this tab', async ({ page }) => {
+  await reset();
+  const seen = await open(page, link());
+  await expect(page.locator('.auth-backdrop')).toBeVisible({ timeout: 60000 });
+  const tag = stamp();
+  const mail = await signUpByEmail(page, { name: 'Shop Newcomer', handle: `shopnew${tag}`, email: `shopnew-${tag}@example.com` });
+  await expect(page.locator('[data-shop-keep]')).toHaveText(SHOP_COPY.keep, { timeout: 60000 });
+  await expect(page.locator('.auth-backdrop')).toHaveCount(0);
+  await expect(page.getByText(VERIFY_TITLE)).toHaveCount(0);
+  expect(mail).toEqual(['POST']);                     // the verification email was still asked for
+  expect(page.context().pages()).toHaveLength(1);    // no other tab
+  expect(new URL(page.url()).pathname).toBe('/account/shop');
+  expect(seen.shop).toEqual([]);
+});
+
+test('everywhere else the screen stays: a new email account from the header sees "Check your inbox."', async ({ page }) => {
+  await reset();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/about');
+  const decline = page.getByRole('button', { name: /^decline$/i });
+  try { await decline.waitFor({ timeout: 5000 }); await decline.click({ timeout: 3000 }); } catch {}
+  await page.locator('.cs-signin-btn').click({ timeout: 60000 });
+  await expect(page.locator('.auth-backdrop')).toBeVisible();
+  const tag = stamp();
+  const mail = await signUpByEmail(page, { name: 'Header Newcomer', handle: `hdrnew${tag}`, email: `hdrnew-${tag}@example.com` });
+  await expect(page.locator('.auth-backdrop').getByText(VERIFY_TITLE)).toBeVisible({ timeout: 60000 });
+  expect(mail).toEqual(['POST']);
+});

@@ -21,8 +21,11 @@ terms, and nothing added to it ever may be.**
 
 ## 1. What exists today
 
-- **Website sign-in** (`app/components/AuthModal.js`) offers email and password, Google (popup)
-  and Apple (popup). A new account completes its handle and date of birth before anything else
+- **Website sign-in** (`app/components/AuthModal.js`) offers email and password, and Google (popup).
+  **It has no Apple sign-in** (corrected 24 Nov 2026, SHOP-B2: an earlier version of this section said
+  it did). Apple appears on the web only where an existing account confirms itself again
+  (`DeleteAccountModal.js`, `DobCheck.js`). **Ruling (Ikenna, 24 Nov 2026):** Apple sign-in on the
+  website comes in its own round, not in SHOP-B2. A new account completes its handle and date of birth before anything else
   (`docs/APP-HANDOFF-SIGNUP-COMPLETENESS.md`).
 - **The verification and welcome emails** go through the `calvary-auth` Worker, whose source
   isn't in this repo.
@@ -46,7 +49,8 @@ terms, and nothing added to it ever may be.**
 - **One sign-in design** for the website, Story Island and Radio: the same providers, in the same
   order, with the same words. **The design itself comes later.** This contract fixes only that
   there is one, and that every surface offers the same three ways in: email and password,
-  Google, and Apple.
+  Google, and Apple. **The website offers two of them today** (email and Google); Apple comes to the
+  website in its own round (ruling, 24 Nov 2026).
 
 ---
 
@@ -240,7 +244,11 @@ and no code is redeemable until then either.
   `return` (where to send the reader back) and `state` (the shop's own opaque value, echoed back
   untouched so the shop can match the return to its session; ≤ 128 URL-safe characters, refused
   otherwise).
-- **Sign in or sign up:** the page uses the site's own AuthModal (the same three ways in, §2). A new
+- **Sign in or sign up:** the page uses the site's own AuthModal: email and Google today (§1; Apple
+  comes in its own round, so B2 offers no Apple sign-in). **Ruling (Ikenna, 24 Nov 2026):** on this
+  page only, a new email account skips the "Check your inbox." screen (AuthModal's `skipVerify`): the
+  verification email still goes and the reader goes straight on to the question, in the same tab,
+  which the shop's state is tied to. Google keeps its pop-up; Ikenna tests it on iPad once live. A new
   account completes its handle and date of birth first, as everywhere. Signed in already, the page
   asks only to confirm: "Keep this order in your Calvary account?" (copy to be ruled).
 - **The return address is allow-listed, exactly.** The allow-list is a constant in the repo: the

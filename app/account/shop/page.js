@@ -65,8 +65,9 @@ export default function ShopHandoffPage() {
   const owed = useIdentityOwed(user);
 
   // Signed out: the sign-in opens at once, under the question. Once open it stays until it closes
-  // itself (a new email account sees its verify-your-email screen first, as everywhere) or the
-  // reader closes it; "Sign in or create an account" opens it again.
+  // itself or the reader closes it; "Sign in or create an account" opens it again. A new email
+  // account skips the "Check your inbox." screen here only (skipVerify, ruling of 24 Nov 2026): the
+  // email still goes, and the reader stays in this tab and goes straight on to the question.
   const [dismissed, setDismissed] = useState(false);
   const [opened, setOpened] = useState(false);
   const autoOpen = !!params?.ok && !loading && !user && !dismissed;
@@ -162,7 +163,7 @@ export default function ShopHandoffPage() {
           {body}
         </div>
       </main>
-      {showAuth && <AuthModal onClose={() => setDismissed(true)} />}
+      {showAuth && <AuthModal skipVerify onClose={() => setDismissed(true)} />}
     </>
   );
 }
