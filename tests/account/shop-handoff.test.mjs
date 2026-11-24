@@ -574,12 +574,33 @@ describe('/account/shop on the site', () => {
     assert.equal(SHOP_CODE_ENDPOINT, '/api/account/shop-code');
   });
 
-  test('the words, as suggested (to be ruled)', () => {
-    assert.equal(SHOP_COPY.question, 'Keep this order with your others?');
-    assert.equal(SHOP_COPY.keep, 'Keep it');
-    assert.equal(SHOP_COPY.notNow, 'Not now');
-    assert.equal(SHOP_COPY.note, 'Your Calvary account keeps the order number, date, titles and what you paid. Nothing else comes with it.');
-    assert.equal(SHOP_COPY.badLink, 'This link can’t take you back to the shop.');
-    for (const v of Object.values(SHOP_COPY)) assert.doesNotMatch(v, /'/, 'house style: curly apostrophes');
+  test('the words, as ruled (Ikenna, 24 Nov 2026): every string pinned', () => {
+    assert.deepEqual({ ...SHOP_COPY }, {
+      title: 'Keep your order · Calvary Scribblings',
+      question: 'Keep this order with your others?',
+      note: 'Your Calvary account keeps the order number, date, titles and what you paid. Nothing else comes with it.',
+      keep: 'Keep it',
+      notNow: 'Not now',
+      signIn: 'Sign in or create an account',
+      keeping: 'Keeping it…',
+      leaving: 'Taking you back to the shop…',
+      badLink: 'This link can’t take you back to the shop.',
+      failed: 'We couldn’t keep this order just now. Please try again.',
+      limited: 'That’s a lot of tries in a short while. Please wait a minute, then try again.',
+      signedOut: 'Your sign-in has expired. Please sign in again to keep this order.',
+    });
+    assert.match(read('docs/COPY-RULINGS.md'), /SHOP-B2/);
+  });
+
+  test('a failure never goes back to the shop: "Not now" stays in every error state, and the request is bounded', () => {
+    const page = read('app/account/shop/page.js');
+    // Every failure path sets an error and returns the page to 'ask', where "Not now" is drawn enabled.
+    assert.equal((page.match(/setStage\('ask'\)/g) || []).length, 2);
+    assert.match(page, /signal: AbortSignal\.timeout\(SHOP_CODE_TIMEOUT_MS\)/);
+    // "Not now" is outside the signed-in/signed-out branch, so it is drawn whenever the page asks.
+    const actions = page.slice(page.indexOf('<div className="sh-actions">'), page.indexOf('</div>', page.indexOf('<div className="sh-actions">')));
+    assert.match(actions, /data-shop-not-now onClick=\{notNow\} disabled=\{stage !== 'ask'\}/);
+    // The only two ways back: code+state, or state alone. Nothing else is ever appended.
+    assert.doesNotMatch(read('app/lib/shopHandoff.js').replace(/^\s*\/\/.*$/gm, ''), /[?&]error=/);
   });
 });

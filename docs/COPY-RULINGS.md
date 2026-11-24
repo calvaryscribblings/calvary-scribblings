@@ -912,3 +912,16 @@ Ruled yes on 15 Nov. Recorded in P4-S1.
 
 - **381:** Personal pushes go only to phones running A62 or later, so everyone who gets them has the switches and the new wording; phones on older versions keep getting story pushes until they update. **Built (web) in P4-S1:** `PUSH_CAPS_MIN = 2` in `app/lib/pushP4.js`. A62 writes `pushCaps: 2`; A60 and A61 write 1, so their rows get neither a personal push nor the number-only push.
 - **385:** The app's notifications prompt title reads "Know when a new story lands, or someone writes to you." The app's words; nothing changes on the website.
+
+## 24 Nov 2026 (Ikenna): the paperback shop's handoff page (SHOP-B2)
+
+Ruled on 24 Nov: every string in `SHOP_COPY` (`app/lib/shopHandoff.js`) stands as written. Pinned in
+`tests/account/shop-handoff.test.mjs`.
+
+- Title: "Keep your order · Calvary Scribblings"
+- "Keep this order with your others?", with "Keep it" and "Not now"
+- "Your Calvary account keeps the order number, date, titles and what you paid. Nothing else comes with it."
+- Signed out: "Sign in or create an account"
+- "Keeping it…" and "Taking you back to the shop…"
+- A refused link: "This link can’t take you back to the shop."
+- Failures: "We couldn’t keep this order just now. Please try again." / "That’s a lot of tries in a short while. Please wait a minute, then try again." / "Your sign-in has expired. Please sign in again to keep this order."

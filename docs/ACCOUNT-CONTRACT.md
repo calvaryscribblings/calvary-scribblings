@@ -261,6 +261,11 @@ and no code is redeemable until then either.
   both cases it first checks `state` against the reader's own session, and **refuses any return
   whose state doesn't match** (for B3's hand-off note). The page replaces itself in history, so Back
   never mints a second code.
+- **A failure never comes back to the shop (SHOP-B2 go, for B3's hand-off note).** A return carries
+  `code` and `state` ("Keep it") or `state` alone ("Not now"), and nothing else: never an error, never
+  a reason. When the page can't mint a code (refused, limited, signed out, failed, or no answer within
+  20 seconds) it says so on the page and keeps "Not now" there, so the reader can always go back with
+  the state and no code. A link the page refuses (bad `return` or `state`) goes nowhere at all.
 - **The code:** on confirm, the page calls a Function with the reader's ID token. The Function mints
   a code (32 random bytes, base64url), stores **only its SHA-256** at a server-only node
   (`shop_handoff_codes/{sha256}` = `{ uid, exp }`, `.read`/`.write` false for every client), and the
@@ -285,7 +290,7 @@ and no code is redeemable until then either.
   none removable). The limiter's refusal line names the bucket by kind (`logAs: 'uid' | 'ip'`). The
   code's key is SHA-256 over its 43 ASCII characters, as the shop will present them; the write is
   conditional on the key being absent (`if-match: null_etag`).
-- **Words (SHOP-B2, suggested, to be ruled by Ikenna; changes go into the round that turns this on).**
+- **Words (SHOP-B2). Ruled by Ikenna, 24 Nov 2026: every string in `SHOP_COPY` stands as written.**
   All in `SHOP_COPY` (`app/lib/shopHandoff.js`), the page prints nothing else. Signed in: "Keep this
   order with your others?", "Keep it" / "Not now", and under it "Your Calvary account keeps the order
   number, date, titles and what you paid. Nothing else comes with it." Signed out: the same question

@@ -16,7 +16,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { useAuth } from '../../lib/AuthContext';
 import AuthModal from '../../components/AuthModal';
 import { needsCompletion, IDENTITY_FIELDS } from '../../lib/profileCompletion';
-import { readHandoffParams, returnHref, declineHref, SHOP_RETURN_URL, SHOP_COPY, SHOP_CODE_ENDPOINT } from '../../lib/shopHandoff';
+import { readHandoffParams, returnHref, declineHref, SHOP_RETURN_URL, SHOP_COPY, SHOP_CODE_ENDPOINT, SHOP_CODE_TIMEOUT_MS } from '../../lib/shopHandoff';
 
 const ERROR_FOR = { 401: 'signedOut', 429: 'limited' };
 
@@ -40,11 +40,13 @@ function useIdentityOwed(user) {
         if (!live) return;
         const identity = {};
         const seen = new Set();
-        const settle = () => { if (seen.size === IDENTITY_FIELDS.length) setOwed(needsCompletion(identity)); };
+        let unreadable = false;
+        const settle = () => { if (seen.size === IDENTITY_FIELDS.length) setOwed(unreadable ? false : needsCompletion(identity)); };
         offs = IDENTITY_FIELDS.map((k) => onValue(ref(db, `users/${user.uid}/${k}`),
           (snap) => { identity[k] = snap.val(); seen.add(k); settle(); },
-          // Unreadable: the completion step says nothing either, so neither does this page.
-          () => { seen.add(k); settle(); }));
+          // Unreadable: the completion step says nothing either, so neither does this page: the
+          // buttons are not held back by a read that failed.
+          () => { unreadable = true; seen.add(k); settle(); }));
       } catch {
         if (live) setOwed(false);
       }
@@ -87,6 +89,8 @@ export default function ShopHandoffPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ return: SHOP_RETURN_URL, state: params.state }),
         cache: 'no-store',
+        // A request that never answers is a failure like any other: "Not now" comes back.
+        signal: AbortSignal.timeout(SHOP_CODE_TIMEOUT_MS),
       });
       const data = res.ok ? await res.json().catch(() => null) : null;
       if (!res.ok || typeof data?.code !== 'string') {

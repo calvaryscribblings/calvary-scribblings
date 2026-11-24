@@ -47,6 +47,9 @@ export const isState = (s) => typeof s === 'string' && STATE_RE.test(s);
 /** A code as minted: 32 random bytes, base64url, no padding — always 43 characters. */
 export const CODE_RE = /^[A-Za-z0-9_-]{43}$/;
 
+/** How long the page waits for the Function before it counts as a failure (and "Not now" returns). */
+export const SHOP_CODE_TIMEOUT_MS = 20_000;
+
 /** Five minutes from minting (§6.2 (a)): `exp` is the last instant the code is good for. */
 export const CODE_TTL_MS = 5 * 60 * 1000;
 
@@ -88,9 +91,13 @@ export function declineHref(state) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
-// THE WORDS. Suggested in the SHOP-B2 brief, NOT YET RULED: Ikenna confirms them, and any change
-// goes into the round that turns this on. Every string the page can show is here and nowhere else;
-// tests/account/shop-handoff.test.mjs lists them and fails if the page prints a literal of its own.
+// THE WORDS. RULED (Ikenna, 24 Nov 2026): every string below stands as written (docs/COPY-RULINGS.md).
+// Every string the page can show is here and nowhere else; tests/account/shop-handoff.test.mjs pins
+// them and fails if the page prints a literal of its own.
+//
+// FAILURES NEVER GO BACK TO THE SHOP. In every error state "Not now" stays on the page, so the reader
+// can always return with the state and no code. A return carries code and state ("Keep it") or the
+// state alone ("Not now"); no error is ever written into it.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 export const SHOP_COPY = Object.freeze({

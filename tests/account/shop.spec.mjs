@@ -13,7 +13,7 @@ import { getDatabase } from 'firebase-admin/database';
 import { getAuth } from 'firebase-admin/auth';
 import { adminApp, closeApp, DB_NAMESPACE } from '../series/harness.mjs';
 import { handleShopCode } from '../../functions/api/account/shop-code.js';
-import { SHOP_RETURN_URL, SHOP_COPY, CODE_TTL_MS } from '../../app/lib/shopHandoff.js';
+import { SHOP_RETURN_URL, SHOP_COPY, CODE_TTL_MS, SHOP_CODE_TIMEOUT_MS } from '../../app/lib/shopHandoff.js';
 import { COMPLETION_COPY } from '../../app/lib/profileCompletion.js';
 
 const app = adminApp('shop-b2');
@@ -192,4 +192,39 @@ test('the limiter: a reader over the minute cap is told so, and no code is writt
   expect(seen.shop).toEqual([]);
   expect((await db.ref('shop_handoff_codes').get()).val()).toBeNull();
   await expect(page.locator('[data-shop-keep]')).toBeEnabled();
+  // Refused, the reader can still go back: the state and no code.
+  await expectNotNowBack(page, seen);
+});
+
+/** In an error state "Not now" is on the page, enabled, and goes back with the state alone. */
+async function expectNotNowBack(page, seen) {
+  const notNow = page.locator('[data-shop-not-now]');
+  await expect(notNow).toHaveText(SHOP_COPY.notNow);
+  await expect(notNow).toBeEnabled();
+  await notNow.click();
+  await page.waitForURL(`${SHOP}/**`);
+  expect(seen.shop).toEqual([`${SHOP_RETURN_URL}?state=${STATE}`]);
+}
+
+test('a failure stays on the page: the line, "Not now" still there, and no return carries an error', async ({ page }) => {
+  await reset();
+  const seen = await open(page, link(), READER);
+  await page.unroute('**/api/account/shop-code');
+  await page.route('**/api/account/shop-code', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{"code":"unavailable"}' }));
+  await page.locator('[data-shop-keep]').click({ timeout: 60000 });
+  await expect(page.locator('[data-shop-error]')).toHaveText(SHOP_COPY.failed);
+  expect(seen.shop).toEqual([]);
+  await expectNotNowBack(page, seen);
+});
+
+test('a request that never answers fails after its timeout, and "Not now" comes back', async ({ page }) => {
+  await reset();
+  const seen = await open(page, link(), READER);
+  await page.unroute('**/api/account/shop-code');
+  await page.route('**/api/account/shop-code', () => new Promise(() => {}));   // never answers
+  await page.locator('[data-shop-keep]').click({ timeout: 60000 });
+  await expect(page.locator('[data-shop-keep]')).toHaveText(SHOP_COPY.keeping);
+  await expect(page.locator('[data-shop-error]')).toHaveText(SHOP_COPY.failed, { timeout: SHOP_CODE_TIMEOUT_MS + 15000 });
+  expect(seen.shop).toEqual([]);
+  await expectNotNowBack(page, seen);
 });
