@@ -229,7 +229,9 @@ sign-in at checkout. **404:** deleting a Calvary account removes `print_orders/{
 copy says that the shop keeps its own record of paid orders and points the reader to the shop for it.
 
 **Built so far:** SHOP-B1 (20 Nov 2026), the two nodes, their rules, the `orderNo` id kind, deletion and
-the scrub. Nothing writes either node until B2 and B3, so nothing is reachable yet.
+the scrub. SHOP-B2 (24 Nov 2026, committed, not pushed), the handoff page `/account/shop` and
+`POST /api/account/shop-code`, which writes `shop_handoff_codes`. Nothing writes `print_orders` until B3,
+and no code is redeemable until then either.
 
 #### (a) The handoff page: sign in, then back to the shop with a code
 
@@ -246,6 +248,19 @@ the scrub. Nothing writes either node until B2 and B3, so nothing is reachable y
   entry character for character. No prefix match, no pattern, no other host, no "same site": an
   address not on the list is refused with a page that says so, and nobody is redirected (no open
   redirect).
+  **Set in SHOP-B2 (the shop had named none):** exactly one entry,
+  `https://books.calvaryscribblings.co.uk/account/return` (`SHOP_RETURN_URL` in `app/lib/shopHandoff.js`).
+  The shop percent-encodes it in our query (or not); our page decodes the query once and compares.
+  The page never navigates to the `return` it was given: both addresses it can go to are built from
+  the constant. The Function refuses any other `return` too, so no code is minted for a refused link.
+- **The state, as built (SHOP-B2):** 1 to 128 characters from RFC 3986's unreserved set
+  (`A–Z a–z 0–9 - . _ ~`), present exactly once. These need no percent-encoding, so the state goes back
+  as the very characters the shop sent. Anything else is refused, never cleaned.
+- **Two ways back (SHOP-B2).** "Keep it": `…/account/return?code=<43 chars>&state=<state>`. "Not now":
+  `…/account/return?state=<state>`, with **no code**. The shop tells them apart by `code` alone. In
+  both cases it first checks `state` against the reader's own session, and **refuses any return
+  whose state doesn't match** (for B3's hand-off note). The page replaces itself in history, so Back
+  never mints a second code.
 - **The code:** on confirm, the page calls a Function with the reader's ID token. The Function mints
   a code (32 random bytes, base64url), stores **only its SHA-256** at a server-only node
   (`shop_handoff_codes/{sha256}` = `{ uid, exp }`, `.read`/`.write` false for every client), and the
@@ -265,6 +280,19 @@ the scrub. Nothing writes either node until B2 and B3, so nothing is reachable y
   live from sign-in to the shop's next server call.
 - **Rate-limited** per uid and per IP through the existing limiter; the page and the Function log
   counts only, never a code, a uid or an order number.
+  **As built (SHOP-B2):** 5 a minute and 30 a day per uid, 10 a minute and 100 a day per address
+  (`CF-Connecting-IP`; none is refused), 2,000 a day overall (`SHOP_CODE_CAPS`, each tunable by env,
+  none removable). The limiter's refusal line names the bucket by kind (`logAs: 'uid' | 'ip'`). The
+  code's key is SHA-256 over its 43 ASCII characters, as the shop will present them; the write is
+  conditional on the key being absent (`if-match: null_etag`).
+- **Words (SHOP-B2, suggested, to be ruled by Ikenna; changes go into the round that turns this on).**
+  All in `SHOP_COPY` (`app/lib/shopHandoff.js`), the page prints nothing else. Signed in: "Keep this
+  order with your others?", "Keep it" / "Not now", and under it "Your Calvary account keeps the order
+  number, date, titles and what you paid. Nothing else comes with it." Signed out: the same question
+  above the sign-in. Refused link: "This link can’t take you back to the shop."
+- **A new account completes its handle and date of birth first.** `/account` is exempt from the
+  completion step; `/account/shop` is carved back in (`COMPLETION_REQUIRED` in
+  `app/lib/profileCompletion.js`), and the buttons wait until the identity exists.
 
 #### (b) Filing the order: one server-to-server call
 
@@ -364,7 +392,9 @@ rule.
    `OWNED_NODES` and the scrub, the expired-code sweep, emulator tests. **Built 20 Nov 2026 (committed,
    not pushed); rules deploy still to come.** Nothing reachable yet.
 2. **SHOP-B2, the handoff page.** `/account/shop`, the code-minting Function, the exact allow-list,
-   the limiter, the copy (to be ruled), tests (allow-list refusals, one-time, expiry).
+   the limiter, the copy (to be ruled), tests (allow-list refusals, one-time, expiry). **Built 24 Nov
+   2026 (committed, not pushed).** One-time use and expiry are enforced at redemption, so their tests
+   are B3's; B2 proves the record (`{ uid, exp }`, exp = mint + 5 min) they rest on.
 3. **SHOP-B3, the filing call.** `POST /api/shop/print-order`, `SHOP_ORDERS_SECRET` on both
    holders, `KEY-ROTATION.md`, idempotence and the 409, tests. A hand-off note for the shop.
 4. **SHOP-B4, the reader's view.** "Paperback orders" (or `/account/orders`), the `/privacy` and

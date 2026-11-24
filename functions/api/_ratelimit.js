@@ -232,7 +232,10 @@ export async function consume(context, buckets) {
   for (let i = 0; i < buckets.length; i++) {
     if (totals[i] > buckets[i].limit) {
       const b = buckets[i];
-      console.warn(`[ratelimit] ${b.scope}/${b.period}/${b.id ?? '_all'} reached ${totals[i]} of ${b.limit}`);
+      // SHOP-B2: a bucket may name its actor by KIND (`logAs: 'uid'`) so the value stays out of
+      // the logs. Without it the line is as it always was.
+      const who = b.id ? (b.logAs ?? b.id) : '_all';
+      console.warn(`[ratelimit] ${b.scope}/${b.period}/${who} reached ${totals[i]} of ${b.limit}`);
       return {
         ok: false,
         reason: 'limit',

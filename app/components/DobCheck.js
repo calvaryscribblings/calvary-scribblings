@@ -17,14 +17,13 @@ import {
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
-import { needsCompletion, signupSettled, IDENTITY_FIELDS } from '../lib/profileCompletion';
+import { needsCompletion, signupSettled, IDENTITY_FIELDS, completionExempt } from '../lib/profileCompletion';
 import {
   dobStatus, storedDob, mustConfirm, confirmOutcome, confirmedDobUpdate, DOB_STATUS, DOB_COPY,
 } from '../lib/dobCheck';
 import { runDeleteFlow, callDeleteEndpoint, COPY as DELETE_COPY } from '../lib/accountDeletion';
 import { isFounder } from '../lib/founders';
 
-const EXEMPT = ['/settings', '/delete-account', '/account', '/privacy', '/terms'];
 
 const longDate = (iso) => {
   const [y, m, d] = iso.split('-').map(Number);
@@ -69,7 +68,7 @@ export default function DobCheck() {
   }, [user]);
 
   if (!needed || !user) return null;
-  if (EXEMPT.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return null;
+  if (completionExempt(pathname)) return null;
 
   const confirm = async () => {
     setError('');

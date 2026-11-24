@@ -10,12 +10,11 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../lib/AuthContext';
-import { completeProfile, needsCompletion, signupSettled, COMPLETION_COPY, IDENTITY_FIELDS } from '../lib/profileCompletion';
+import { completeProfile, needsCompletion, signupSettled, COMPLETION_COPY, IDENTITY_FIELDS, completionExempt } from '../lib/profileCompletion';
 import { AgeRefused, AGE_COPY } from '../lib/age';
 import { handleStatusLine, HANDLE_COPY, HandleRefused } from '../lib/handle';
 import HandleField, { readHandleOwner, useHandleCheck } from './HandleField';
 
-const EXEMPT = ['/settings', '/delete-account', '/account', '/privacy', '/terms'];
 
 export default function ProfileCompletion() {
   const { user, logout } = useAuth() || {};
@@ -52,7 +51,7 @@ export default function ProfileCompletion() {
   }, [user]);
 
   if (!needed || !user) return null;
-  if (EXEMPT.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return null;
+  if (completionExempt(pathname)) return null;
 
   const submit = async () => {
     setError('');

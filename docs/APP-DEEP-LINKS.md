@@ -100,6 +100,7 @@ yes/no before it is claimed:
 | `/admin` + 17 `/admin/*` | Founder console. No app equivalent; opens the app and dead-ends. |
 | `/my-library`, `/my-library/read` | The app's bar carries **no** My Library tab (`app/components/TabBar.js:156`), and the web shelf is explicitly the *reference* for one not yet built (`app/my-library/page.js:81`). Auth-gated besides. |
 | `/profile`, `/settings`, `/account/deleted` | Auth-gated; the app has its own Settings; a signed-out deep link lands at a wall. |
+| `/account/shop` | ⚠ **Must stay web** (SHOP-B2, 24 Nov 2026). The paperback shop's handoff (`docs/ACCOUNT-CONTRACT.md` §6.2 (a)): the reader signs in on the website and is sent back to books.\* with a one-time code. An app that claimed it would take the reader out of the browser the shop's session lives in, and the return could never match it. Noindex, out of the sitemap, linked from nowhere on the site. |
 | `/delete-account` | ⚠ Must stay web. Both stores require a publicly reachable deletion page, and it has to work for someone who has **already deleted the app**. |
 | `/app`, `/links` | ⚠ These are the pages that *offer* the app. If the app claims them, a reader tapping "get the app" gets the app instead of the page. |
 | `/open-pages` + 4 sub-routes | No app surface evidenced. Composer is web-only, edits server-side-only, drafts private. |

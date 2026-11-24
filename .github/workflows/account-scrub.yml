@@ -41,6 +41,10 @@ on:
       - 'tests/account/**'
       - 'app/lib/accountDeletion.js'
       - 'app/components/DeleteAccountModal.js'
+      - 'app/lib/shopHandoff.js'
+      - 'app/lib/profileCompletion.js'
+      - 'app/account/shop/**'
+      - 'functions/api/_ratelimit.js'
       - '.github/workflows/account-scrub.yml'
 
 concurrency:

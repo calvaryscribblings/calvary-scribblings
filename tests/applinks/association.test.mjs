@@ -108,7 +108,7 @@ describe('the AASA is exactly the claim that was ruled, and nothing wider', () =
     const claims = json(AASA_PATH).applinks.details[0].components
       .filter((c) => !c.exclude).map((c) => c['/']);
     for (const never of ['/', '/admin', '/bookstore', '/membership', '/rewards', '/my-library',
-                         '/profile', '/settings', '/delete-account', '/app', '/links',
+                         '/profile', '/settings', '/delete-account', '/account/shop', '/app', '/links',
                          '/open-pages', '/series', '/privacy', '/terms', '/api']) {
       assert.ok(!claims.some((c) => c === never || c.startsWith(`${never}/`) || c === `${never}*`),
         `${never} is on the never-claim list — see docs/APP-DEEP-LINKS.md for the reason`);

@@ -84,6 +84,8 @@ on:
       - 'workers-external/**'
       # W5 — the safety browser suite (test:safety, in the rules job).
       - 'tests/safety/**'
+      # SHOP-B2 — /account/shop in a browser (tests/account/shop.spec.mjs).
+      - 'tests/account/**'
       # W17 — the live harnesses tests/ci/w17-live-safety.test.mjs pins: a change to any of them
       # must re-run the check that it signs in only as the test reader, behind the firewall.
       - 'tests/live/**'
@@ -310,6 +312,13 @@ jobs:
       # the Function itself (tests/square/write-route.mjs). Nothing reaches production.
       - name: NOTIF-B2 — the bell, the panel, the page and settings
         run: npm run test:notify:bell
+      # SHOP-B2 — the paperback shop's handoff page, against the same emulators: a return not on the
+      # list is refused and nobody is sent anywhere; signed out, the question above AuthModal and
+      # "Not now"; signed in, "Keep it" through the real Function and limiter, the record read back
+      # at the code's hash; a new account's completion step first. The shop is a stub page on
+      # page.route; nothing reaches production.
+      - name: SHOP-B2 — /account/shop, end to end
+        run: npm run test:shop-handoff
 
   # ───────────────────────────────────────────────────────────────────────────
   # 1c. READERS' NOTES IN A BROWSER (Chromium + WebKit). See 1b for why it is

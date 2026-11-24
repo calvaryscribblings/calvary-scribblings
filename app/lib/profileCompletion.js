@@ -21,6 +21,19 @@ import { ageProblem, AgeRefused } from './age.js';
 
 export const IDENTITY_FIELDS = ['displayName', 'username', 'handle'];
 
+// WHERE THE STEP (and DobCheck) STAYS AWAY: the pages a reader needs WITHOUT an identity — deleting
+// the account, its settings, and the terms and privacy policy the age check points at. One list for
+// both components. SHOP-B2: /account/shop is the exception under /account. A new account made there
+// completes its handle and date of birth first, as everywhere, before it can keep a shop order.
+export const COMPLETION_EXEMPT = ['/settings', '/delete-account', '/account', '/privacy', '/terms'];
+export const COMPLETION_REQUIRED = ['/account/shop'];
+const under = (pathname, p) => pathname === p || pathname.startsWith(`${p}/`);
+export function completionExempt(pathname) {
+  const path = String(pathname || '');
+  if (COMPLETION_REQUIRED.some((p) => under(path, p))) return false;
+  return COMPLETION_EXEMPT.some((p) => under(path, p));
+}
+
 /** Does this users/{uid} identity (only the three fields are needed) lack every identity field? */
 export function needsCompletion(identity) {
   return !IDENTITY_FIELDS.some((k) => typeof identity?.[k] === 'string' && identity[k].trim() !== '');
