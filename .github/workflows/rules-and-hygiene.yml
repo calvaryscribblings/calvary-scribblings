@@ -319,6 +319,12 @@ jobs:
       # page.route; nothing reaches production.
       - name: SHOP-B2 — /account/shop, end to end
         run: npm run test:shop-handoff
+      # APPLE-W1 — "Continue with Apple": the button beside Google's (the same box, lined up, phone and
+      # desktop, the header and /account/shop), and every sign-in flow against the Auth emulator: a
+      # returning Apple-only reader (same uid), a new account's name into the completion step, and an
+      # email already on a password account, Google and Apple side by side.
+      - name: APPLE-W1 — Sign in with Apple, end to end
+        run: npm run test:apple-signin
 
   # ───────────────────────────────────────────────────────────────────────────
   # 1c. READERS' NOTES IN A BROWSER (Chromium + WebKit). See 1b for why it is

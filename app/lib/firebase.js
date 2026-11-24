@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, connectAuthEmulator, signInWithCustomToken } from 'firebase/auth';
+import { getAuth, connectAuthEmulator, signInWithCustomToken, signInWithCredential, OAuthProvider } from 'firebase/auth';
 import { getDatabase, connectDatabaseEmulator } from 'firebase/database';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
@@ -71,6 +71,13 @@ if (typeof window !== 'undefined'
   // same fence is the smaller thing to own. The token it takes is only ever an emulator
   // custom token, which the real Identity Toolkit would reject outright.
   window.__FB_EMULATOR_SIGNIN__ = (token) => signInWithCustomToken(auth, token);
+  // APPLE-W1 — a provider sign-in WITHOUT the pop-up window: the Auth emulator's own signInWithIdp,
+  // given the claims the provider would return (the emulator takes them as an unsigned JSON id
+  // token). The emulator's pop-up relays its answer through Google's gapi iframes, which proved
+  // unreliable in a headless browser; this keeps every flow test on the real sign-in path below the
+  // window. AuthModal uses it only when a harness has set window.__FB_EMULATOR_POPUP__.
+  window.__FB_EMULATOR_IDP__ = (providerId, claims) =>
+    signInWithCredential(auth, new OAuthProvider(providerId).credential({ idToken: JSON.stringify(claims) }));
   console.warn('[firebase] EMULATOR MODE — auth:9099 db:9000 storage:9199. Never production.');
 }
 
