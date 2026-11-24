@@ -531,3 +531,30 @@ test('no rules change: print_order_index has no entry and the root grants nothin
   assert.equal(rules['.write'], undefined);
   assert.deepEqual(rules.shop_handoff_codes, { '.read': false, '.write': false });
 });
+
+test('the worked example\'s THROWAWAY key is never a working key: neither its id nor its public key is in SHOP_KEYS', async () => {
+  assert.equal(EX.keyId, 'b3642903');
+  assert.equal(EX.publicKeyRaw, '4ZgIF4MKpoevYvb4ceeZ2JmUy5ctDlUSg5NyKe_29tI');
+  assert.ok(!SHOP_KEYS.some((k) => k.id === 'b3642903'), 'its id is not listed');
+  assert.ok(!SHOP_KEYS.some((k) => k.raw === EX.publicKeyRaw), 'its public key is not listed, under any id');
+  for (const k of SHOP_KEYS) assert.notEqual(await keyIdOf(k.raw), 'b3642903');
+  // And the example call, sent against the real list, is refused.
+  const r = new Request(`https://calvaryscribblings.co.uk${SHOP_ORDERS_PATH}`, {
+    method: 'POST', body: EX.body,
+    headers: { 'Content-Type': 'application/json', 'X-Calvary-Key-Id': EX.keyId, 'X-Calvary-Timestamp': EX.timestamp, 'X-Calvary-Signature': EX.signature },
+  });
+  const res = await handleShopOrders({ request: r, env: {}, waitUntil() {} }, { nowMs: () => NOW, io: memoryDb(), consume: async () => ({ ok: true }) });
+  assert.deepEqual(await res.json(), { result: 'signature_refused' });
+});
+
+test('paidAt allows the same clock skew as the timestamp: up to MAX_SKEW_S ahead is accepted, a second more is refused', () => {
+  const at = (ms) => checkBody({ code: CODE, order: order({ paidAt: new Date(ms).toISOString().replace('.000Z', 'Z') }) }, NOW);
+  assert.equal(MAX_SKEW_S, 300);
+  assert.equal(at(NOW + MAX_SKEW_S * 1000).ok, true, 'exactly +300 s, the timestamp window\'s own edge');
+  assert.deepEqual(at(NOW + MAX_SKEW_S * 1000 + 1000), { ok: false, field: 'order.paidAt' });
+  assert.equal(checkBody({ code: CODE, order: order({ paidAt: new Date(NOW + MAX_SKEW_S * 1000 + 1).toISOString() }) }, NOW).ok, false, 'even a millisecond over');
+  // The signature window is the same constant, with the same inclusive edge.
+  const src = read('functions/api/account/_shop-orders.js');
+  assert.match(src, /if \(Math\.abs\(nowS - Number\(ts\)\) > MAX_SKEW_S\) return null;/);
+  assert.match(src, /ms > nowMs \+ MAX_SKEW_S \* 1000\) return null;/);
+});

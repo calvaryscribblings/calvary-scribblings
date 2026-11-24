@@ -233,9 +233,9 @@ sign-in at checkout. **404:** deleting a Calvary account removes `print_orders/{
 copy says that the shop keeps its own record of paid orders and points the reader to the shop for it.
 
 **Built so far:** SHOP-B1 (20 Nov 2026), the two nodes, their rules, the `orderNo` id kind, deletion and
-the scrub. SHOP-B2 (24 Nov 2026, committed, not pushed), the handoff page `/account/shop` and
-`POST /api/account/shop-code`, which writes `shop_handoff_codes`. Nothing writes `print_orders` until B3,
-and no code is redeemable until then either.
+the scrub. SHOP-B2 (live 24 Nov 2026), the handoff page `/account/shop` and
+`POST /api/account/shop-code`, which writes `shop_handoff_codes`. SHOP-B3 (live 24 Nov 2026),
+`POST /api/account/shop-orders`, which redeems a code and files the order: test orders only until B4.
 
 #### (a) The handoff page: sign in, then back to the shop with a code
 
@@ -309,7 +309,7 @@ and no code is redeemable until then either.
 
 #### (b) Filing the order: one signed server-to-server call
 
-**As built in SHOP-B3 (24 Nov 2026, committed, not pushed).** This replaces the earlier draft (a
+**As built in SHOP-B3 (live 24 Nov 2026; test orders only until B4).** This replaces the earlier draft (a
 shared Bearer secret, `POST /api/shop/print-order`, `{ minor, currency }` and `{ title, copies }`
 titles); the shop agreed to sign every call with Ed25519 instead, so no secret is shared at all.
 The shop's copy of every rule here, with a worked example, is **`docs/SHOP-HANDOFF.md`**.
@@ -429,9 +429,9 @@ rule.
    not pushed); rules deploy still to come.** Nothing reachable yet.
 2. **SHOP-B2, the handoff page.** `/account/shop`, the code-minting Function, the exact allow-list,
    the limiter, the copy (to be ruled), tests (allow-list refusals, one-time, expiry). **Built 24 Nov
-   2026 (committed, not pushed).** One-time use and expiry are enforced at redemption, so their tests
+   2026, live the same day.** One-time use and expiry are enforced at redemption, so their tests
    are B3's; B2 proves the record (`{ uid, exp }`, exp = mint + 5 min) they rest on.
-3. **SHOP-B3, the filing call.** **Built 24 Nov 2026 (committed, not pushed)** as
+3. **SHOP-B3, the filing call.** **Live 24 Nov 2026** as
    `POST /api/account/shop-orders`, Ed25519-signed (no shared secret), with the used marker, the
    order index, the test-orders-only switch, the two sweeps, and `docs/SHOP-HANDOFF.md`.
 4. **SHOP-B4, the reader's view.** "Paperback orders" (or `/account/orders`), the `/privacy` and

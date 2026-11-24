@@ -8,9 +8,8 @@ The flow, in one line: after payment, the shop's confirmation page sends the rea
 reader signs in there and says yes or no; we send them back to the shop with a one-time code (or
 without one); the shop's server then files the order with one signed call.
 
-**Status.** The page (step 1) is live. The filing call (step 3) is built and committed but **not yet
-deployed**; we say when it is. Until the reader's view of their orders ships (our round B4, with its
-/privacy update), the filing call accepts **test orders only** (see §6).
+**Status.** The page (step 1) and the filing call (step 3) are both live. The filing call takes
+**test orders only** until real orders open (§6).
 
 ---
 
@@ -42,8 +41,8 @@ https://calvaryscribblings.co.uk/account/shop?return=<return>&state=<state>
 - Signed out: the same question above our sign-in (email or Google). A new email account goes
   straight on to the question (no "check your inbox" step on this page; the verification email
   still goes). A new account chooses its name, handle and date of birth first, on the same page.
-  Google sign-in opens a pop-up, which closes itself and returns to the same tab (Ikenna is
-  confirming this on iPad Safari). Apple sign-in is not on our website yet.
+  Google sign-in opens a pop-up; the pop-up closes and the reader carries on in the same tab
+  (confirmed on iPad Safari, 24 Nov 2026). Apple sign-in is not on our website yet.
 
 ## 2. How the reader comes back to you
 
