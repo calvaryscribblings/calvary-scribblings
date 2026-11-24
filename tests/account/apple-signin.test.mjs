@@ -76,4 +76,10 @@ describe('the button and its handler', () => {
     assert.match(modal, /\.auth-google\.auth-apple \{ color: #000; font-family: -apple-system, BlinkMacSystemFont/);
     assert.match(modal, /<path fill="#000" d="M788\.1 340\.9/, 'Apple\'s logo, in black');
   });
+
+  test('the switch: off in production until the web setup exists; an emulator build shows it', async () => {
+    const { APPLE_WEB_READY } = await import('../../app/lib/appleSignIn.js');
+    assert.equal(APPLE_WEB_READY, false, 'flip only after docs/APPLE-WEB-SETUP.md is done');
+    assert.match(modal, /\{\(APPLE_WEB_READY \|\| process\.env\.NEXT_PUBLIC_FB_EMULATOR === '1'\) && \(\n\s+<button className="auth-google auth-apple"/);
+  });
 });

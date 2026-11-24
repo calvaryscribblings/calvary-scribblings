@@ -9,6 +9,12 @@
 // completion step ("One last thing.") starts from it. Where there is none, the step starts empty,
 // as it does for any account with no name.
 
+// THE SWITCH. Off until Ikenna's setup exists: on 24 Nov 2026 the live apple.com provider was
+// enabled for the iOS app only, with no web Services ID and no code-flow key, so a web pop-up would
+// fail for every reader. docs/APPLE-WEB-SETUP.md lists the steps; once they are done, set this to
+// true. An emulator build shows the button regardless, so the browser suite keeps proving it.
+export const APPLE_WEB_READY = false;
+
 export const APPLE_PROVIDER_ID = 'apple.com';
 export const APPLE_SCOPES = Object.freeze(['email', 'name']);
 
