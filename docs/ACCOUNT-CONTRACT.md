@@ -307,33 +307,55 @@ and no code is redeemable until then either.
   completion step; `/account/shop` is carved back in (`COMPLETION_REQUIRED` in
   `app/lib/profileCompletion.js`), and the buttons wait until the identity exists.
 
-#### (b) Filing the order: one server-to-server call
+#### (b) Filing the order: one signed server-to-server call
 
-- **The call:** `POST /api/shop/print-order`, from the shop's Worker only, with
-  `Authorization: Bearer <secret>`. The secret is shared between Pages (`SHOP_ORDERS_SECRET`) and
-  the shop's Worker, compared in constant time, and added to `security/KEY-ROTATION.md` as a
-  two-holder value when built. Without it, or with a wrong one: 401 and nothing read.
-- **The body:** `{ code, order }`, where `order` is:
-  - `orderNo`: the shop's order number, **`CS-` and six of A–Z and 0–9** (the shop's own example:
-    `CS-7KQ2MX`). The kind `orderNo` in `app/lib/ids.js` (SHOP-B1) refuses anything else with a 400
-    and never cleans it: no upper-casing, no trimming. ⚠ **An assumption for the shop to confirm:**
-    no live order number has been seen from this repo. If the real format differs, the kind changes
-    before B3 files a single order. (An earlier draft of this section said `CS-` and digits.)
-  - `date`: when it was paid (ms since epoch);
-  - `titles`: 1 to 50 of `{ title, copies }` (title a string ≤ 200 characters, copies an integer
-    1 to 99);
-  - `amount`: `{ minor, currency }` (an integer in the currency's minor unit, and `GBP` or `NGN`).
-  Nothing else: no address, no name, no email, no payment reference.
-- **What it does:** redeems the code (above) to a uid, and writes
-  `print_orders/{uid}/{orderNo}` = the order plus `filedAt`. It answers `200 { filed: true }` and
-  **never returns or echoes the uid**. Filing the same `orderNo` again for the same reader (a retry)
-  writes nothing new and answers 200; an `orderNo` already filed under another reader is refused
-  (409) and nothing is written.
-- **The node:** `print_orders/$uid/$orderNo`, `.read: auth.uid === $uid` (its owner; founders
-  read it through the Admin SDK in /admin when needed), `.write: false` for every client, founders
-  included. Only the Function writes it. In `database.rules.json` since SHOP-B1 (deploy pending), with
-  `tests/rules/shop-b1.test.mjs` for every actor (owner, another reader, signed out, both founders),
-  list reads of both parent nodes included.
+**As built in SHOP-B3 (24 Nov 2026, committed, not pushed).** This replaces the earlier draft (a
+shared Bearer secret, `POST /api/shop/print-order`, `{ minor, currency }` and `{ title, copies }`
+titles); the shop agreed to sign every call with Ed25519 instead, so no secret is shared at all.
+The shop's copy of every rule here, with a worked example, is **`docs/SHOP-HANDOFF.md`**.
+
+- **The call:** `POST /api/account/shop-orders` (`functions/api/account/shop-orders.js`), from the shop's
+  server only: no browser, no ID token, no cookies.
+- **The signature:** Ed25519, verified with WebCrypto on the Pages runtime. Headers `X-Calvary-Key-Id`,
+  `X-Calvary-Timestamp` (Unix seconds), `X-Calvary-Signature` (base64url). The signed bytes are
+  `calvary-shop-orders-v1\n<key id>\n<timestamp>\nPOST\n/api/account/shop-orders\n` followed by the
+  body exactly as sent. A timestamp more than 300 s from our clock either way, an unknown key, a bad
+  signature, a missing header or a query string all get the same `401 signature_refused`.
+- **The keys:** `SHOP_KEYS` in `functions/api/account/_shop-orders.js`, public keys, committed; a key's
+  id is the first 8 hex of the SHA-256 of its raw 32 bytes. Two may be listed at once (rotation in
+  `docs/SHOP-HANDOFF.md` §3.2). The shop's first key: id `b66e1054`, raw
+  `JIt1JZ7k_B67fHpQCkanxZvZOAOMluLB6iIhzlMsUx4`. Its private key never leaves the shop's Worker.
+- **The body:** `{ code, order: { orderNo, paidAt, titles, copies, amount: { value, currency }, test } }`,
+  exactly those fields; anything else is `400 bad_request` naming the field.
+  - `orderNo`: the `orderNo` kind in `app/lib/ids.js` (`CS-` and six of A–Z 0–9), never cleaned.
+  - `paidAt`: ISO 8601 in UTC (`Z`), a real instant, not before 2026, not in the future; stored as
+    epoch ms.
+  - `titles`: one or both of `SHOP_TITLES` in `app/lib/shopOrders.js` (`after-the-fact`,
+    `where-the-story-begins`), no repeats. A new book is a code change.
+  - `copies`: an integer 1 to 99. `amount.value`: whole kobo, 100 to 1,000,000,000.
+    `amount.currency`: `NGN` only. `test`: a boolean (the shop's Paystack test mode).
+- **What it does:** looks up `shop_handoff_codes/{sha256 of the code string exactly as received}`;
+  checks `print_order_index/{orderNo}` (one order, one account); replaces the code, in one
+  conditional (ETag) write, with a **used marker** `{ uid, exp, used: true, orderNo, usedAt }` so a
+  retry can be answered; claims the index entry (create-only); and writes
+  `print_orders/{uid}/{orderNo}` (create-only) = the named fields plus `filedAt`.
+- **The replies** (`RESULTS` in `_shop-orders.js`): `filed` 200, `already_filed` 200 (the same code and
+  order again, or this account already holds the order), `code_used_for_another_order` 409,
+  `code_expired` 410, `code_unknown` 404, `order_in_another_account` 409, `not_open_yet` 403,
+  `bad_request` 400 (with `field`), `signature_refused` 401, `too_many_calls` 429 (with
+  `Retry-After`), `unavailable` 503. The shop retries only the last two. A retry after a lost reply
+  gets `already_filed` for 24 hours (the marker's life). No reply echoes the code, the order or the uid.
+- **The switch (Ikenna's ruling, 24 Nov 2026):** `SHOP_ORDERS_OPEN` in `app/lib/shopOrders.js`, `false`.
+  Until B4 ships with its /privacy update, only `test: true` orders are filed; a real one gets
+  `not_open_yet`, writes nothing and leaves its code unused. B4 flips it.
+- **Test orders** keep `test: true` and are removed by the scrub 7 days after `filedAt`, with their index
+  entry.
+- **Rate limit:** by key id through the house limiter, after the signature (so nobody else can spend
+  the shop's allowance): 60 a minute, 3,000 a day. **Logs:** the result name only.
+- **The nodes:** `print_orders/$uid/$orderNo` (rules since SHOP-B1: owner reads, no client writes).
+  **`print_order_index/$orderNo` = uid is new in B3 and has no rule entry, by design:** the root grants
+  nothing, so no client can read or write it (proven on the emulator), and the service account skips
+  rules anyway. **No rules change in B3.**
 
 #### (b2) The server's writes: NO RULE BINDS THEM, so the code is the only check
 
@@ -348,17 +370,16 @@ and no code is redeemable until then either.
   **every** rule for it: `.read`, `.write` **and `.validate`**. `.write: false` on both nodes stops
   clients and nothing else. A `.validate` on either node would never run for these writes, so
   **none is written, and nothing may count on one**.
-- **So B3's code enforces the order's shape**, before anything is written: `orderNo` through
-  `assertId('orderNo', …)` (a bad one is a 400, never cleaned); `date` a finite number; `titles` an
-  array of 1 to 50 `{ title, copies }`, title a string of at most 200 characters, copies an integer
-  1 to 99; `amount` `{ minor, currency }`, minor a non-negative integer, currency exactly `GBP` or
-  `NGN`. **Every other field is dropped by building the record from the named fields**, never by
-  spreading the body. The written record is exactly those fields plus `filedAt`. Tests must send a
+- **So B3's code enforces the order's shape**, before anything is written (as built: (b) above,
+  `checkBody` in `functions/api/account/_shop-orders.js`). **Extra fields are refused outright** (a
+  400 naming the field), and the record is still built from the named fields, never by spreading the
+  body. The written record is exactly those fields plus `filedAt`. Tests must send a
   body with extra fields (an address, an email, a `uid`) and prove none reaches the database.
 - **And B3's code enforces one-time use.** Redeem with a conditional write: GET
-  `shop_handoff_codes/{sha256}.json` with `X-Firebase-ETag: true`, check `exp > now`, then DELETE it
-  with `if-match: <etag>`. Only a 200 on that DELETE redeems; a 412 means someone else redeemed it
-  first, and the call answers as for a used code. The order is written only after a successful
+  `shop_handoff_codes/{sha256}.json` with `X-Firebase-ETag: true`, check `exp > now`, then **replace**
+  it with `if-match: <etag>` by the used marker (SHOP-B3: replaced, not deleted, so a retry can be
+  answered `already_filed`). Only a successful conditional write redeems; a 412 means another call
+  got there first, and the code is read again and judged as it now stands. The order is written only after a successful
   redemption. The key is built only from a hash of the presented code (64 lowercase hex), never from
   the body.
 - **And B2's code enforces the code's shape:** it writes exactly `{ uid, exp }`, uid the verified
@@ -376,13 +397,15 @@ and no code is redeemable until then either.
 - **Built in SHOP-B1.** `print_orders` is in `OWNED_NODES` in `functions/api/account/_deletion.js`
   (ruling 404), so deleting the account removes `print_orders/{uid}` with the rest, in the `owned`
   step, in the usual step order.
-- Any unredeemed `shop_handoff_codes` for the uid are deleted in the same `owned` update, found by the
-  `uid` inside each entry (the owned step reads the whole node, which stays small: codes live 5
-  minutes and are swept every 15). The step costs 15 subrequests now, not 14.
+- Any `shop_handoff_codes` for the uid, unredeemed codes and used markers alike, are deleted in the same
+  `owned` update, found by the `uid` inside each entry (the owned step reads the whole node, which
+  stays small: codes live 5 minutes, markers 24 hours, both swept every 15). **SHOP-B3:** the step
+  also reads `print_orders/{uid}` and deletes each order's `print_order_index/{orderNo}` entry. It
+  costs 16 subrequests now.
 - **The scrub is the backstop for the one race this has.** A code minted just before the deletion
   and redeemed by the shop just after the `owned` step files an order the endpoint never saw. The
-  scrub's next pass removes `print_orders/{uid}` and any code carrying the uid
-  (`scripts/account/scrub-plan.mjs`). Proven on the emulator (`tests/account/deletion.emulator.test.mjs`).
+  scrub's next pass removes `print_orders/{uid}`, any code or marker carrying the uid, and any index
+  entry pointing at it (`scripts/account/scrub-plan.mjs`). Proven on the emulator (`tests/account/deletion.emulator.test.mjs`).
 - **The shop's own copy of the order** (in its database) is the shop's: its retention and deletion
   are set out by the shop, not by this repo. Because the shop never learns the uid, our deletion
   cannot reach it, and the deletion copy (`app/lib/accountDeletion.js`) must not claim it does.
@@ -408,8 +431,9 @@ rule.
    the limiter, the copy (to be ruled), tests (allow-list refusals, one-time, expiry). **Built 24 Nov
    2026 (committed, not pushed).** One-time use and expiry are enforced at redemption, so their tests
    are B3's; B2 proves the record (`{ uid, exp }`, exp = mint + 5 min) they rest on.
-3. **SHOP-B3, the filing call.** `POST /api/shop/print-order`, `SHOP_ORDERS_SECRET` on both
-   holders, `KEY-ROTATION.md`, idempotence and the 409, tests. A hand-off note for the shop.
+3. **SHOP-B3, the filing call.** **Built 24 Nov 2026 (committed, not pushed)** as
+   `POST /api/account/shop-orders`, Ed25519-signed (no shared secret), with the used marker, the
+   order index, the test-orders-only switch, the two sweeps, and `docs/SHOP-HANDOFF.md`.
 4. **SHOP-B4, the reader's view.** "Paperback orders" (or `/account/orders`), the `/privacy` and
    deletion copy (ruled first), then turned on.
 

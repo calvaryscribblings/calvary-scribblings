@@ -336,3 +336,16 @@ from here: this table names where the key lives, not how the shop reads it.
   else, but only once the signature verifies, which is why both holders must carry the same key.
 - **Changed Codespaces secrets are not in a running shell** (W3): restart the codespace after 10.3.
 - **Never print one.** To prove a key works, use the endpoint or script that holds it; never echo it.
+
+## 11. The paperback shop's order-signing key (SHOP-B3, 24 Nov 2026)
+
+Not a shared secret. The shop signs each `POST /api/account/shop-orders` with an **Ed25519** private
+key that lives only in its Worker (`calvaryprints`); this repo holds only the **public** key, committed
+in `SHOP_KEYS` (`functions/api/account/_shop-orders.js`). Nothing to rotate on this side but that list.
+
+- **Routine rotation:** the shop makes a new pair and sends the new public key; add it to `SHOP_KEYS`
+  (its id is the first 8 hex of SHA-256 of the raw 32 bytes; the suite checks it) and deploy; the
+  shop switches to it; remove the old entry in a later deploy. Two keys may be listed at once.
+- **Suspected leak of the shop's private key:** remove its entry and deploy at once. Calls signed with
+  it then fail `signature_refused`. Its id is in no secret store, so nothing else needs changing.
+- Full procedure for the shop: `docs/SHOP-HANDOFF.md` §3.2.

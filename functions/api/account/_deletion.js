@@ -43,7 +43,7 @@
 
 import { STRIPE_VERSION } from '../_stripe.js';
 import { json, dbBase, lookupUser, mintAccessToken, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS, STORAGE_BUCKET } from '../bookstore/_lib.js';
-import { assertId } from '../../../app/lib/ids.js';
+import { assertId, isId } from '../../../app/lib/ids.js';
 import { Budget } from '../_budget.js';
 
 export const DELETION_PATH = (uid) => `deletions/${uid}`;
@@ -166,7 +166,7 @@ const sameEmail = (a, b) => typeof a === 'string' && typeof b === 'string' && a.
  * @param reads { user, following, followers, handles: {handle: value}, subscribers, waitlist }
  * @param email the Auth email, or null
  */
-export function planOwned(uid, { user, following, followers, handles, subscribers, waitlist, instalments, codes }, email) {
+export function planOwned(uid, { user, following, followers, handles, subscribers, waitlist, instalments, codes, orders }, email) {
   // LIVE-PATHS-1 (SAFETY-1 audit #9): '' here would null ~40 whole nodes. A verified token makes it
   // impossible today; this makes it impossible whatever calls it tomorrow.
   assertId('uid', uid);
@@ -183,6 +183,12 @@ export function planOwned(uid, { user, following, followers, handles, subscriber
   // A key of any other shape is never built into a path.
   for (const [h, c] of Object.entries(codes || {})) {
     if (c && typeof c === 'object' && c.uid === uid && SHOP_CODE_KEY.test(h)) u[`shop_handoff_codes/${h}`] = null;
+  }
+  // SHOP-B3 — the order-number index (print_order_index/{orderNo} = uid, server-only). Their orders
+  // are under print_orders/{uid} (deleted whole above); each one's index entry goes with it. Only a
+  // well-formed order number is built into a path. The scrub catches an order filed after this read.
+  for (const orderNo of Object.keys(orders || {})) {
+    if (isId('orderNo', orderNo)) u[`print_order_index/${orderNo}`] = null;
   }
   // The other half of every follow: they follow me → following/{them}/{me}; I follow them →
   // followers/{them}/{me}.
@@ -239,12 +245,12 @@ export class StepError extends Error {
 //               transactions, the outcome write and the mark. Then 2 more per cancellation, checked
 //               before each one (a cancel is idempotent at both providers, so a pause mid-step is
 //               safe: the next call finds what is left).
-//   owned      15: the profile, six reads (SHOP-B1 added shop_handoff_codes), up to six handle reads,
+//   owned      16: the profile, seven reads (SHOP-B1 added shop_handoff_codes, SHOP-B3 print_orders/{uid}), up to six handle reads,
 //               the one update, the mark.
 //   storage     1 per list page and 1 per object, each checked with the mark's 1 kept back. Deletes
 //               are idempotent (404 is done), so a paused step resumes by listing again.
 //   auth        2: the delete and the mark.
-export const STEP_COST = { membership: 6, owned: 15, auth: 2 };
+export const STEP_COST = { membership: 6, owned: 16, auth: 2 };
 export const CANCEL_COST = 2;
 
 /** Thrown when the next piece of work would not fit the budget. Not a failure: call again. */
@@ -318,17 +324,19 @@ export async function runDeletion(uid, email, io, log = console, { budget = new 
     async owned() {
       need(STEP_COST.owned, 'owned');
       const user = await io.get(`users/${uid}`);
-      const [following, followers, subscribers, waitlist, instalments, codes] = await Promise.all([
+      const [following, followers, subscribers, waitlist, instalments, codes, orders] = await Promise.all([
         io.get(`following/${uid}`), io.get(`followers/${uid}`),
         email ? io.get('subscribers') : null, email ? io.get('bookstore_waitlist') : null,
         io.get('series_instalments'),
         // SHOP-B1: read whole. Codes live 5 minutes and expired ones are swept every 15 (the
         // scrub), so the node stays a handful of entries.
         io.get('shop_handoff_codes'),
+        // SHOP-B3: their orders, to find their order-number index entries.
+        io.get(`print_orders/${uid}`),
       ]);
       const handles = {};
       await Promise.all(handlesOf(user).map(async (h) => { handles[h] = await io.get(`usernames/${h}`); }));
-      await io.patch(planOwned(uid, { user, following, followers, handles, subscribers, waitlist, instalments, codes }, email));
+      await io.patch(planOwned(uid, { user, following, followers, handles, subscribers, waitlist, instalments, codes, orders }, email));
     },
     async storage() {
       // LIMITS-1: deleted page by page AS it is listed, so a call that pauses has made progress

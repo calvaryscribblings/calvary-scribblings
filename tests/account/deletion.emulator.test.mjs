@@ -369,7 +369,7 @@ describe('SHOP-B1 · the paperback shop\'s nodes', () => {
       'not-a-hash': { uid: A, exp: 1 },                           // unaddressable: left, counted
     });
     const dry = await runCodeSweep(await guarded(db), { apply: false });
-    assert.deepEqual(dry, { removed: 0, wouldRemove: 2, expired: 1, malformed: 1, unaddressable: 1, live: 1 });
+    assert.deepEqual(dry, { removed: 0, wouldRemove: 2, expired: 1, usedRemoved: 0, malformed: 1, unaddressable: 1, live: 1, usedLive: 0 });
     assert.equal(Object.keys((await db.ref('shop_handoff_codes').get()).val()).length, 4, 'a dry run writes nothing');
     const res = await runCodeSweep(await guarded(db), { apply: true });
     assert.equal(res.removed, 2);

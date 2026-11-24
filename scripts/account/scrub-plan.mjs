@@ -45,6 +45,8 @@
 
 import { instStats, foldSummary } from '../../app/lib/series/notes.js';
 import { SHOP_CODE_KEY } from '../../functions/api/account/_deletion.js';
+import { isId as isIdKind } from '../../app/lib/ids.js';
+import { TEST_ORDER_TTL_MS, USED_MARKER_TTL_MS } from '../../app/lib/shopOrders.js';
 
 const isObj = (v) => v && typeof v === 'object';
 const entries = (v) => (isObj(v) ? Object.entries(v) : []);
@@ -64,6 +66,8 @@ export const SCAN_NODES = [
   'series_note_underlines', 'series_instalments', 'series_notes_summary',
   // SHOP-B1 — the paperback shop's two nodes (backstop only: the endpoint deletes both)
   'print_orders', 'shop_handoff_codes',
+  // SHOP-B3 — order number → account, server-only (backstop: the endpoint deletes the reader's entries)
+  'print_order_index',
 ];
 
 const authoredBy = (rec, uid) => isObj(rec) && (rec.authorUid === uid || rec.uid === uid);
@@ -461,6 +465,8 @@ export function planScrub(uid, snap, { now = Date.now() } = {}) {
   // endpoint never saw. Both go here, on the next tick.
   if (snap.print_orders?.[uid] !== undefined && snap.print_orders?.[uid] !== null) backstop(`print_orders/${uid}`);
   for (const [h, c] of entries(snap.shop_handoff_codes)) if (isObj(c) && c.uid === uid && SHOP_CODE_KEY.test(h)) backstop(`shop_handoff_codes/${h}`);
+  // SHOP-B3 — an index entry still pointing at them (an order filed after the endpoint's read).
+  for (const [orderNo, v] of entries(snap.print_order_index)) if (v === uid && isIdKind('orderNo', orderNo)) backstop(`print_order_index/${orderNo}`);
 
   // A tombstone is written whole: nothing may be removed beneath it separately, and nothing
   // beneath a removed path may be set.
@@ -488,28 +494,55 @@ export function dropCovered(paths) {
 }
 
 /**
- * SHOP-B1 — THE EXPIRED-CODE SWEEP. A paperback-shop handoff code (shop_handoff_codes/{sha256} =
- * { uid, exp }) is good for 5 minutes and one redemption; redeeming deletes it. One the shop never
- * redeemed would otherwise keep a uid on the node for ever. Every scrub run (every 15 minutes) removes each code
- * whose exp has passed, and any entry that is not a well-formed code at all: a key that is not a
- * SHA-256, or a value without a uid and a numeric exp. Only keys of the right shape are built into
- * paths; a malformed key is reported, never written to.
+ * SHOP-B1 / SHOP-B3 — THE CODE SWEEP. A paperback-shop handoff code (shop_handoff_codes/{sha256}) is
+ * one of two things:
+ *   · unused: { uid, exp }, good for 5 minutes. Removed once exp has passed.
+ *   · used (SHOP-B3): { uid, exp, used: true, orderNo, usedAt }, the marker the filing call leaves
+ *     IN PLACE of the code so a retry can be answered "already filed". Removed 24 hours after usedAt,
+ *     whatever its exp.
+ * Anything else is malformed and removed: a value without a uid, a numeric exp, or (used) a numeric
+ * usedAt. Only keys of the right shape are built into paths; a malformed key is reported, never
+ * written to. Expiry is the redeemer's test, not this sweep's: the sweep only bounds how long a dead
+ * entry sits there.
  *
- * Expiry is the redeemer's test, not this sweep's: SHOP-B3 refuses an expired code whether or not
- * the sweep has reached it. The sweep only bounds how long a dead code sits there (≤ 5 + 15 min).
- *
- * @returns {{ nulls: string[], expired: number, malformed: number, unaddressable: number, live: number }}
+ * @returns {{ nulls, expired, usedRemoved, malformed, unaddressable, live, usedLive }}
  */
 export function planCodeSweep(codes, now = Date.now()) {
   const nulls = [];
-  let expired = 0; let malformed = 0; let unaddressable = 0; let live = 0;
+  let expired = 0; let usedRemoved = 0; let malformed = 0; let unaddressable = 0; let live = 0; let usedLive = 0;
   for (const [h, c] of entries(codes)) {
-    const wellFormed = isObj(c) && typeof c.uid === 'string' && c.uid !== '' && typeof c.exp === 'number' && Number.isFinite(c.exp);
-    const dead = !wellFormed || c.exp <= now;
-    if (!dead) { live++; continue; }
+    const base = isObj(c) && typeof c.uid === 'string' && c.uid !== '' && typeof c.exp === 'number' && Number.isFinite(c.exp);
+    const used = base && c.used === true;
+    const wellFormed = base && (used ? (typeof c.usedAt === 'number' && Number.isFinite(c.usedAt)) : c.used === undefined);
+    const dead = !wellFormed || (used ? c.usedAt + USED_MARKER_TTL_MS <= now : c.exp <= now);
+    if (!dead) { if (used) usedLive++; else live++; continue; }
     if (!SHOP_CODE_KEY.test(h)) { unaddressable++; continue; }
-    if (wellFormed) expired++; else malformed++;
+    if (!wellFormed) malformed++; else if (used) usedRemoved++; else expired++;
     nulls.push(`shop_handoff_codes/${h}`);
   }
-  return { nulls, expired, malformed, unaddressable, live };
+  return { nulls, expired, usedRemoved, malformed, unaddressable, live, usedLive };
+}
+
+/**
+ * SHOP-B3 — THE TEST-ORDER SWEEP. An order filed with test: true (the shop's Paystack test mode) is
+ * removed 7 days after it was filed, with its index entry when that entry still points at the same
+ * account. Real orders are never touched. Only a well-formed uid and order number become a path.
+ *
+ * @returns {{ nulls, removed, kept }}
+ */
+export function planTestOrderSweep(orders, index, now = Date.now()) {
+  const nulls = [];
+  let removed = 0; let kept = 0;
+  for (const [uid, list] of entries(orders)) {
+    if (!isIdKind('uid', uid)) continue;
+    for (const [orderNo, rec] of entries(list)) {
+      if (!isObj(rec) || rec.test !== true) continue;
+      if (!(typeof rec.filedAt === 'number' && rec.filedAt + TEST_ORDER_TTL_MS <= now)) { kept++; continue; }
+      if (!isIdKind('orderNo', orderNo)) continue;
+      nulls.push(`print_orders/${uid}/${orderNo}`);
+      if (index?.[orderNo] === uid) nulls.push(`print_order_index/${orderNo}`);
+      removed++;
+    }
+  }
+  return { nulls, removed, kept };
 }

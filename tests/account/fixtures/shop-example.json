@@ -1,0 +1,12 @@
+{
+  "note": "THROWAWAY: made only for the worked example in docs/SHOP-HANDOFF.md. Never the shop key, never valid in production.",
+  "publicKeyRaw": "4ZgIF4MKpoevYvb4ceeZ2JmUy5ctDlUSg5NyKe_29tI",
+  "publicKeySpki": "MCowBQYDK2VwAyEA4ZgIF4MKpoevYvb4ceeZ2JmUy5ctDlUSg5NyKe/29tI=",
+  "privateKeyJwkD": "ae_ZbE0F1QKt-MP2MQ4uqRJzxmDcvbeOthRuwqWZf4U",
+  "privateKeyPkcs8Pem": "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIGnv2WxNBdUCrfjD9jEOLqkSc8Zg3L23jrYUbsKlmX+F\n-----END PRIVATE KEY-----\n",
+  "keyId": "b3642903",
+  "timestamp": "1795602000",
+  "body": "{\"code\":\"q8Zr3vY1mXc0Lw9tB2nK5sJ7hD4fG6aP-eU_iO0yR1Q\",\"order\":{\"orderNo\":\"CS-7KQ2MX\",\"paidAt\":\"2026-11-25T09:59:12Z\",\"titles\":[\"after-the-fact\",\"where-the-story-begins\"],\"copies\":3,\"amount\":{\"value\":1500000,\"currency\":\"NGN\"},\"test\":true}}",
+  "signed": "calvary-shop-orders-v1\nb3642903\n1795602000\nPOST\n/api/account/shop-orders\n{\"code\":\"q8Zr3vY1mXc0Lw9tB2nK5sJ7hD4fG6aP-eU_iO0yR1Q\",\"order\":{\"orderNo\":\"CS-7KQ2MX\",\"paidAt\":\"2026-11-25T09:59:12Z\",\"titles\":[\"after-the-fact\",\"where-the-story-begins\"],\"copies\":3,\"amount\":{\"value\":1500000,\"currency\":\"NGN\"},\"test\":true}}",
+  "signature": "Tks7SQXyh5mmJA_X_Thhb2yWSCpa43VpsJqzQKAa_eNBv73GdI4ccObAgIyNPA2R9ZOPeRMYU_kAwvmRSGB1Aw"
+}

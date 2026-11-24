@@ -42,6 +42,8 @@ on:
       - 'app/lib/accountDeletion.js'
       - 'app/components/DeleteAccountModal.js'
       - 'app/lib/shopHandoff.js'
+      - 'app/lib/shopOrders.js'
+      - 'docs/SHOP-HANDOFF.md'
       - 'app/lib/profileCompletion.js'
       - 'app/account/shop/**'
       - 'functions/api/_ratelimit.js'
