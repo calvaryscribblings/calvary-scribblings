@@ -120,12 +120,21 @@ async function open(page, path, { uid = A, size = 'desktop' } = {}) {
   await page.setViewportSize(typeof size === 'object' ? size : WIDTHS[size]);
   await page.clock.setFixedTime(AT);
   await routeNotify(page, { at: AT });
-  await page.goto(path);
-  await pinned(page);
+  // SIGNED IN BEFORE THE PAGE UNDER TEST OPENS (SHOP-B2, after f9624110's red run). Signing in on a
+  // page whose database socket is already open signed out (the Square reads its feed signed out)
+  // races the new credential against the page's first listens: a listen the database judges before
+  // the credential lands is refused (permission_denied) and never retried, so the bell's inbox read
+  // stayed empty at "0 unread" for the whole 90s. The failing run logged exactly that refusal, on the
+  // reader's own memberships node; no passing run has. So the reader signs in on /about first and the
+  // page under test loads with the session already saved, as a returning reader's does: the database
+  // client then waits for the credential before it connects, and there is nothing to race.
   if (uid) {
+    await page.goto('/about');
     await page.waitForFunction(() => !!window.__FB_EMULATOR_SIGNIN__, null, { timeout: 120000 });
     await page.evaluate((tk) => window.__FB_EMULATOR_SIGNIN__(tk), await getAuth(app).createCustomToken(uid));
   }
+  await page.goto(path);
+  await pinned(page);
   const decline = page.getByRole('button', { name: /^decline$/i });
   try { await decline.waitFor({ timeout: 5000 }); await decline.click(); } catch {}
   return errors;
