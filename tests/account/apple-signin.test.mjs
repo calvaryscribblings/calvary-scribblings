@@ -77,9 +77,9 @@ describe('the button and its handler', () => {
     assert.match(modal, /<path fill="#000" d="M788\.1 340\.9/, 'Apple\'s logo, in black');
   });
 
-  test('the switch: off in production until the web setup exists; an emulator build shows it', async () => {
+  test('the switch: on in production since the web setup was done (27 Nov 2026); an emulator build shows it too', async () => {
     const { APPLE_WEB_READY } = await import('../../app/lib/appleSignIn.js');
-    assert.equal(APPLE_WEB_READY, false, 'flip only after docs/APPLE-WEB-SETUP.md is done');
+    assert.equal(APPLE_WEB_READY, true, 'on: docs/APPLE-WEB-SETUP.md steps 1-4 done by Ikenna, 27 Nov 2026');
     assert.match(modal, /\{\(APPLE_WEB_READY \|\| process\.env\.NEXT_PUBLIC_FB_EMULATOR === '1'\) && \(\n\s+<button className="auth-google auth-apple"/);
   });
 });
