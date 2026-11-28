@@ -43,7 +43,7 @@ needs that same check.
 
 ## Then (the session, outside 19:30–00:00 London)
 
-5. *Done 27 Nov 2026 (APPLE-W1 go): committed inside the release window, to be pushed after 00:00 London.* Set `APPLE_WEB_READY = true` in `app/lib/appleSignIn.js`. Update the switch test in
+5. *Done 27 Nov 2026 (APPLE-W1 go): committed inside the release window, pushed 28 Nov 2026 after 00:00 London.* Set `APPLE_WEB_READY = true` in `app/lib/appleSignIn.js`. Update the switch test in
    `tests/account/apple-signin.test.mjs`, which pinned `false` on purpose so the flip is a deliberate
    two-line change; it now pins `true`.
 6. Run `npm run test:account` and `npm run test:apple-signin`, then push.
