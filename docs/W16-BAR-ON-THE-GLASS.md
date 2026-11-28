@@ -1,5 +1,10 @@
 # W16 — the story bar, measured on the glass
 
+> **BAR-1 (28 Nov 2026) changes §2's rule.** At scale 1 the bar is no longer hidden while the
+> viewports disagree. It is translated to follow the glass, either sign of `offsetTop`, and the guard
+> re-reads on `pageshow`, `focusout` and the rest. Only a zoom still hides it. A negative `offsetTop`
+> is no longer assumed to be rubber-band. See `docs/BAR-1-BAR-ON-THE-GLASS.md`.
+
 26 Sep 2026. Ikenna, 13:29, iPhone Safari on the live site, "The Number Thirteen": the
 "Calvary Scribblings · SHORT STORY" bar sat about 40% of the way down the screen, over the story,
 with text above and below it. W9 had reported this fixed.

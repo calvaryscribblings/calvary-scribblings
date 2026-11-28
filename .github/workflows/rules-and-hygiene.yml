@@ -88,6 +88,8 @@ on:
       - 'tests/account/**'
       # CR-2 — Continue Reading in a browser (tests/continue-reading/continue-reading.spec.mjs).
       - 'tests/continue-reading/**'
+      # BAR-1 — the site bar in WebKit (tests/storybar/bar-1.spec.mjs).
+      - 'tests/storybar/**'
       # W17 — the live harnesses tests/ci/w17-live-safety.test.mjs pins: a change to any of them
       # must re-run the check that it signs in only as the test reader, behind the firewall.
       - 'tests/live/**'
@@ -383,6 +385,12 @@ jobs:
         env:
           GALLIUM_DRIVER: softpipe
         run: npm run test:series-notes:reader
+      # BAR-1 — the site bar on /public-library in WebKit on an iPhone profile, through every state the
+      # page passes through (first load, the door's lift, the rows mounting, the drawer, the sign-in
+      # box with the keyboard replayed, back from a story, client-side navigation, rotation, zoom), and
+      # the founder readout's sticky flag and freeze. Same emulators; nothing reaches production.
+      - name: BAR-1 — the site bar holds the top of the screen
+        run: npm run test:bar-1
 
   # ───────────────────────────────────────────────────────────────────────────
   # 2. DRIFT. Proves the console has not been edited behind the repo (RULES.md).

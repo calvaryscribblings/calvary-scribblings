@@ -1,5 +1,6 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 // next/link for the two Series entries only. The rest of this menu is plain <a> and stays
 // that way — converting the whole nav is a separate change with its own review, and mixing
 // one file's worth of half-migration is cheaper than an unrelated sweep inside this round.
@@ -33,7 +34,35 @@ async function getDB() {
 // the same clock as the SQUARE tab beside it. Shared helper lives in TabBar.js.
 const isSquareOpen = isSquareOpenLondon;
 
+// ── BAR-1: THE BAR'S ONLY ANCESTORS ARE <body> AND <html> ──────────────────────────────────────
+// W16 moved the STORY bar out of every wrapper; this bar stayed inside each page's own tree. On
+// /public-library that tree includes the arrival veil's wrapper, which carries a transform for the
+// length of the door's lift (ArrivalVeil rise="wrapper"), and a transform on an ancestor makes it
+// the containing block of a fixed bar: for that second the bar belonged to the page, not the
+// screen. Now, once the page has hydrated, the bar renders through a portal into one host that is
+// <body>'s FIRST child:
+//   · display: contents, so the host draws no box and can never be a containing block itself;
+//   · FIRST, so the bar keeps exactly the stacking order it had as the first thing on each page:
+//     anything at z-index 1000 that came after it (a modal scrim, the Open Pages progress line)
+//     still paints over it, as before;
+//   · server render and hydration stay inline (the static HTML still has the bar for first
+//     paint); the move happens in the commit straight after, in one frame.
+export const BAR_HOST_ID = 'cs-bar-host';
+function barHost() {
+  let h = document.getElementById(BAR_HOST_ID);
+  if (!h) {
+    h = document.createElement('div');
+    h.id = BAR_HOST_ID;
+    h.style.display = 'contents';
+    document.body.insertBefore(h, document.body.firstChild);
+  }
+  return h;
+}
+const noSubscribe = () => () => {};
+const noHost = () => null;
+
 export default function Navbar() {
+  const host = useSyncExternalStore(noSubscribe, barHost, noHost);
   const { user, logout } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -43,12 +72,14 @@ export default function Navbar() {
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [squareOpen, setSquareOpen] = useState(false);
   // W31: W16's viewport guard, which this bar never had. While the visual and layout viewports
-  // disagree (a pinch, a double-tap, the keyboard's pan) a `fixed; top: 0` bar is drawn wherever
-  // the layout top falls — 444px down Ikenna's screen on 30 Sep — so it is unpainted until they
-  // agree. An open menu drawer holds it exactly as it is. ?debug=bar mounts the founder readout.
+  // disagree a `fixed; top: 0` bar is drawn wherever the layout top falls — 444px down Ikenna's
+  // screen on 30 Sep, ~240pt on 28 Nov. BAR-1: at scale 1 the guard now FOLLOWS the glass (the
+  // bar is translated back to the screen's top); only while zoomed is it unpainted. An open menu
+  // drawer holds it exactly as it is. ?debug=bar mounts the founder readout, sticky for the session.
   const navRef = useRef(null);
-  useViewportGuard(navRef, { hold: menuOpen });
-  useBarReadout(navRef);
+  // `rev` re-attaches both when the bar moves into its body host (BAR-1).
+  useViewportGuard(navRef, { hold: menuOpen, rev: host ? 1 : 0 });
+  useBarReadout(navRef, host ? 1 : 0);
 
   useEffect(() => {
     setSquareOpen(isSquareOpen());
@@ -76,7 +107,7 @@ export default function Navbar() {
 
   const initials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
 
-  return (
+  const tree = (
     <>
       <style>{`
         .cs-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; padding: 0 4%; height: 68px; display: flex; align-items: center; justify-content: space-between; transition: background 0.3s, backdrop-filter 0.3s; }
@@ -305,4 +336,6 @@ export default function Navbar() {
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
     </>
   );
+  // BAR-1: once mounted, the bar (and its drawer) live in the <body> host: see barHost above.
+  return host ? createPortal(tree, host) : tree;
 }

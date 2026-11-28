@@ -17,15 +17,19 @@ const PANNED = { offsetTop: 444, scale: 1 };        // Ikenna's 30 Sep picture: 
 const sample = (y, vv) => ({ y, maxY: 10000, h: 874, vv });
 
 describe('W31 · barView — three answers', () => {
-  test('the site bar (no scroll-hide): agreeing → shown; zoomed or panned → apart', () => {
+  test('the site bar (no scroll-hide): agreeing → shown; zoomed → apart; panned at scale 1 → shown AND followed (BAR-1)', () => {
     assert.equal(barView(initialBar(), sample(0, AGREE)).view, 'shown');
     assert.equal(barView(initialBar(), sample(0, null)).view, 'shown', 'no visualViewport: nothing to disagree with');
     assert.equal(barView(initialBar(), sample(900, ZOOMED)).view, 'apart');
-    assert.equal(barView(initialBar(), sample(900, PANNED)).view, 'apart');
+    const panned = barView(initialBar(), sample(900, PANNED));
+    assert.equal(panned.view, 'shown');
+    assert.equal(panned.shift, 444, 'translated back onto the glass');
   });
-  test('the site bar comes back the moment they agree — wherever the page is scrolled', () => {
-    const apart = barView(initialBar(), sample(3000, PANNED));
-    assert.equal(barView(apart, sample(3000, AGREE)).view, 'shown');
+  test('the site bar comes back the moment the zoom ends — wherever the page is scrolled', () => {
+    const apart = barView(initialBar(), sample(3000, ZOOMED));
+    const back = barView(apart, sample(3000, AGREE));
+    assert.equal(back.view, 'shown');
+    assert.equal(back.shift, 0);
   });
   test('the story bar: its ordinary scroll-hide is "hidden" (slid, painted); apart is "apart"', () => {
     let s = barView(initialBar(), sample(0, AGREE), true);
@@ -61,7 +65,7 @@ describe('W31 · "apart" is not painted', () => {
 describe('W31 · one guard, shared', () => {
   test('StoryBar, Navbar and the verify banner all call useViewportGuard; nobody keeps a private copy', () => {
     assert.match(code('app/components/StoryBar.js'), /useViewportGuard\(ref, \{ hideOnScroll \}\)/);
-    assert.match(code('app/components/Navbar.js'), /useViewportGuard\(navRef, \{ hold: menuOpen \}\)/, 'the open drawer holds the bar');
+    assert.match(code('app/components/Navbar.js'), /useViewportGuard\(navRef, \{ hold: menuOpen, rev: host \? 1 : 0 \}\)/, 'the open drawer holds the bar');
     assert.match(code('app/components/VerifyEmailBanner.js'), /useViewportGuard\(bannerRef, \{ hold: !visible \}\)/);
     for (const f of ['app/components/StoryBar.js', 'app/components/Navbar.js', 'app/components/VerifyEmailBanner.js']) {
       assert.doesNotMatch(code(f), /visualViewport/, `${f} reads the viewport itself — use the hook`);
@@ -70,8 +74,10 @@ describe('W31 · one guard, shared', () => {
   test('the hook: rAF-coalesced, window scroll/resize + visualViewport resize/scroll, one attribute write, no state', () => {
     const h = code('app/components/useBarGuard.js');
     assert.match(h, /requestAnimationFrame\(read\)/);
-    for (const [t, e] of [['window', 'scroll'], ['window', 'resize'], ['vvp\\?', 'resize'], ['vvp\\?', 'scroll']]) {
-      assert.match(h, new RegExp(`${t}\\.addEventListener\\('${e}', on`), `${t} ${e}`);
+    // BAR-1: a resize also schedules the settle burst (settle → on), and every viewport-moving
+    // event is listened to (SETTLE_EVENTS; tests/ci/bar-1.test.mjs holds the list).
+    for (const [t, e, f] of [['window', 'scroll', 'on'], ['window', 'resize', 'settle'], ['vvp\\?', 'resize', 'on'], ['vvp\\?', 'scroll', 'on']]) {
+      assert.match(h, new RegExp(`${t}\\.addEventListener\\('${e}', ${f}`), `${t} ${e}`);
     }
     assert.match(h, /el\.setAttribute\('data-state', s\.view\)/);
     assert.match(h, /barView\(/);

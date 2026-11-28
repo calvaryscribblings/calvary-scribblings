@@ -32,13 +32,18 @@ describe('W16 · the viewports must agree before the bar is shown', () => {
     assert.equal(viewportsAgree({ offsetTop: 300, scale: 1 }), false);
     assert.equal(viewportsAgree({ offsetTop: 300, scale: 1.8 }), false);
   });
-  test('a SHOWN bar is hidden the moment they come apart — even in the top zone, even mid-scroll-up', () => {
+  test('a SHOWN bar is hidden the moment the page is ZOOMED — even in the top zone, even mid-scroll-up', () => {
     let s = run([{ y: 0, vv: AGREE }, { y: 40, vv: AGREE }]);
     assert.equal(s.state, 'shown');
     s = nextBar(s, { y: 40, maxY: 10000, h: 800, vv: { offsetTop: 0, scale: 1.8 } });
     assert.equal(s.state, 'hidden');
-    s = run([{ y: 1000, vv: { offsetTop: 300, scale: 1 } }, { y: 600, vv: { offsetTop: 300, scale: 1 } }], s);
-    assert.equal(s.state, 'hidden', 'a scroll up while apart does not bring it back');
+    s = run([{ y: 1000, vv: { offsetTop: 300, scale: 1.8 } }, { y: 600, vv: { offsetTop: 300, scale: 1.8 } }], s);
+    assert.equal(s.state, 'hidden', 'a scroll up while zoomed does not bring it back');
+    // BAR-1 (ruling, 28 Nov 2026): panned at SCALE 1 is no longer hidden. The bar keeps its
+    // ordinary rules and is FOLLOWED to the glass (barView's shift, tests/ci/bar-1.test.mjs).
+    const panned = nextBar(run([{ y: 0, vv: AGREE }, { y: 40, vv: AGREE }]), { y: 40, maxY: 10000, h: 800, vv: { offsetTop: 300, scale: 1 } });
+    assert.equal(panned.state, 'shown');
+    assert.equal(panned.apart, false);
   });
   test('when they agree again: shown in the top zone, otherwise hidden until a real scroll up', () => {
     const apart = run([{ y: 0 }, { y: 2000, vv: { offsetTop: 0, scale: 2 } }]);
@@ -113,13 +118,15 @@ describe('W16 · the founder readout', () => {
     // and Navbar mounts it too, so every site-bar page has the readout.
     const b = code('app/components/useBarGuard.js');
     assert.match(b, /isFounder\(uid\)/);
-    assert.match(b, /get\('debug'\) !== 'bar'/);
+    // BAR-1: the flag is sticky for the session (barDebugOn), still founder-gated first.
+    assert.match(b, /if \(!barDebugOn\(\)\) return undefined;/);
+    assert.match(b, /if \(q === 'bar'\) sessionStorage\.setItem\(BAR_DEBUG_KEY, '1'\)/);
     assert.match(b, /import\('\.\/BarReadout'\)/);
     for (const f of ['app/components/useBarGuard.js', 'app/components/StoryBar.js', 'app/components/Navbar.js']) {
       assert.doesNotMatch(code(f), /^import .*from '\.\/BarReadout'/m, `${f}: never a static import`);
     }
     assert.match(code('app/components/StoryBar.js'), /useBarReadout\(ref\)/);
-    assert.match(code('app/components/Navbar.js'), /useBarReadout\(navRef\)/);
+    assert.match(code('app/components/Navbar.js'), /useBarReadout\(navRef, host \? 1 : 0\)/);
   });
   test('it shows the build, live build, scrollY, visualViewport top/height, the bar on screen, its state and the ancestor check', () => {
     const r = code('app/components/BarReadout.js');

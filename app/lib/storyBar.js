@@ -64,6 +64,41 @@ export function viewportsAgree(vv) {
   return true;
 }
 
+/** Zoomed: the one case where the bar is still hidden rather than followed (BAR-1, below). */
+export const isZoomed = (vv) => !!vv && Number.isFinite(vv.scale) && vv.scale > 1 + ZOOM_TOLERANCE;
+
+// ── BAR-1: FOLLOW THE GLASS AT SCALE 1, DON'T HIDE ──────────────────────────────────────────
+// Ikenna, 28 Nov 03:33, iPhone, live, NOT zoomed: the site bar PAINTED about 240pt down
+// /public-library, the bottom tab bar where it belonged. W16's guard can't have hidden it: it reads
+// a negative offsetTop as rubber-band, and iOS 26 has an open regression (Apple forums thread
+// 800125, WebKit bug 300523) in which, after the keyboard closes or an interactive swipe-back, the
+// visual viewport stays offset from the layout viewport and/or short of innerHeight, unzoomed. A
+// layout viewport whose top sits 240pt below the glass while its bottom is the glass's bottom draws
+// exactly that picture: top bar mid-screen, tab bar in place.
+//
+// Ruling (Ikenna, 28 Nov): the bar must stay at the top of the screen, not hide. So at scale 1 an
+// offset of EITHER SIGN is now followed: the bar is translated by the visual viewport's offsetTop
+// (the `translate` property, which composes with the story bar's own transform slide and is never
+// transitioned). It does not lag the way W16 feared:
+//   · in the healthy state offsetTop is 0, so nothing is applied and the bar is compositor-fixed
+//     exactly as before, through every momentum scroll;
+//   · the stuck offset is STATIC (that is the bug), so following it is one write, not a chase;
+//   · the only moving offset at scale 1 is the keyboard's pan while a field is focused, where a
+//     frame of trail is a far smaller fault than a bar 240pt down or gone.
+// Zoomed (scale above 1) is where the offset moves with every pan and pinch; there the bar is
+// still hidden ('apart'), as W16 ruled.
+
+/**
+ * At scale 1: how far the layout viewport's top sits from the screen's top, in CSS px: the visual
+ * viewport's offsetTop when it is off by more than the tolerance either way, else 0. Zoomed: 0 (the
+ * bar is hidden instead).
+ */
+export function viewportShift(vv) {
+  if (!vv || isZoomed(vv)) return 0;
+  const o = vv.offsetTop;
+  return Number.isFinite(o) && Math.abs(o) > VIEWPORT_TOLERANCE_PX ? o : 0;
+}
+
 export const initialBar = () => ({ state: 'shown', lastY: null, acc: 0, lastH: null, apart: false });
 
 /**
@@ -76,10 +111,10 @@ export const initialBar = () => ({ state: 'shown', lastY: null, acc: 0, lastH: n
  *   s.apart  true while the viewports disagree (W16)
  */
 export function nextBar(s, { y, maxY, h, vv = null }) {
-  // W16: THE VIEWPORTS DISAGREE — the bar's top 0 is not the screen's top. Hidden, and nothing
-  // decided from this frame's scroll: a zoomed pan and a keyboard's scroll-into-view are not the
-  // reader asking for the bar.
-  if (!viewportsAgree(vv)) return { state: 'hidden', lastY: y, acc: 0, lastH: h, apart: true };
+  // W16: ZOOMED — the bar's top 0 is not the screen's top, and the offset moves with every pan.
+  // Hidden, and nothing decided from this frame's scroll: a zoomed pan is not the reader asking for
+  // the bar. (BAR-1: an offset at scale 1 is FOLLOWED instead, by barView's shift; see above.)
+  if (isZoomed(vv)) return { state: 'hidden', lastY: y, acc: 0, lastH: h, apart: true };
   // Agreeing again: re-baseline. Shown only if we are in the top zone; otherwise it waits for a
   // real scroll up, like any hidden bar.
   if (s.apart) return { state: y <= BAR_TOP_ZONE ? 'shown' : 'hidden', lastY: y, acc: 0, lastH: h, apart: false };
@@ -147,7 +182,8 @@ export function containingBlockAncestor(el, getStyle) {
 //   shown   at the top of the glass
 //   hidden  the ordinary scroll-hide (StoryBar with hideOnScroll): slid up by its own height,
 //           still painted, progress line still on the edge — W9's resting value
-//   apart   the viewports disagree: NOT PAINTED (visibility hidden, pointer events off).
+//   apart   ZOOMED (since BAR-1; before it, any disagreement): NOT PAINTED (visibility hidden,
+//           pointer events off). At scale 1 the bar is shown and FOLLOWS the glass (`shift`).
 //           A slide is not enough here: when the layout top sits mid-screen, a bar lifted by its
 //           own height is still on the glass, just 68px higher.
 
@@ -158,12 +194,14 @@ export function containingBlockAncestor(el, getStyle) {
  *                 true:  W9's scroll-hide (nextBar) under the same guard (the story bar)
  */
 export function barView(s, { y, maxY, h, vv = null }, hideOnScroll = false) {
+  // BAR-1: `shift` is the translate that puts the bar's top on the screen's top (0 when they agree).
+  const shift = viewportShift(vv);
   if (hideOnScroll) {
     const n = nextBar(s, { y, maxY, h, vv });
-    return { ...n, view: n.apart ? 'apart' : n.state };
+    return { ...n, view: n.apart ? 'apart' : n.state, shift: n.apart ? 0 : shift };
   }
-  const agree = viewportsAgree(vv);
-  return { ...s, apart: !agree, view: agree ? 'shown' : 'apart' };
+  const zoomed = isZoomed(vv);
+  return { ...s, apart: zoomed, view: zoomed ? 'apart' : 'shown', shift: zoomed ? 0 : shift };
 }
 
 /** The CSS for the apart state: unpainted and untouchable. `sel` is the bar's selector. */
