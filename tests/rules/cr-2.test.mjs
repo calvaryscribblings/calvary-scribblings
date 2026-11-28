@@ -64,7 +64,9 @@ describe('reading_position/{uid}/stories/{slug} — the shape', () => {
     await assertFails(owner.ref(`${P}/stories/a-tale`).set({ fraction: 0.5 }));
   });
   test('updatedAt is the server\'s now, never a client number', async () => {
-    await assertFails(owner.ref(`${P}/stories/a-tale`).set({ fraction: 0.5, updatedAt: Date.now() }));
+    // A client's clock, never the server's: a minute behind. (Date.now() itself can land on the
+    // emulator's own millisecond on a fast runner, and then `=== now` holds: CI, 28 Nov 2026.)
+    await assertFails(owner.ref(`${P}/stories/a-tale`).set({ fraction: 0.5, updatedAt: Date.now() - 60000 }));
     await assertFails(owner.ref(`${P}/stories/a-tale`).set({ fraction: 0.5, updatedAt: Date.now() + 86400000 }));
     await assertFails(owner.ref(`${P}/stories/a-tale/updatedAt`).set(1));
   });
@@ -87,7 +89,8 @@ describe('reading_position/{uid}/hidden — the ✕', () => {
   test('a story or an instalment, hidden at the server\'s now', async () => {
     await assertSucceeds(owner.ref(`${P}/hidden/stories/a-tale`).set(serverTimestamp()));
     await assertSucceeds(owner.ref(`${P}/hidden/instalments/bp-i1`).set(serverTimestamp()));
-    await assertFails(owner.ref(`${P}/hidden/stories/a-tale`).set(Date.now()));
+    await assertFails(owner.ref(`${P}/hidden/stories/a-tale`).set(Date.now() - 60000));
+    await assertFails(owner.ref(`${P}/hidden/stories/a-tale`).set(Date.now() + 86400000));
     await assertFails(owner.ref(`${P}/hidden/instalments/bp-i1`).set(true));
     await assertFails(stranger.ref(`${P}/hidden/stories/a-tale`).set(serverTimestamp()));
   });
