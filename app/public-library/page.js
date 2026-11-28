@@ -50,20 +50,23 @@ import {
 import { getBadge, BadgeIcon } from '../components/conversation/ConversationKit';
 import { measureQuotePin } from '../lib/pinQuoteStage';
 
-// ── Typography system ───────────────────────────────────────────────────────
-// DISPLAY for headings/titles, LABEL for kickers/badges/controls, BODY for meta.
-const DISPLAY = "'Cormorant Garamond', Georgia, serif";
-const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
-const BODY = "Cormorant Garamond, Georgia, serif";
+// ── Typography system and the row chrome ─────────────────────────────────────
+// DISPLAY / LABEL / BODY, the section header, the card's writer line, and Just Added's header and
+// strip live in app/components/libraryShelf.js since CR-2, so Continue Reading (its own chunk)
+// reuses them rather than restating them.
+import {
+  DISPLAY, LABEL, BODY, kickerStyle, sectionTitleStyle, cardAuthorStyle,
+  SHELF_SECTION_STYLE, SHELF_STRIP_STYLE, ShelfRowHeader,
+} from '../components/libraryShelf';
+import dynamic from 'next/dynamic';
 
-// ── Unified section-header styles (used by every content row) ────────────────
-const kickerStyle = { fontFamily: LABEL, fontSize: '0.6rem', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 6, display: 'block' };
-const sectionTitleStyle = { fontFamily: DISPLAY, fontSize: '1.6rem', fontWeight: 600, color: '#f5f0e8', lineHeight: 1, margin: '4px 0 0' };
+// CR-2 — Continue Reading, in its own chunk, mounted only for a signed-in reader: a signed-out
+// visitor never downloads it or reads anything for it, and nothing on the page waits for it. No loading placeholder, by ruling: it holds no space until it has cards.
+const ContinueReadingRow = dynamic(() => import('../components/ContinueReadingRow'), { ssr: false, loading: () => null });
 const seeAllStyle = { fontFamily: LABEL, fontSize: '0.7rem', letterSpacing: '0.05em', textTransform: 'uppercase', color: '#c9a84c', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' };
 
 // Shared card accents — app visual language: gold NEW badge, purple-tinted cover frame.
 const newBadgeStyle = { position: 'absolute', background: '#c9a84c', color: '#080610', fontFamily: LABEL, fontSize: '0.5rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4 };
-const cardAuthorStyle = { fontFamily: BODY, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(245,240,232,0.7)' };
 
 // Right-pointing chevron used on every "See all" / "View all" link.
 const seeAllChevron = (
@@ -1957,6 +1960,12 @@ export default function Home() {
       </section>
       )}
 
+      {/* CONTINUE READING (CR-2) — under the hero, below the first screen, above the desktop Square
+          banner (ruling, 28 Nov 2026). Its own chunk (dynamic, below), and it draws NOTHING until a
+          reader is signed in and has something started: no skeleton, no reserved space. It reads
+          the reader's own records only, and takes story facts from the index this page holds. */}
+      {user && <ContinueReadingRow key={user.uid} uid={user.uid} allStories={allStories} />}
+
       {/* Square Banner — desktop only */}
       <div className="sq-banner-desktop">
         <SquareBanner squareOpen={squareOpen} countdown={countdown} />
@@ -1968,12 +1977,9 @@ export default function Home() {
       ) : feed.phase === 'loading' ? (
         <JustAddedSkeleton />
       ) : (
-      <section style={{ padding: '0.75rem 0' }}>
-        <div data-reveal="up" style={{ paddingLeft: '4%', marginBottom: '1rem' }}>
-          <span style={kickerStyle}>FRESH OFF THE PRESS</span>
-          <h3 style={sectionTitleStyle}>Just Added</h3>
-        </div>
-        <div className="just-added-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
+      <section style={SHELF_SECTION_STYLE}>
+        <ShelfRowHeader kicker="FRESH OFF THE PRESS" title="Just Added" />
+        <div className="just-added-scroll" style={SHELF_STRIP_STYLE}>
           {[...allStories].sort((a,b) => getStorySortTime(b)-getStorySortTime(a)).slice(0,8).map((s, i) => <JustAddedCard key={s.id} story={s} data-reveal="up" data-reveal-delay={(i % 4) + 1} />)}
         </div>
       </section>

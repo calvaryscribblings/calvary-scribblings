@@ -86,6 +86,8 @@ on:
       - 'tests/safety/**'
       # SHOP-B2 — /account/shop in a browser (tests/account/shop.spec.mjs).
       - 'tests/account/**'
+      # CR-2 — Continue Reading in a browser (tests/continue-reading/continue-reading.spec.mjs).
+      - 'tests/continue-reading/**'
       # W17 — the live harnesses tests/ci/w17-live-safety.test.mjs pins: a change to any of them
       # must re-run the check that it signs in only as the test reader, behind the firewall.
       - 'tests/live/**'
@@ -325,6 +327,13 @@ jobs:
       # email already on a password account, Google and Apple side by side.
       - name: APPLE-W1 — Sign in with Apple, end to end
         run: npm run test:apple-signin
+      # CR-2 — Continue Reading, against the same emulators: the row present for a reader with
+      # something started and absent (no reads at all) signed out, the card as drawn and its bars
+      # level, the ✕ by hover, focus and touch, a card coming back after reading on, the resume jump,
+      # a locked card, and the story page's saving. Invented records; every request off localhost is
+      # refused. Nothing reaches production.
+      - name: CR-2 — Continue Reading, end to end
+        run: npm run test:continue-reading
 
   # ───────────────────────────────────────────────────────────────────────────
   # 1c. READERS' NOTES IN A BROWSER (Chromium + WebKit). See 1b for why it is

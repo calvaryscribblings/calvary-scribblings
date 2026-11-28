@@ -505,3 +505,12 @@ describe('SHOP-B1 · deletion reaches the shop nodes', () => {
     assert.deepEqual(planCodeSweep(null, now).nulls, []);
   });
 });
+
+// ── CR-2: Continue Reading's node ─────────────────────────────────────────────────────────────
+describe('CR-2 · deletion reaches reading_position', () => {
+  test('reading_position (positions and ✕s) is deleted whole with the account, not kept', () => {
+    assert.ok(OWNED_NODES.includes('reading_position'));
+    assert.ok(!('reading_position' in KEPT_NODES));
+    assert.equal(planOwned(T, {}, null)[`reading_position/${T}`], null);
+  });
+});

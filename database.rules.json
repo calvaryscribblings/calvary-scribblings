@@ -1957,6 +1957,44 @@
         ".validate": false
       }
     },
+    "reading_position": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "stories": {
+          "$slug": {
+            ".validate": "$slug.matches(/^[a-z0-9]+(-[a-z0-9]+)*$/) && $slug.length <= 128 && root.child('cms_stories_index').child($slug).exists() && newData.hasChildren(['fraction', 'updatedAt'])",
+            "fraction": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1"
+            },
+            "updatedAt": {
+              ".validate": "newData.val() === now"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "hidden": {
+          "stories": {
+            "$slug": {
+              ".validate": "$slug.matches(/^[a-z0-9]+(-[a-z0-9]+)*$/) && $slug.length <= 128 && root.child('cms_stories_index').child($slug).exists() && newData.val() === now"
+            }
+          },
+          "instalments": {
+            "$id": {
+              ".validate": "$id.matches(/^[A-Za-z0-9_-]{1,128}$/) && root.child('series_instalments').child($id).exists() && newData.val() === now"
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
     "radio_collections": {
       ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
       ".indexOn": [

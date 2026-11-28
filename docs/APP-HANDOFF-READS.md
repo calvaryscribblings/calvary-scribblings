@@ -2,6 +2,10 @@
 
 Rulings 176–180, 17 Oct 2026. The web shipped them in W49. This is what the app must mirror.
 
+> **Continue Reading (CR-2, 28 Nov 2026)** has its own contract: `docs/CONTINUE-READING.md`. It
+> uses the same 12 s / 25% moment as §1 below to decide that a story is *started*, and adds one
+> node, `reading_position/{uid}`, for the reader's place and the cards they ✕'d.
+
 ## 1. Story reads: move from the Worker to `/api/hit`
 
 **What happened.** The app counted story opens by POSTing to the `calvary-hit-counter` Worker

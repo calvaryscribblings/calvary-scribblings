@@ -86,6 +86,7 @@ export const OWNED_NODES = [
   'inbox_state',       // NOTIF-B1: when they last opened the list (ruling 326) — nothing to keep
   'notify_prefs',      // NOTIF-B1: their push switches (ruling 312) — nothing to keep
   'listening_position', // RADIO-B1: where they stopped listening — theirs alone, nothing to keep
+  'reading_position',  // CR-2: where they stopped reading, and the cards they ✕'d — theirs alone, nothing to keep
   'push_state',        // P4-B1: when each of their records last pushed, and today's count — nothing to keep.
                        // Their push_queue entries ({uid}~{record}) need no deletion: with push_tokens gone
                        // the drain drops them as no_device on its next pass, and the job prunes the rest.

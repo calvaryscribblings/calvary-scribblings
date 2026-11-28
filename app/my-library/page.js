@@ -29,6 +29,8 @@ import { db } from '../lib/firebaseCore';
 import AuthModal from '../components/AuthModal';
 import TabBar, { TabLinks } from '../components/TabBar';
 import CoverImage from '../components/CoverImage';
+import ReadingBar from '../components/ReadingBar';
+import { barFor } from '../lib/readingBar';
 import {
   listSaved, removeSaved, restoreSaved, getCoverURL, capFor, isUnlimitedCap, keptAgo,
   isIOSSafariBrowser, getMeta, setMeta,
@@ -139,34 +141,15 @@ function BookCard({ book, index, progress }) {
           {door && <a className="ml-quiet" href={door}>VIEW IN THE BOOK STORE</a>}
         </>
       ) : (
-        <div className="ml-bar" data-bar={bar.kind}>
-          <span className="ml-bar-track" aria-hidden="true">
-            {bar.kind !== 'unstarted' && (
-              <span className="ml-bar-fill" style={{ width: bar.kind === 'finished' ? '100%' : `${bar.percent}%` }} />
-            )}
-          </span>
-          {/* The label keeps its line even when empty, so an untouched book's hairline sits
-              where its neighbours' do (the app's A-round finding: an empty label collapses). */}
-          <span className="ml-bar-l">{barLabel(bar) || '\u00a0'}</span>
-        </div>
+        // The shared bar (CR-2): the same component Continue Reading draws.
+        <ReadingBar progress={progress} />
       )}
     </article>
   );
 }
 
-// THE BAR — one component in three states, as the app draws it (lib/libraryShelves.ts:
-// barState/barLabel). The percent is FLOORED, never rounded: 99.6% is not finished, and the one
-// state that may print a hundred prints a word instead.
-function barFor(progress) {
-  if (typeof progress !== 'number' || !(progress > 0)) return { kind: 'unstarted' };
-  if (progress >= 1) return { kind: 'finished' };
-  return { kind: 'reading', percent: Math.max(1, Math.floor(progress * 100)) };
-}
-function barLabel(bar) {
-  if (bar.kind === 'finished') return 'FINISHED';
-  if (bar.kind === 'reading') return `${bar.percent}%`;
-  return '';
-}
+// THE BAR — app/components/ReadingBar.js, its arithmetic app/lib/readingBar.js (lifted in CR-2,
+// so My Library and Continue Reading draw one bar).
 
 // A saved story on the shelf.
 //
@@ -701,10 +684,8 @@ export default function MyLibraryPage() {
         /* THE BAR — a hairline on the ground, the fill in gold, the label in Cinzel beside it.
            The row is a fixed 12px whether or not the label has text, so an untouched book's
            hairline sits exactly where a started one's does. */
-        .ml-bar { display: flex; align-items: center; gap: 7px; height: 12px; margin-top: 8px; }
-        .ml-bar-track { position: relative; flex: 1; height: 2px; border-radius: 1px; overflow: hidden; background: rgba(245,240,232,.16); }
-        .ml-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1px; background: linear-gradient(90deg, #a8842f, #e2c876); }
-        .ml-bar-l { font-family: ${LABEL}; font-size: 7.5px; letter-spacing: .12em; line-height: 12px; color: rgba(245,240,232,.72); white-space: nowrap; }
+        /* The bar's own rules are app/components/ReadingBar.js's; here only where it sits. */
+        .ml-bar { margin-top: 8px; }
 
 
         .ml-vol-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 9px; flex-wrap: wrap; }

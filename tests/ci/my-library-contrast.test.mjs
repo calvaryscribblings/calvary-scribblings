@@ -23,8 +23,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+// CR-2: the bar's rules moved to app/components/ReadingBar.js (My Library and Continue Reading
+// draw one bar), so its stylesheet is read beside the page's: the two are one stylesheet on the page.
 const SRC = readFileSync(
   fileURLToPath(new URL('../../app/my-library/page.js', import.meta.url)),
+  'utf8',
+) + readFileSync(
+  fileURLToPath(new URL('../../app/components/ReadingBar.js', import.meta.url)),
   'utf8',
 );
 

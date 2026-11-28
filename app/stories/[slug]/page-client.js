@@ -42,6 +42,10 @@ import { DELETED_RESPONSE, isTombstone } from '../../lib/deletedContent';
 import useShownResponses from '../../lib/useShownResponses';
 import { HIDDEN_RESPONSE } from '../../lib/storyResponses';
 import GrowTextarea from '../../components/GrowTextarea';
+// CR-2 — Continue Reading: the saved place, and the jump back to it from a card.
+import { useStoryPosition } from '../../lib/continueReading/useStoryPosition';
+import { threadFraction } from '../../lib/continueReading/model';
+import { STARTED_DWELL_MS, STARTED_SCROLL } from '../../lib/continueReading/schema';
 
 
 
@@ -959,6 +963,9 @@ export default function StoryPageClient({ params, initialStory = null, proof = n
   // `access` is deliberately not cached anywhere. It is a property of this response,
   // not of the story.
   const [gate, setGate] = useState(null);
+  // CR-2 — true once the body request has answered or failed: the layout Continue Reading's jump
+  // waits for (the full body can replace the preview, and the page grows).
+  const [gateSettled, setGateSettled] = useState(false);
   const gatePreview = useGatePreview(storyUser);
   useEffect(() => {
     if (!slug || proof) return undefined;
@@ -979,6 +986,8 @@ export default function StoryPageClient({ params, initialStory = null, proof = n
         // preview from the static HTML, so a failed fetch leaves the reader with the
         // opening of the story rather than an error page. Logged, not surfaced.
         if (!cancelled) console.error('[story] body fetch failed:', e.code || '', e.message);
+      } finally {
+        if (!cancelled) setGateSettled(true);
       }
     })();
     return () => { cancelled = true; };
@@ -1021,12 +1030,9 @@ export default function StoryPageClient({ params, initialStory = null, proof = n
       if (!el) return;
       const { top, height } = articleMetrics.current;
       const scrollY = window.scrollY;
-      const vh = window.innerHeight;
-      const range = height - vh;
-      let p = range <= 0
-        ? (scrollY + vh >= top + height ? 1 : 0)
-        : (scrollY - top) / range;
-      p = p < 0 ? 0 : p > 1 ? 1 : p;
+      // CR-2: the measure is threadFraction, shared with Continue Reading, so the saved place IS
+      // the thread's fill. Same arithmetic as before, moved, not changed.
+      const p = threadFraction(articleMetrics.current, scrollY, window.innerHeight);
       // Fully passed = the article has scrolled entirely above the viewport top;
       // the thread belongs to the story, so it fades once the story is behind us.
       const passed = top + height <= scrollY;
@@ -1120,7 +1126,7 @@ export default function StoryPageClient({ params, initialStory = null, proof = n
       const { top, height } = articleMetrics.current;
       const range = height - window.innerHeight;
       if (range <= 0) return; // article fits the viewport — the dwell gate handles it
-      if ((window.scrollY - top) / range >= 0.25) fire();
+      if ((window.scrollY - top) / range >= STARTED_SCROLL) fire();
     };
 
     const tick = () => {
@@ -1129,7 +1135,7 @@ export default function StoryPageClient({ params, initialStory = null, proof = n
       const now = Date.now();
       if (lastTick != null) dwellMs += now - lastTick;
       lastTick = now;
-      if (dwellMs >= 12000) fire();
+      if (dwellMs >= STARTED_DWELL_MS) fire();
     };
 
     const onVis = () => {
@@ -1147,6 +1153,16 @@ export default function StoryPageClient({ params, initialStory = null, proof = n
     }
     return cleanup;
   }, [slug, story, proof]);
+
+  // CR-2 — Continue Reading. Saves a signed-in reader's place once the visit passes the read
+  // counter's thresholds (above), removes it at the end-of-story marker, and jumps back to it when
+  // the reader arrives from a card. Nothing on a proof, nothing signed out, nothing on the preview;
+  // every write fails quietly. app/lib/continueReading/useStoryPosition.js.
+  useStoryPosition({
+    slug, uid: storyUser?.uid || null, getDB, proof: !!proof, hasStory: !!story,
+    preview: !!story?.contentIsPreview, articleRef, articleMetrics, endSentinelRef, endReached,
+    settled: gateSettled,
+  });
 
   useEffect(() => {
     if (!slug || proof) return;
