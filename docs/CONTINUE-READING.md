@@ -130,7 +130,7 @@ deleted whole with the account. `tests/account/deletion.test.mjs` holds it there
 | minutes | Cormorant italic 12.5px, `rgba(245,240,232,0.55)`, 3px below the writer: "N minutes left", "1 minute left". Story: index `readTime` × (1 − fraction). Instalment: `readingMinutes(wordCount)` × (1 − fraction). Rounded up, at least 1 |
 | locked | in place of the minutes: a gold lock (9 × 10) and "Members" in Cinzel 7.5px, 0.16em, uppercase, `#c9a84c`, 5px gap, 5px below the writer |
 | progress | My Library's bar (`app/components/ReadingBar.js`), pinned to the card's foot so every bar in the row sits level: a 12px row, 7px gap, the percentage **floored** (`barFor`) |
-| hover | border `rgba(107,47,173,0.6)`; a 28px round ✕ 8px from the top and right (border 1px `rgba(245,240,232,0.25)`, background `rgba(10,10,10,0.7)`, a 10px cross at stroke 1.3, `#f5f0e8`) |
+| hover | border `rgba(107,47,173,0.6)`; a 28px round ✕ 8px from the card's outer edge, top and right, counting the 1px border (border 1px `rgba(245,240,232,0.25)`, background `rgba(10,10,10,0.7)`, a 10px cross at stroke 1.3, `#f5f0e8`) |
 | ✕ | a real button beside the card's link, labelled "Remove {title} from Continue Reading"; shown on keyboard focus; **always shown on touch screens**. It writes the hidden entry with the server's time |
 | row | Just Added's header, side margins, 14px gap and horizontal scroll. Kicker "Where you left off", title "Continue Reading". No skeleton, no reserved space: nothing at all until there is a card |
 

@@ -165,6 +165,18 @@ describe('access', () => {
     const locked = resolveCards([entries[2]], { liveStories: [], instalments: { 'bp-i2': { row, series, detail: { coverUrl: 'https://x/own.webp' } } }, subscriptionTier: 'free', now: NOW })[0];
     assert.deepEqual([locked.state, locked.cover, locked.href, locked.minutes], ['locked', 'https://x/own.webp', '/series/instalment/bp-i2', null]);
   });
+  test('an instalment with no wordCount: no minutes line at all, never an estimate or a zero (ruling, 28 Nov 2026)', () => {
+    const series = { title: 'Beta', status: 'published', coverUrl: 'p' };
+    for (const detail of [{ author: 'W' }, { author: 'W', wordCount: null }, { author: 'W', wordCount: 0 }, null]) {
+      const [c] = resolveCards([{ kind: 'instalment', id: 'bp-i2', fraction: 0.4, updatedAt: 1 }], {
+        liveStories: [], instalments: { 'bp-i2': { row, series, detail } }, subscriptionTier: 'platinum', now: NOW,
+      });
+      assert.equal(c.state, 'open');
+      assert.equal(c.minutes, null, JSON.stringify(detail));
+    }
+    const row2 = read('app/components/ContinueReadingRow.js');
+    assert.match(row2, /\) : card\.minutes \? \(\s*<span className="cr-mins">/, 'the line is drawn only when there are minutes');
+  });
   test('the row keeps ten', () => {
     const many = Array.from({ length: 14 }, (_, n) => ({ ...fresh, id: `s${n}` }));
     const entries = many.map((s, n) => ({ kind: 'story', id: s.id, fraction: 0.3, updatedAt: 100 - n }));

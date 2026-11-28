@@ -42,7 +42,8 @@ const CSS = `
   .cr-mins { margin-top: 3px; font-family: ${DISPLAY}; font-style: italic; font-size: 12.5px; color: rgba(245,240,232,0.55); }
   .cr-lock { margin-top: 5px; display: flex; align-items: center; gap: 5px; font-family: ${LABEL}; font-size: 7.5px; letter-spacing: 0.16em; text-transform: uppercase; color: #c9a84c; line-height: 1; }
   .cr-text .cr-bar { margin-top: auto; }
-  .cr-x { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; box-sizing: border-box; padding: 0; border-radius: 50%;
+  /* 8px from the card's OUTER edge, counting its 1px border, as drawn: 7px inside the border. */
+  .cr-x { position: absolute; top: 7px; right: 7px; width: 28px; height: 28px; box-sizing: border-box; padding: 0; border-radius: 50%;
     border: 1px solid rgba(245,240,232,0.25); background: rgba(10,10,10,0.7); color: #f5f0e8; cursor: pointer;
     display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.15s; }
   .cr-card:hover .cr-x, .cr-card:focus-within .cr-x { opacity: 1; pointer-events: auto; }

@@ -259,7 +259,7 @@ test('the card, as drawn — and every bar in a row of mixed cards sits level', 
       lock: lock && [cs(lock).fontFamily.split(',')[0].replace(/['"]/g, ''), cs(lock).fontSize, cs(lock).letterSpacing, cs(lock).color, cs(lock).columnGap, below(lock, writer),
         r(lock.querySelector('svg')).width, r(lock.querySelector('svg')).height],
       bar: [r(bar).height, cs(bar).columnGap, Math.round((inner.bottom - r(bar).bottom) * 10) / 10, r(bar).top],
-      x: [r(x).width, r(x).height, r(x).top - inner.top, inner.right - r(x).right, cs(x).borderRadius, cs(x).borderTopColor, cs(x).backgroundColor,
+      x: [r(x).width, r(x).height, r(x).top - card.top, card.right - r(x).right, cs(x).borderRadius, cs(x).borderTopColor, cs(x).backgroundColor,
         r(x.querySelector('svg')).width, x.querySelector('path').getAttribute('stroke-width'), x.querySelector('path').getAttribute('stroke')],
       gapToNext: c.nextElementSibling ? r(c.nextElementSibling).left - card.right : null,
     };
@@ -286,7 +286,7 @@ test('the card, as drawn — and every bar in a row of mixed cards sits level', 
       expect(c.lock.slice(6)).toEqual([9, 10]);
     }
     expect(c.bar.slice(0, 3)).toEqual([12, '7px', 14]);            // 12px row, 7px gap, pinned to the foot
-    expect(c.x.slice(0, 4)).toEqual([28, 28, 8, 8]);               // 8px from the top and right
+    expect(c.x.slice(0, 4)).toEqual([28, 28, 8, 8]);               // 8px from the card's OUTER edge, top and right
     expect(c.x.slice(4)).toEqual(['50%', 'rgba(245, 240, 232, 0.25)', 'rgba(10, 10, 10, 0.7)', 10, '1.3', '#f5f0e8']);
     if (c.gapToNext !== null) expect(c.gapToNext).toBe(14);       // Just Added's own gap
   }
@@ -302,6 +302,23 @@ test('the card, as drawn — and every bar in a row of mixed cards sits level', 
     document.querySelector('.just-added-scroll > a').getBoundingClientRect().left,
   ]);
   expect(crLeft).toBe(jaLeft);
+});
+
+test('an open instalment with no wordCount: the minutes line is left out, no estimate, no zero', async ({ page, context }) => {
+  await reset();
+  await db.ref(`series_instalments_detail/${I1}/wordCount`).remove();
+  await fence(context);
+  await openLibrary(page, R);
+  await expect(cards(page)).toHaveCount(5, { timeout: 120000 });
+  const card = cards(page).first();
+  await expect(card.locator('.cr-kind')).toHaveText('The Series · Instalment 1');
+  await expect(card).toHaveAttribute('data-state', 'open');
+  await expect(card.locator('.cr-mins')).toHaveCount(0);
+  await expect(card.locator('.cr-lock')).toHaveCount(0);
+  expect(await card.locator('.cr-text').innerText()).not.toMatch(/minute|\b0\b/i);
+  // And the bar still sits level with its neighbours.
+  const tops = await cards(page).evaluateAll((els) => els.map((c) => c.querySelector('.ml-bar').getBoundingClientRect().top));
+  expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(0.5);
 });
 
 // ── THE ✕ ─────────────────────────────────────────────────────────────────────────────────────
@@ -364,7 +381,7 @@ test('the ✕ on a touch screen: no hover there, so it shows on every card, same
     expect(await page.evaluate(() => matchMedia('(hover: none)').matches)).toBe(true);
     const xs = await cards(page).evaluateAll((els) => els.map((c) => {
       const b = c.querySelector('button.cr-x'), r = b.getBoundingClientRect(), k = c.getBoundingClientRect();
-      return [getComputedStyle(b).opacity, r.width, r.height, r.top - k.top - 1, k.right - 1 - r.right];
+      return [getComputedStyle(b).opacity, r.width, r.height, r.top - k.top, k.right - r.right];   // from the outer edge
     }));
     for (const x of xs) expect(x).toEqual(['1', 28, 28, 8, 8]);
     await cards(page).filter({ hasText: 'The Fresh Tale' }).locator('button.cr-x').tap();
