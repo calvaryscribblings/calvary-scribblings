@@ -30,7 +30,7 @@ import { normalizeGenre } from '../lib/openPages';
 import { SERIES_TIER_GATE_ENABLED } from '../lib/series/access';
 import { shelfLine } from '../lib/series/format';
 import { useReleaseRecheck } from '../lib/series/releaseRecheck';
-import { useArrivalReady } from '../components/ArrivalVeil';
+import { useArrivalReady, useArrivalRise } from '../components/ArrivalVeil';
 import {
   SUMMER_2026, prizePool, programStatusLabel, programBoardCta,
   PROGRAM_DETAILS_HREF, SHOW_SUMMER_2026_BUTTON,
@@ -1552,6 +1552,11 @@ export default function Home() {
   // rather than on a skeleton. Inert on a direct visit: there's no veil to lift.
   // W2 — lift on ANY settled first read: a failure must be seen, not held behind the veil.
   useArrivalReady(feed.phase !== 'loading');
+  // BAR-1 go: the door's rise lands on the page's content box ('' on every other visit), never on a
+  // wrapper around the Navbar, the tab bar or the Square button: a transform on an ancestor would
+  // make it the containing block of those fixed bars for the length of the lift (the layout passes
+  // rise="page", as the Book Store does since W32).
+  const arrivalRise = useArrivalRise();
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -1852,6 +1857,10 @@ export default function Home() {
       `}</style>
 
       <Navbar />
+
+      {/* BAR-1 go — the content box. Everything between the bars rises with the door's lift; the
+          bars and the Square button, outside it, stay still. No style of its own: a plain block. */}
+      <div className={arrivalRise || undefined} data-library-content="">
 
       {/* W2 — the hero's box is reserved while the feed loads, so nothing jumps when it lands and
           the Square banner below never slides up under the fixed navbar (it did, on every slow
@@ -2190,6 +2199,8 @@ export default function Home() {
 
       {/* Footer */}
       <Footer />
+
+      </div>
 
       {/* FAB — the tablet band only. Below 768px the SQUARE tab in the bottom bar carries
           this, and the FAB would sit on top of it (same corner, same z-index). */}

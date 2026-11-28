@@ -21,7 +21,10 @@ describe('W31 · barView — three answers', () => {
     assert.equal(barView(initialBar(), sample(0, AGREE)).view, 'shown');
     assert.equal(barView(initialBar(), sample(0, null)).view, 'shown', 'no visualViewport: nothing to disagree with');
     assert.equal(barView(initialBar(), sample(900, ZOOMED)).view, 'apart');
-    const panned = barView(initialBar(), sample(900, PANNED));
+    // BAR-1 go: only a SETTLED offset is followed; until it has held 150ms, W16's rule (hidden).
+    const first = barView(initialBar(), { ...sample(900, PANNED), now: 0 });
+    assert.equal(first.view, 'apart');
+    const panned = barView(first, { ...sample(900, PANNED), now: 150 });
     assert.equal(panned.view, 'shown');
     assert.equal(panned.shift, 444, 'translated back onto the glass');
   });

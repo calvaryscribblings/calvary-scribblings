@@ -33,5 +33,6 @@ export const metadata = {
 // ArrivalVeil is inert unless the gateway flagged this navigation, so a direct visit to
 // /public-library loads exactly as it did before.
 export default function PublicLibraryLayout({ children }) {
-  return <ArrivalVeil route="/public-library">{children}</ArrivalVeil>;
+  // rise="page" (BAR-1 go): the wrapper never transforms; the page puts the rise on its content box.
+  return <ArrivalVeil route="/public-library" rise="page">{children}</ArrivalVeil>;
 }

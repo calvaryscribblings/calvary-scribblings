@@ -54,20 +54,69 @@ window and viewport event is sampled. The visual viewport is replayed, as W16 di
   portal into one host, `<body>`'s **first** child, `display: contents`: it draws no box, so it can
   never be a containing block, and being first keeps every stacking tie as it was. Server render and
   hydration are inline, so first paint is unchanged.
-- **Follow, don't hide, at scale 1.** The guard translates the bar by the visual viewport's
-  `offsetTop`, either sign (CSS `translate`, which composes with the story bar's slide and is never
-  transitioned). It won't lag the way W16 feared:
-  - healthy, `offsetTop` is 0 and nothing is applied, so momentum scrolling is untouched;
-  - the iOS 26 fault is a **static** offset, so following it is one write;
-  - the only moving offset at scale 1 is the keyboard's pan while typing, where a frame's trail beats
-    a bar 240pt down or gone.
+- **Follow, don't hide, at scale 1, but only a SETTLED offset (BAR-1 go).** The guard translates the
+  bar by the visual viewport's `offsetTop`, either sign (CSS `translate`, which composes with the
+  story bar's slide and is never transitioned). It does so only when all three hold:
+  - no field has focus;
+  - the offset hasn't changed for **150ms** (`FOLLOW_SETTLE_MS`, a chosen number);
+  - the page isn't overscrolled.
 
-  Zoomed, the offset moves with every pan; there the bar is still hidden.
+  The 150ms are counted only while the bar may follow. An offset seen during a bounce or with a field
+  focused never counts towards settling: when a rubber band ends, the scroll comes back a moment before
+  the offset does, and the WebKit suite caught that moment following an offset that had "held" for
+  800ms, all of it overscrolled. Timer re-reads read at once rather than waiting a frame each.
+
+  Otherwise W16's behaviour stands: a positive offset hides the bar, and a negative one leaves it where
+  the layout viewport puts it. So code never moves a bar while the offset is moving, which is the lag
+  W16 avoided. The fault being corrected is static, so following it is one write. Zoomed, the bar is
+  hidden. One rule for every bar the guard drives: the site bar, the story bar (with its scroll-hide)
+  and the verify banner.
 - **It re-reads on every event that can move a viewport**: window scroll and resize, the visual
   viewport's resize and scroll, and now `pageshow`, `focusin`, `focusout`, `orientationchange`,
   `visibilitychange` and `popstate`. After each (and on mount) it re-reads at 60, 180, 400, 800 and
   1500ms, because iOS settles late. It re-reads `window.visualViewport` each time, never a cached
   object.
+
+- **The open drawer moves with the bar (BAR-1 go).** While it is open the guard holds the bar as it
+  is, and the drawer takes the bar's translate as it opens. A guard that re-attaches to a bar already
+  following an offset counts it as settled. Without that, closing the drawer dropped the bar back off
+  the glass for 150ms; the WebKit suite caught it.
+- **The arrival lift moves both bars nowhere (BAR-1 go).** The Library's `ArrivalVeil` is
+  `rise="page"`, as the Book Store's has been since W32. The rise lands on the page's content box
+  (`data-library-content`), and the site bar, the tab bar and the Square button sit outside it.
+
+## 3a. Stacking (BAR-1 go)
+
+The bar used to be in the page's own tree. Its root `<div>` forms no stacking context, so the bar
+competed in the root stacking context at `z-index: 1000` in its DOM position. Now it competes in the
+same context at the same z, as `<body>`'s first child. Its order against anything else can change
+in only two ways: an element at exactly 1000 that came before it in the DOM, or a moment when an
+ancestor formed its own stacking context (the arrival wrapper's transform). The census of every
+fixed overlay reachable on the 25 site-bar pages, four import levels deep plus the global overlays
+(`Providers`):
+
+| Overlay | z-index | On dafb47f1 | Now | Proof |
+|---|---|---|---|---|
+| Arrival veil | 10000 | above | above, holding and lifting | browser, every frame of the arrival |
+| Save toast region | 10000 | above | above | browser |
+| Cookie banner | 9999 | above | above | browser |
+| Book Store launch gate | 9000/9100 | above | above | z (Book Store only) |
+| Age check (DobCheck) | 2001 | above | above | z, same mount as the profile step |
+| Profile completion step | 2001 | above | above | browser |
+| Sign-in box (AuthModal) | 2000 | above | above | browser |
+| Open Pages composer sheets | 1100–1300 | above | above | z (/open-pages/new only) |
+| Book Store QuickLook | 1200 | above | above | z (Book Store only) |
+| Bell panel | 1100 (inside the bar) | above | above | browser (desktop; a phone opens /notifications) |
+| Composer rail | 1050 | above | above | z (/open-pages/new only) |
+| **Leaderboard badge ladder** | **1000, tie** | above (later in the DOM) | above | browser |
+| **Open Pages reading progress** | **1000, tie** | above (later in the DOM) | above | browser, plus DOM order |
+| Founder readout | max | above | above | browser |
+| Verify-email banner | 998 | below by design, **above mid-arrival** | below | z: it sits at top 68px, under the bar, so it never meets it |
+| Square button (tablet) | 900 | below; above mid-arrival | below | z, bottom-right, never meets the bar |
+
+The only change is mid-arrival. On dafb47f1 the bar sat inside the transformed wrapper for the lift
+(about a second), so anything positioned outside it painted over it, including the verify banner and
+the Square button. Neither one overlaps the bar, so nothing a reader can see changes.
 
 ## 4. Fields under 16px
 
@@ -83,7 +132,16 @@ lets the reader pinch, because iOS ignores `maximum-scale` for user zoom. It cha
 It must never ship to Android, where it disables pinch zoom. `tests/ci/w18-fields.test.mjs` would need
 to allow it in that one form.
 
-## 5. The founder readout: `?debug=bar`, now a recorder
+## 5. The founder readout: a recorder on every visit (BAR-1 go)
+
+For founders it records on every visit, with no flag. Nothing is drawn until a record freezes; then
+the frozen panel appears, and a **tap clears it**. A cleared condition must go away once before it
+can freeze again. A condition must hold for **600ms** (`TRIGGER_HOLD_MS`, chosen) before it freezes,
+so a bounce or a keyboard closing is not a record; a containing block freezes at once.
+`?debug=bar` shows the live panel; `?debug=bar-off` turns recording and panel off for the session.
+Founders only, checked before its code loads. The ancestor walk runs every 250ms, not every frame.
+
+### As first built (BAR-1)
 
 - **Sticky for the session.** Once seen, it stays on across client-side navigation and full page
   loads in that tab, until `?debug=bar-off`. Founders only, checked before its code loads.
@@ -100,9 +158,12 @@ One screenshot of a frozen panel names the trigger, the event before it, and the
 
 ## Still open
 
-- **The tab bar during the door's lift.** It is still inside the transformed wrapper for about a
-  second (#1). It's not the site bar, so it's out of this round. The fix is the Book Store's:
-  `ArrivalVeil rise="page"` with the rise on the Library's own content box.
-- **The drawer** (`.cs-drawer`, fixed at `top: 68px`) isn't translated. While it is open the guard
-  holds the bar as it is.
-- **Only his phone can confirm** which of #4, #5 or #6 it was: the frozen readout will say.
+- **Only his phone can confirm** which of #4, #5 or #6 it was: the frozen record will say.
+- The `maximum-scale` proposal (§4) stays unbuilt, by ruling.
+
+## Proof (BAR-1 go)
+
+`npm run test:bar-1`: WebKit, iPhone 13, the emulators, 17 tests, all passing on the branch. Run
+against 771ee531 (before the settle rule), the step-1 tests fail. Run against dafb47f1, the stacking
+tests give the "on dafb47f1" column above. `tests/ci/bar-1.test.mjs` holds the rule's pure half. Its
+twelve settle tests were written first and watched failing on 771ee531.

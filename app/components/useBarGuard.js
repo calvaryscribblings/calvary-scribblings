@@ -27,6 +27,9 @@
 import { useEffect } from 'react';
 import { initialBar, barView } from '../lib/storyBar';
 
+/** A field that has focus: a keyboard is up, or about to be, and the offset is the keyboard's (BAR-1 go). */
+export const isField = (el) => !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable === true);
+
 /** The window events that can move a viewport without a scroll or a resize (BAR-1). */
 export const SETTLE_EVENTS = Object.freeze(['pageshow', 'focusin', 'focusout', 'orientationchange', 'visibilitychange', 'popstate']);
 /** After any of them, and on mount: re-read at these delays, because iOS settles late. */
@@ -43,17 +46,24 @@ export function useViewportGuard(ref, { hideOnScroll = false, hold = false, rev 
     const vvNow = () => window.visualViewport || null;
     let s = initialBar();
     let written = el.getAttribute('data-state');
+    // Re-attaching to a bar that is already following an offset (the drawer closing, a hold ending):
+    // that same offset counts as settled, so the bar is not dropped back off the glass for 150ms.
+    const had = Number(el.getAttribute('data-shift')) || 0;
+    if (had) s = { ...s, off: had, offSince: -Infinity };
     // A hold leaves the bar exactly as it was, translate included: pick up what is already written.
     let shiftWritten = Number(el.getAttribute('data-shift')) || 0;
     let raf = 0;
     let timers = [];
+    let settleTimer = 0;
     const read = () => {
       raf = 0;
       const doc = document.scrollingElement || document.documentElement;
       const h = window.innerHeight;
       const vvp = vvNow();
       const vv = vvp ? { offsetTop: vvp.offsetTop, scale: vvp.scale } : null;
-      s = barView(s, { y: window.scrollY, maxY: doc.scrollHeight - h, h, vv }, hideOnScroll);
+      s = barView(s, { y: window.scrollY, maxY: doc.scrollHeight - h, h, vv, now: performance.now(), field: isField(document.activeElement) }, hideOnScroll);
+      // An offset that hasn't settled yet: look again when it will have (FOLLOW_SETTLE_MS).
+      if (s.waitMs > 0) { clearTimeout(settleTimer); settleTimer = setTimeout(readNow, s.waitMs + 16); }
       if (s.view !== written) { el.setAttribute('data-state', s.view); written = s.view; }
       // BAR-1: follow the glass at scale 1. `translate` composes with the bar's own transform.
       const shift = Math.round((s.shift || 0) * 100) / 100;
@@ -64,10 +74,13 @@ export function useViewportGuard(ref, { hideOnScroll = false, hold = false, rev 
       }
     };
     const on = () => { if (!raf) raf = requestAnimationFrame(read); };
+    // A TIMER's re-read reads at once: frame-coalescing is for scroll storms, and a timer is not one.
+    // (On a busy page a frame can be late; the settle check must not wait a frame per step.)
+    const readNow = () => { if (raf) { cancelAnimationFrame(raf); raf = 0; } read(); };
     const settle = () => {
       on();
       timers.forEach(clearTimeout);
-      timers = REREAD_MS.map((ms) => setTimeout(on, ms));
+      timers = REREAD_MS.map((ms) => setTimeout(readNow, ms));
     };
     read();
     settle();
@@ -91,25 +104,30 @@ export function useViewportGuard(ref, { hideOnScroll = false, hold = false, rev 
       vvp?.removeEventListener('resize', on);
       vvp?.removeEventListener('scroll', on);
       timers.forEach(clearTimeout);
+      clearTimeout(settleTimer);
       if (raf) cancelAnimationFrame(raf);
     };
   }, [ref, hideOnScroll, hold, rev]);
 }
 
 /**
- * BAR-1: ?debug=bar is STICKY for the session. Once seen, a sessionStorage flag keeps the readout on
- * across every client-side navigation and every full page load in this tab, until ?debug=bar-off
- * (or the tab closes). Founders only: the flag is checked against the signed-in founder before the
- * readout's code is even loaded, so a stray flag does nothing for anyone else.
+ * BAR-1 go: THE RECORDER, for founders, on EVERY visit. Three modes, held for the session in
+ * sessionStorage, founders only (checked before the readout's code is even loaded, so a stray flag
+ * does nothing for anyone else):
+ *   'record'  the default: it records silently and shows NOTHING until a record freezes; then the
+ *             frozen panel appears, and a tap clears it.
+ *   'live'    ?debug=bar: the live panel, as before, frozen record beneath it.
+ *   'off'     ?debug=bar-off: nothing at all, not even recording, until ?debug=bar.
  */
 export const BAR_DEBUG_KEY = 'cs_debug_bar';
-export function barDebugOn() {
+export function barDebugMode() {
   try {
     const q = new URLSearchParams(window.location.search).get('debug');
-    if (q === 'bar-off') { sessionStorage.removeItem(BAR_DEBUG_KEY); return false; }
+    if (q === 'bar-off') sessionStorage.setItem(BAR_DEBUG_KEY, 'off');
     if (q === 'bar') sessionStorage.setItem(BAR_DEBUG_KEY, '1');
-    return sessionStorage.getItem(BAR_DEBUG_KEY) === '1';
-  } catch { return false; }
+    const v = sessionStorage.getItem(BAR_DEBUG_KEY);
+    return v === '1' ? 'live' : v === 'off' ? 'off' : 'record';
+  } catch { return 'record'; }
 }
 
 export function useBarReadout(ref, rev = 0) {
@@ -117,9 +135,10 @@ export function useBarReadout(ref, rev = 0) {
   useEffect(() => {
     const el = ref.current;
     if (!el || !isFounder(uid)) return undefined;
-    if (!barDebugOn()) return undefined;
+    const mode = barDebugMode();
+    if (mode === 'off') return undefined;
     let unmount = null, gone = false;
-    import('./BarReadout').then((m) => { if (!gone) unmount = m.mountBarReadout(el); }).catch(() => {});
+    import('./BarReadout').then((m) => { if (!gone) unmount = m.mountBarReadout(el, { live: mode === 'live' }); }).catch(() => {});
     return () => { gone = true; if (unmount) unmount(); };
   }, [ref, uid, rev]);
 }

@@ -3,6 +3,11 @@
 // (app/components/useBarGuard.js) from <StoryBar> AND, since W31, from <Navbar> — so every page with
 // the site bar has it. The hook does both checks before this file is loaded.
 //
+// BAR-1 GO (28 Nov 2026): A RECORDER FOR FOUNDERS, ON EVERY VISIT. Without ?debug=bar it records
+// silently and draws nothing; the panel appears only when a record freezes, and a tap clears it.
+// ?debug=bar shows it live as below; ?debug=bar-off stops it for the session. A condition must hold
+// for TRIGGER_HOLD_MS before it freezes (a bounce or a keyboard closing is not the fault).
+//
 // BAR-1 (28 Nov 2026): the bar floated again (site bar, /public-library, ~240pt down, not zoomed)
 // and no engine this repo can run reproduces iOS 26's viewport. So the readout now CATCHES it:
 //   · ?debug=bar is STICKY for the session (sessionStorage), across client-side navigation and full
@@ -33,6 +38,14 @@ import { BUILD_COMMIT, readLiveBuild, isStaleBuild } from '../lib/buildId';
 
 const fx = (n, d = 1) => (Number.isFinite(n) ? n.toFixed(d) : '—');
 export const LOG_MS = 4000;
+/**
+ * How long a trigger must hold before the record freezes. A CHOSEN number: longer than a rubber band
+ * or a keyboard's close (both well under half a second), far shorter than a reader looking at a bar in
+ * the wrong place. ANCESTOR freezes at once: a containing block is never a transient.
+ */
+export const TRIGGER_HOLD_MS = 600;
+/** The containing-block walk reads every ancestor's style; once every this many ms is plenty. */
+const ANCESTOR_EVERY_MS = 250;
 export const FROZEN_KEY = 'cs_debug_bar_frozen';
 const EVENTS = ['pageshow', 'pagehide', 'focusin', 'focusout', 'orientationchange', 'visibilitychange', 'popstate', 'resize'];
 
@@ -58,7 +71,7 @@ function readFrozen() {
   try { return JSON.parse(sessionStorage.getItem(FROZEN_KEY) || 'null'); } catch { return null; }
 }
 
-export function mountBarReadout(bar) {
+export function mountBarReadout(bar, { live: liveMode = true } = {}) {
   try {
     if (new URLSearchParams(window.location.search).get('debug') === 'bar-reset') sessionStorage.removeItem(FROZEN_KEY);
   } catch { /* private mode: nothing to clear */ }
@@ -71,8 +84,19 @@ export function mountBarReadout(bar) {
     margin: '0', padding: '8px 10px', maxWidth: '360px', boxSizing: 'border-box',
     background: 'rgba(0,0,0,0.88)', color: '#e8e0d4', border: '1px solid #c9a84c', borderRadius: '8px',
     font: '10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace', whiteSpace: 'pre', pointerEvents: 'none',
+    display: liveMode ? 'block' : 'none',
   });
+  box.setAttribute('data-mode', liveMode ? 'live' : 'record');
   document.body.appendChild(box);
+  // A tap on a FROZEN panel clears the record. In record mode the panel then goes away again.
+  const clear = (e) => {
+    e.preventDefault();
+    try { sessionStorage.removeItem(FROZEN_KEY); } catch { /* nothing to clear */ }
+    held = null;
+    quiet = true;   // seen: no new record until this condition has cleared once
+  };
+  let quiet = false;
+  box.addEventListener('click', clear);
 
   let live = null;
   readLiveBuild().then((c) => { live = c || 'unreadable'; });
@@ -87,6 +111,8 @@ export function mountBarReadout(bar) {
   vvp?.addEventListener('resize', onVv);
 
   let raf = 0;
+  let held = null;          // { trigger, since } — a trigger waiting out TRIGGER_HOLD_MS
+  let anc = null, ancAt = -Infinity;
   const tick = () => {
     const now = Date.now();
     const vv = window.visualViewport;
@@ -101,7 +127,7 @@ export function mountBarReadout(bar) {
     const state = bar.getAttribute('data-state') || '?';
     const painted = getComputedStyle(bar).visibility !== 'hidden';
     const field = isField(document.activeElement);
-    const anc = containingBlockAncestor(bar, (el) => getComputedStyle(el));
+    if (now - ancAt >= ANCESTOR_EVERY_MS) { anc = containingBlockAncestor(bar, (el) => getComputedStyle(el)); ancAt = now; }
     const tab = document.querySelector('.cs-tabbar');
     const tr = tab ? tab.getBoundingClientRect() : null;
     const glassH = vv ? vv.height * scale : window.innerHeight;
@@ -114,8 +140,11 @@ export function mountBarReadout(bar) {
     while (log.samples.length && log.samples[0].t < now - LOG_MS) log.samples.shift();
 
     let frozen = readFrozen();
-    const trigger = freezeTrigger(sample) || (sample.anc ? 'ANCESTOR' : null);
-    if (trigger && !frozen) {
+    const seen = sample.anc ? 'ANCESTOR' : freezeTrigger(sample);
+    if (!seen) { held = null; quiet = false; }
+    else if (!held || held.trigger !== seen) held = { trigger: seen, since: now };
+    const trigger = held && (held.trigger === 'ANCESTOR' || now - held.since >= TRIGGER_HOLD_MS) ? held.trigger : null;
+    if (trigger && !frozen && !quiet) {
       frozen = {
         at: now, trigger, path: window.location.pathname, build: BUILD_COMMIT,
         samples: log.samples.filter((_, i, a) => i % Math.max(1, Math.ceil(a.length / 14)) === 0 || i === a.length - 1)
@@ -147,6 +176,12 @@ export function mountBarReadout(bar) {
       lines.push(`  events ${frozen.events.map(([t, e]) => `${e}@${t}`).join(' ') || 'none'}`);
       if (frozen.anc) lines.push(`  ancestor ${frozen.anc}`);
     }
+    // Record mode shows only a frozen record; live mode shows everything.
+    const show = liveMode || !!frozen;
+    box.style.display = show ? 'block' : 'none';
+    box.style.pointerEvents = frozen ? 'auto' : 'none';
+    if (!liveMode && frozen) lines.splice(0, lines.length, ...lines.slice(lines.findIndex((l) => l.startsWith('── FROZEN'))), '  (tap to clear)');
+    else if (frozen) lines.push('  (tap to clear)');
     box.textContent = lines.join('\n');
     // Sit near the bottom of the VISUAL viewport, clear of the founder pill (bottom 12, ~40 tall),
     // at screen size whatever the zoom.
@@ -162,6 +197,7 @@ export function mountBarReadout(bar) {
 
   return () => {
     cancelAnimationFrame(raf);
+    box.removeEventListener('click', clear);
     for (const ev of EVENTS) (ev === 'visibilitychange' ? document : window).removeEventListener(ev, onEvent);
     vvp?.removeEventListener('resize', onVv);
     box.remove();

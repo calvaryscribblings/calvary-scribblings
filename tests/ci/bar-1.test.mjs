@@ -22,8 +22,9 @@ describe('BAR-1 · follow the glass at scale 1, hide only when zoomed', () => {
     assert.equal(isZoomed({ offsetTop: 0, scale: 1.01 }), false);
     assert.equal(isZoomed({ offsetTop: 0, scale: 1.02 }), true);
   });
-  test('28 Nov, the site bar: a negative offset at scale 1 used to read as "agree" and paint the bar 240 down; now it is shown AND translated back', () => {
-    const v = barView(initialBar(), sample(900, { offsetTop: -240, scale: 1 }));
+  test('28 Nov, the site bar: a negative offset at scale 1 used to read as "agree" and paint the bar 240 down; now, once settled, it is shown AND translated back', () => {
+    const vv = { offsetTop: -240, scale: 1 };
+    const v = barView(barView(initialBar(), { ...sample(900, vv), now: 0 }), { ...sample(900, vv), now: 150 });
     assert.equal(v.view, 'shown');
     assert.equal(v.shift, -240);
     // On the glass: (layout top + shift − offsetTop) × scale = (0 − 240 + 240) × 1 = 0.
@@ -31,12 +32,13 @@ describe('BAR-1 · follow the glass at scale 1, hide only when zoomed', () => {
   });
   test('the story bar keeps its scroll-hide under a shift, and the shift is carried in both states', () => {
     const vv = { offsetTop: 200, scale: 1 };
-    let s = barView(initialBar(), sample(0, vv), true);
+    let s = barView(initialBar(), { ...sample(0, vv), now: 0 }, true);
+    s = barView(s, { ...sample(0, vv), now: 200 }, true);
     assert.deepEqual([s.view, s.shift], ['shown', 200]);
-    s = barView(s, sample(400, vv), true);
-    s = barView(s, sample(440, vv), true);
+    s = barView(s, { ...sample(400, vv), now: 300 }, true);
+    s = barView(s, { ...sample(440, vv), now: 400 }, true);
     assert.deepEqual([s.view, s.shift], ['hidden', 200]);
-    const z = barView(s, sample(440, { offsetTop: 200, scale: 2 }), true);
+    const z = barView(s, { ...sample(440, { offsetTop: 200, scale: 2 }), now: 500 }, true);
     assert.deepEqual([z.view, z.shift], ['apart', 0]);
     assert.equal(nextBar(initialBar(), { y: 0, maxY: 1000, h: 800, vv }).apart, false);
   });
@@ -48,7 +50,8 @@ describe('BAR-1 · the guard re-reads on every event that can move a viewport', 
     assert.match(h, /SETTLE_EVENTS = Object\.freeze\(\['pageshow', 'focusin', 'focusout', 'orientationchange', 'visibilitychange', 'popstate'\]\)/);
     assert.match(h, /for \(const ev of SETTLE_EVENTS\) \(ev === 'visibilitychange' \? document : window\)\.addEventListener\(ev, onSettle\)/);
     assert.match(h, /REREAD_MS = Object\.freeze\(\[60, 180, 400, 800, 1500\]\)/);
-    assert.match(h, /timers = REREAD_MS\.map\(\(ms\) => setTimeout\(on, ms\)\)/);
+    assert.match(h, /timers = REREAD_MS\.map\(\(ms\) => setTimeout\(readNow, ms\)\)/);
+    assert.match(h, /const readNow = \(\) => \{ if \(raf\) \{ cancelAnimationFrame\(raf\); raf = 0; \} read\(\); \};/);
     assert.match(h, /read\(\);\n\s*settle\(\);/, 'and on mount');
   });
   test('it writes the follow as `translate` (composes with the story bar\'s transform; never transitioned)', () => {
@@ -87,10 +90,21 @@ describe('BAR-1 · the site bar\'s only ancestors are <body> and <html>', () => 
 describe('BAR-1 · the readout catches it next time', () => {
   const r = code('app/components/BarReadout.js');
   const g = code('app/components/useBarGuard.js');
-  test('?debug=bar is sticky for the session, until ?debug=bar-off; founder-gated before anything loads', () => {
+  test('BAR-1 go: founders RECORD on every visit; ?debug=bar is live, ?debug=bar-off is off, for the session; founder-gated first', () => {
     assert.match(g, /BAR_DEBUG_KEY = 'cs_debug_bar'/);
-    assert.match(g, /if \(q === 'bar-off'\) \{ sessionStorage\.removeItem\(BAR_DEBUG_KEY\); return false; \}/);
-    assert.match(g, /if \(!el \|\| !isFounder\(uid\)\) return undefined;\n\s*if \(!barDebugOn\(\)\) return undefined;/);
+    assert.match(g, /if \(q === 'bar-off'\) sessionStorage\.setItem\(BAR_DEBUG_KEY, 'off'\);/);
+    assert.match(g, /if \(q === 'bar'\) sessionStorage\.setItem\(BAR_DEBUG_KEY, '1'\);/);
+    assert.match(g, /return v === '1' \? 'live' : v === 'off' \? 'off' : 'record';/);
+    assert.match(g, /if \(!el \|\| !isFounder\(uid\)\) return undefined;\n\s*const mode = barDebugMode\(\);\n\s*if \(mode === 'off'\) return undefined;/);
+    assert.match(g, /m\.mountBarReadout\(el, \{ live: mode === 'live' \}\)/);
+  });
+  test('BAR-1 go: record mode draws nothing until frozen; a tap clears it; 600ms is the chosen hold; ANCESTOR is instant', () => {
+    assert.match(r, /export const TRIGGER_HOLD_MS = 600;/);
+    assert.match(r, /const show = liveMode \|\| !!frozen;/);
+    assert.match(r, /box\.style\.pointerEvents = frozen \? 'auto' : 'none';/);
+    assert.match(r, /box\.addEventListener\('click', clear\);/);
+    assert.match(r, /held\.trigger === 'ANCESTOR' \|\| now - held\.since >= TRIGGER_HOLD_MS/);
+    assert.match(r, /if \(trigger && !frozen && !quiet\)/);
   });
   test('it keeps the last 4 seconds across client-side navigation, and freezes into sessionStorage', () => {
     assert.match(r, /export const LOG_MS = 4000;/);
@@ -109,5 +123,77 @@ describe('BAR-1 · the readout catches it next time', () => {
     assert.equal(freezeTrigger({ ...ok, shift: -240 }), 'FOLLOWING');
     assert.equal(freezeTrigger({ ...ok, vvH: 600 }), 'SHORT VIEW');
     assert.equal(freezeTrigger({ ...ok, vvH: 600, field: true }), null, 'the keyboard is up: short is right');
+  });
+});
+
+// ── BAR-1 GO: FOLLOW ONLY A SETTLED OFFSET ──────────────────────────────────────────────────────
+// Written before the rule, and watched failing on 771ee531 (which followed any offset at once).
+describe('BAR-1 go · a bar follows only a settled offset: no field, still for 150ms, not overscrolled', async () => {
+  const { FOLLOW_SETTLE_MS } = await import('../../app/lib/storyBar.js');
+  const at = (s, y, vv, now, field = false, hideOnScroll = false) => barView(s, { y, maxY: 10000, h: 874, vv, now, field }, hideOnScroll);
+  const stuck = (o) => ({ offsetTop: o, scale: 1 });
+  test('150ms is the chosen settle time', () => assert.equal(FOLLOW_SETTLE_MS, 150));
+  for (const hideOnScroll of [false, true]) {
+    const bar = hideOnScroll ? 'story bar' : 'site bar';
+    test(`${bar}: the stuck 240 offset after coming back from a story is followed once it has held for 150ms`, () => {
+      let s = at(initialBar(), 900, stuck(-240), 1000, false, hideOnScroll);
+      assert.equal(s.shift, 0, 'not on the first sample');
+      s = at(s, 900, stuck(-240), 1000 + FOLLOW_SETTLE_MS - 1, false, hideOnScroll);
+      assert.equal(s.shift, 0, 'not before 150ms');
+      s = at(s, 900, stuck(-240), 1000 + FOLLOW_SETTLE_MS, false, hideOnScroll);
+      assert.equal(s.shift, -240, 'followed');
+      assert.notEqual(s.view, 'apart');
+    });
+    test(`${bar}: typing while the keyboard pans never follows (a field has focus); W16 hides a panned bar`, () => {
+      let s = at(initialBar(), 900, stuck(0), 0, true, hideOnScroll);
+      for (let t = 0; t <= 2000; t += 100) {
+        s = at(s, 900, stuck(280), t, true, hideOnScroll);
+        assert.equal(s.shift, 0, `t=${t}`);
+        assert.equal(s.view, 'apart', `t=${t}: W16's behaviour, hidden`);
+      }
+    });
+    test(`${bar}: an offset that keeps moving never follows`, () => {
+      let s = initialBar();
+      for (let t = 0, o = 40; t <= 2000; t += 50, o += 7) { s = at(s, 900, stuck(o), t, false, hideOnScroll); assert.equal(s.shift, 0, `t=${t}`); }
+    });
+    test(`${bar}: a rubber band at the top and at the bottom never follows, however long it holds`, () => {
+      let s = initialBar();
+      for (let t = 0; t <= 1000; t += 50) { s = at(s, -60, stuck(-60), t, false, hideOnScroll); assert.equal(s.shift, 0, `top t=${t}`); }
+      s = initialBar();
+      for (let t = 0; t <= 1000; t += 50) { s = at(s, 10000 + 80, stuck(40), t, false, hideOnScroll); assert.equal(s.shift, 0, `bottom t=${t}`); }
+    });
+    test(`${bar}: when the field loses focus with the offset still there, it follows 150ms AFTER focus leaves`, () => {
+      let s = at(initialBar(), 900, stuck(120), 0, true, hideOnScroll);
+      s = at(s, 900, stuck(120), 500, true, hideOnScroll);
+      assert.equal(s.shift, 0);
+      s = at(s, 900, stuck(120), 600, false, hideOnScroll);
+      assert.equal(s.shift, 0, 'the clock starts when the bar may follow, not when the offset appeared');
+      s = at(s, 900, stuck(120), 600 + FOLLOW_SETTLE_MS, false, hideOnScroll);
+      assert.equal(s.shift, 120);
+    });
+    test(`${bar}: a rubber band ending — the scroll comes back before the offset does — does not follow`, () => {
+      let s = initialBar();
+      for (let t = 0; t <= 800; t += 50) s = at(s, -60, stuck(-60), t, false, hideOnScroll);
+      s = at(s, 0, stuck(-60), 850, false, hideOnScroll);            // released: y is back, the offset not yet
+      assert.equal(s.shift, 0, 'the 800ms it held were all overscrolled');
+      s = at(s, 0, stuck(0), 900, false, hideOnScroll);              // and then the offset goes too
+      assert.equal(s.shift, 0);
+    });
+  }
+  test('the guard schedules its own re-read for when an offset will have settled', () => {
+    const s = at(initialBar(), 900, stuck(-240), 1000);
+    assert.equal(s.waitMs, FOLLOW_SETTLE_MS);
+    const h = code('app/components/useBarGuard.js');
+    assert.match(h, /if \(s\.waitMs > 0\) \{ clearTimeout\(settleTimer\); settleTimer = setTimeout\(readNow, s\.waitMs \+ 16\); \}/);
+    assert.match(h, /now: performance\.now\(\), field: isField\(document\.activeElement\)/);
+  });
+});
+
+describe('BAR-1 go · re-attaching does not drop a follow (the drawer closing)', () => {
+  test('a guard that re-attaches to a bar already following an offset counts that offset as settled', () => {
+    const h = code('app/components/useBarGuard.js');
+    assert.match(h, /const had = Number\(el\.getAttribute\('data-shift'\)\) \|\| 0;\n\s*if \(had\) s = \{ \.\.\.s, off: had, offSince: -Infinity \};/);
+    const s = barView({ ...initialBar(), off: -240, offSince: -Infinity }, { y: 900, maxY: 10000, h: 874, vv: { offsetTop: -240, scale: 1 }, now: 5 });
+    assert.equal(s.shift, -240);
   });
 });

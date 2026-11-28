@@ -91,7 +91,7 @@ function installProbe(storyBarSrc) {
   fake.addEventListener('resize', () => sample('vv'));
 }
 
-async function open(page, context, path = '/public-library', { uid = null, arriving = false } = {}) {
+async function open(page, context, path = '/public-library', { uid = null, arriving = false, wait = 'nav.cs-nav' } = {}) {
   const refused = [];
   await context.route('**/*', (r) => { const h = new URL(r.request().url()).hostname; if (h === 'localhost' || h === '127.0.0.1') return r.continue(); refused.push(h); return r.abort(); });
   await page.addInitScript(installProbe, STORYBAR_SRC);
@@ -100,7 +100,7 @@ async function open(page, context, path = '/public-library', { uid = null, arriv
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(path);
-  await page.locator('nav.cs-nav').waitFor({ timeout: 180000 });
+  await page.locator(wait).first().waitFor({ timeout: 180000 });
   if (uid) {
     await page.waitForFunction(() => !!window.__FB_EMULATOR_SIGNIN__, null, { timeout: 120000 });
     await page.evaluate((t) => window.__FB_EMULATOR_SIGNIN__(t), await getAuth(app).createCustomToken(uid));
@@ -211,9 +211,18 @@ test('the drawer and the sign-in box, with the keyboard replayed: up, panned, cl
   await email.waitFor({ timeout: 30000 });
   await phase(page, 'keyboard');
   await email.focus();
-  await page.evaluate(() => window.__vv.set({ offsetTop: 280, height: 420 }));   // the keyboard pans the page
-  await page.keyboard.type('reader@example.com');
-  await shiftIs(page, '280');
+  // BAR-1 go: TYPING WHILE THE KEYBOARD PANS DOES NOT FOLLOW. The pan moves with each keystroke and a
+  // field has focus, so W16's behaviour stands: panned down → hidden, never translated.
+  for (const [i, ch] of [...'reader@example.com'].entries()) {
+    await page.evaluate((o) => window.__vv.set({ offsetTop: o, height: 420 }), 260 + (i % 5) * 9);
+    await page.keyboard.type(ch);
+    await page.waitForTimeout(60);
+  }
+  await page.waitForTimeout(500);                                       // and holding still, focused
+  const typing = await page.evaluate(() => window.__samples.filter((x) => x.phase === 'keyboard'));
+  expect(typing.length).toBeGreaterThan(0);
+  expect(typing.filter((x) => x.shift !== null).map((x) => x.shift)).toEqual([]);
+  expect(await page.evaluate(() => document.querySelector('nav.cs-nav').getAttribute('data-state'))).toBe('apart');
   // The keyboard goes; iOS 26 leaves the viewport offset with NO resize or scroll event.
   await phase(page, 'stuck+');
   await page.evaluate(() => { window.__vv.set({ offsetTop: 120, height: window.innerHeight - 120 }, false); document.activeElement.blur(); });
@@ -245,7 +254,7 @@ test('back from a story (bfcache or a fresh load): the viewport comes back stuck
   await expectClean(page);
   // `next dev` serves no Pages Function: the story page's /api/story call fails, by design of the
   // harness, and leaving the page cancels it. Nothing else may throw.
-  expect(errors.filter((e) => !/\/api\/story/.test(e))).toEqual([]);
+  expect(errors.filter((e) => !/\/api\/story|__nextjs/.test(e))).toEqual([]);
 });
 
 test('client-side navigation (the Series row) and back (popstate): the bar re-enters its host and keeps the glass', async ({ page, context }) => {
@@ -322,3 +331,253 @@ test('a reader who is not a founder never gets the readout, flag or not', async 
   await expect(page.locator('[data-bar-readout]')).toHaveCount(0);
 });
 
+// ── BAR-1 GO ─────────────────────────────────────────────────────────────────────────────────────
+
+/** Pretend the page is overscrolled: window.scrollY reports `y` until release(). */
+const overscroll = (page, y) => page.evaluate((v) => {
+  Object.defineProperty(window, 'scrollY', { configurable: true, get: () => v });
+  Object.defineProperty(window, 'pageYOffset', { configurable: true, get: () => v });
+  window.dispatchEvent(new Event('scroll'));
+}, y);
+const release = (page) => page.evaluate(() => { delete window.scrollY; delete window.pageYOffset; window.dispatchEvent(new Event('scroll')); });
+
+test('a rubber band at the top and at the bottom never follows, however long it holds', async ({ page, context }) => {
+  await open(page, context);
+  await page.locator('.just-added-scroll a').first().waitFor({ timeout: 180000 });
+  await phase(page, 'bounce-top');
+  await overscroll(page, -60);
+  await page.evaluate(() => window.__vv.set({ offsetTop: -60 }));
+  await page.waitForTimeout(800);
+  await release(page);
+  await page.evaluate(() => window.__vv.set(null));
+  await page.waitForTimeout(400);
+  await phase(page, 'bounce-bottom');
+  const max = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+  await overscroll(page, max + 80);
+  await page.evaluate(() => window.__vv.set({ offsetTop: 40 }));
+  await page.waitForTimeout(800);
+  await release(page);
+  await page.evaluate(() => window.__vv.set(null));
+  await settled(page);
+  const bounced = await page.evaluate(() => window.__samples.filter((x) => x.phase.startsWith('bounce')));
+  expect(bounced.length).toBeGreaterThan(0);
+  expect(bounced.filter((x) => x.shift !== null).map((x) => `${x.phase} ${x.shift}`)).toEqual([]);
+  await expectClean(page);
+});
+
+test('the stuck offset after coming back from a story is followed only once it has held 150ms', async ({ page, context }) => {
+  await open(page, context);
+  await page.locator('.just-added-scroll a').first().waitFor({ timeout: 180000 });
+  const t = await page.evaluate(async () => {
+    const nav = document.querySelector('nav.cs-nav');
+    const t0 = performance.now();
+    window.__vv.set({ offsetTop: -240 }, false);
+    window.dispatchEvent(new Event('pageshow'));
+    let followedAt = null;
+    while (performance.now() - t0 < 4000) {
+      await new Promise((r) => setTimeout(r, 10));
+      if (nav.getAttribute('data-shift') === '-240') { followedAt = performance.now() - t0; break; }
+    }
+    return followedAt;
+  });
+  expect(t).not.toBeNull();
+  expect(t).toBeGreaterThanOrEqual(150);
+});
+
+test('the story bar keeps the same rule: a stuck offset is followed, typing is not', async ({ page, context }) => {
+  const ids = await seed();
+  await open(page, context, `/stories/${ids[3]}`, { wait: '[data-story-bar]' });
+  const bar = page.locator('[data-story-bar]');
+  await page.evaluate(() => { window.__vv.set({ offsetTop: -200 }, false); window.dispatchEvent(new Event('focusout')); });
+  await expect.poll(() => bar.getAttribute('data-shift'), { timeout: 15000 }).toBe('-200');
+  await page.evaluate(() => window.__vv.set(null));
+  await expect.poll(() => bar.getAttribute('data-shift'), { timeout: 15000 }).toBe(null);
+  // A focused field and a moving pan: never followed.
+  await page.evaluate(() => { const i = document.createElement('input'); i.id = 'bar1-field'; document.body.appendChild(i); i.focus(); });
+  for (let o = 200; o <= 320; o += 20) { await page.evaluate((v) => window.__vv.set({ offsetTop: v }), o); await page.waitForTimeout(80); }
+  await page.waitForTimeout(500);
+  expect(await bar.getAttribute('data-shift')).toBe(null);
+});
+
+test('the open drawer moves with the bar: a stuck offset, then the menu', async ({ page, context }) => {
+  await open(page, context);
+  await page.locator('.just-added-scroll a').first().waitFor({ timeout: 180000 });
+  await page.evaluate(() => { window.__vv.set({ offsetTop: -240 }, false); window.dispatchEvent(new Event('pageshow')); });
+  await shiftIs(page, '-240');
+  // The replayed offset moves the bar 240px up in the engine's own coordinates (on the stand-in glass
+  // it is at the top), so Playwright reckons the button off-screen: click it through the DOM.
+  await page.evaluate(() => document.querySelector('.cs-hamburger').click());
+  await page.locator('.cs-drawer').waitFor({ state: 'attached' });
+  const g = await page.evaluate(() => {
+    const vv = window.visualViewport;
+    const n = document.querySelector('nav.cs-nav').getBoundingClientRect();
+    const d = document.querySelector('.cs-drawer').getBoundingClientRect();
+    return { barTop: n.top - vv.offsetTop, barBottom: n.bottom - vv.offsetTop, drawerTop: d.top - vv.offsetTop };
+  });
+  expect(g.barTop).toBe(0);
+  expect(g.drawerTop).toBe(g.barBottom);                               // flush under the bar, on the glass
+  await page.evaluate(() => document.querySelector('.cs-hamburger').click());
+  await page.locator('.cs-drawer').waitFor({ state: 'detached' });
+  await settled(page);
+  expect(await page.evaluate(() => document.querySelector('nav.cs-nav').getAttribute('data-shift'))).toBe('-240');
+  await expectClean(page);                                              // no flicker as the drawer closes
+});
+
+test('the recorder: founders record on every visit with no flag, the panel appears only when a record freezes, and a tap clears it', async ({ page, context }) => {
+  await open(page, context, '/public-library', { uid: FOUNDER_A });
+  await page.locator('.just-added-scroll a').first().waitFor({ timeout: 180000 });
+  await page.waitForTimeout(2500);
+  const panel = page.locator('[data-bar-readout]');
+  await expect(panel).toHaveAttribute('data-mode', 'record', { timeout: 60000 });
+  await expect(panel).toBeHidden();
+  // A bounce is not a record (it lasts less than the 600ms hold).
+  await page.evaluate(() => window.__vv.set({ offsetTop: -60 }));
+  await page.waitForTimeout(250);
+  await page.evaluate(() => window.__vv.set(null));
+  await page.waitForTimeout(1500);
+  await expect(panel).toBeHidden();
+  // The fault: frozen, and shown.
+  await page.evaluate(() => { window.__vv.set({ offsetTop: -240 }, false); window.dispatchEvent(new Event('pageshow')); });
+  await expect(panel).toBeVisible({ timeout: 15000 });
+  await expect(panel).toContainText('FROZEN');
+  await expect(panel).toContainText('tap to clear');
+  // A tap clears it, and it stays clear while the same condition holds.
+  await panel.click();
+  await expect(panel).toBeHidden();
+  await page.waitForTimeout(1500);
+  await expect(panel).toBeHidden();
+  expect(await page.evaluate(() => sessionStorage.getItem('cs_debug_bar_frozen'))).toBe(null);
+  // ?debug=bar shows it live; ?debug=bar-off turns it off (no panel, no recording) for the session.
+  await page.goto('/public-library?debug=bar');
+  await expect(page.locator('[data-bar-readout]')).toHaveAttribute('data-mode', 'live', { timeout: 180000 });
+  await expect(page.locator('[data-bar-readout]')).toBeVisible();
+  await page.goto('/public-library?debug=bar-off');
+  await page.locator('.just-added-scroll a').first().waitFor({ timeout: 180000 });
+  await page.waitForTimeout(2500);
+  await expect(page.locator('[data-bar-readout]')).toHaveCount(0);
+  await page.goto('/about');
+  await page.locator('nav.cs-nav').waitFor({ timeout: 180000 });
+  await page.waitForTimeout(2500);
+  await expect(page.locator('[data-bar-readout]')).toHaveCount(0);
+});
+
+// ── STACKING: everything that painted above the bar on dafb47f1 still does ─────────────────────────
+// Each check takes the REAL overlay where it is in the tree, gives it hit-testing and a box over the
+// bar's centre for the moment of the check (neither changes stacking), and asks which is on top.
+/** A fresh context on the suite's own iPhone profile. */
+const ctxOpts = () => {
+  const u = test.info().project.use;
+  return { viewport: u.viewport, userAgent: u.userAgent, isMobile: u.isMobile, hasTouch: u.hasTouch, deviceScaleFactor: u.deviceScaleFactor, baseURL: u.baseURL, serviceWorkers: 'block' };
+};
+async function onTop(page, selector) {
+  return page.evaluate((sel) => {
+    const nav = document.querySelector('nav.cs-nav');
+    const el = document.querySelector(sel);
+    if (!nav || !el) return `missing ${!nav ? 'bar' : sel}`;
+    const r = nav.getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + Math.min(r.height / 2, 30);
+    const er = el.getBoundingClientRect();
+    const saved = el.getAttribute('style');
+    el.style.pointerEvents = 'auto';
+    if (!(er.top <= y && er.bottom >= y && er.left <= x && er.right >= x)) {
+      Object.assign(el.style, { top: '0px', bottom: 'auto', height: '120px', left: '0px', right: '0px', width: '100%', maxWidth: 'none', opacity: '1', visibility: 'visible', transform: 'none' });
+    }
+    const hit = document.elementFromPoint(x, y);
+    if (saved === null) el.removeAttribute('style'); else el.setAttribute('style', saved);
+    return el.contains(hit) ? 'overlay' : nav.contains(hit) ? 'BAR' : `other: ${hit?.tagName.toLowerCase()}.${hit?.className}`;
+  }, selector);
+}
+
+test('stacking on /public-library: the sign-in box, the bell panel, the cookie banner, the toast region, the founder record and the profile step all paint above the bar', async ({ browser }) => {
+  const results = {};
+  const fresh = await browser.newContext(ctxOpts());
+  try {
+    // A first visit: the cookie banner is up, signed out.
+    const p1 = await fresh.newPage();
+    await p1.route('**/*', (r) => { const h = new URL(r.request().url()).hostname; return h === 'localhost' || h === '127.0.0.1' ? r.continue() : r.abort(); });
+    await p1.addInitScript(installProbe, STORYBAR_SRC);
+    await p1.goto('/public-library');
+    await p1.locator('nav.cs-nav').waitFor({ timeout: 180000 });
+    await p1.locator('[class*="cookie"], [data-cookie-banner]').first().waitFor({ timeout: 60000 }).catch(() => {});
+    results.cookieBanner = await onTop(p1, await p1.evaluate(() => { const e = [...document.querySelectorAll('div')].find((d) => getComputedStyle(d).zIndex === '9999' && getComputedStyle(d).position === 'fixed'); if (e) e.setAttribute('data-bar1-cookie', ''); return e ? '[data-bar1-cookie]' : '.none'; }));
+    results.toastRegion = await onTop(p1, '.st-region');
+    await p1.locator('.cs-hamburger').click();
+    await p1.locator('.cs-drawer-signin').click();
+    await p1.locator('.auth-backdrop').waitFor({ timeout: 30000 });
+    results.signInBox = await onTop(p1, '.auth-backdrop');
+  } finally { await fresh.close(); }
+
+  // The bell's PANEL exists from 768px up; on a phone the bell opens /notifications instead.
+  const ctx = await browser.newContext({ ...ctxOpts(), viewport: { width: 1280, height: 900 }, isMobile: false, hasTouch: false });
+  try {
+    const p2 = await ctx.newPage();
+    await open(p2, ctx, '/public-library', { uid: FOUNDER_A });
+    await p2.locator('[data-bell-button]:visible').first().waitFor({ timeout: 120000 });
+    await p2.locator('[data-bell-button]:visible').first().click();
+    await p2.locator('[data-bell-panel]').waitFor({ timeout: 30000 });
+    results.bellPanel = await onTop(p2, '[data-bell-panel]');
+    await p2.keyboard.press('Escape');
+    await p2.evaluate(() => { window.__vv.set({ offsetTop: -240 }, false); window.dispatchEvent(new Event('pageshow')); });
+    await p2.locator('[data-bar-readout]').waitFor({ state: 'visible', timeout: 15000 });
+    // Frozen; now put the viewport back, so the bar is on the page again (the record stays until tapped).
+    await p2.evaluate(() => window.__vv.set(null));
+    await expect.poll(() => p2.evaluate(() => document.querySelector('nav.cs-nav').getAttribute('data-shift')), { timeout: 15000 }).toBe(null);
+    results.founderRecord = await onTop(p2, '[data-bar-readout]');
+  } finally { await ctx.close(); }
+
+  const ctx3 = await browser.newContext(ctxOpts());
+  try {
+    const p3 = await ctx3.newPage();
+    await db.ref('users/bar1noname').set({ createdAt: Date.now() });
+    await open(p3, ctx3, '/public-library', { uid: 'bar1noname' });
+    await p3.locator('.pc-backdrop').waitFor({ timeout: 60000 });
+    results.profileStep = await onTop(p3, '.pc-backdrop');
+  } finally { await ctx3.close(); }
+  test.info().annotations.push({ type: 'stacking', description: JSON.stringify(results) });
+  expect(results).toEqual({ cookieBanner: 'overlay', toastRegion: 'overlay', signInBox: 'overlay', bellPanel: 'overlay', founderRecord: 'overlay', profileStep: 'overlay' });
+});
+
+test('stacking mid-arrival: the veil covers the bar while it holds and while it lifts', async ({ page, context }) => {
+  await open(page, context, '/public-library', { arriving: true });
+  const seen = await page.evaluate(async () => {
+    const out = [];
+    const t0 = performance.now();
+    while (performance.now() - t0 < 4000) {
+      const veil = document.querySelector('.cs-arrive-veil');
+      const nav = document.querySelector('nav.cs-nav');
+      if (veil && nav) {
+        const r = nav.getBoundingClientRect();
+        const saved = veil.style.pointerEvents;
+        veil.style.pointerEvents = 'auto';
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + 30);
+        veil.style.pointerEvents = saved;
+        out.push(`${veil.className.includes('is-lifting') ? 'lifting' : 'holding'}:${veil.contains(hit) ? 'veil' : nav.contains(hit) ? 'BAR' : 'other'}`);
+      }
+      await new Promise((res) => requestAnimationFrame(res));
+    }
+    return [...new Set(out)];
+  });
+  test.info().annotations.push({ type: 'mid-arrival', description: seen.join(' ') });
+  expect(seen.length).toBeGreaterThan(0);
+  expect(seen.filter((x) => !x.endsWith(':veil'))).toEqual([]);
+});
+
+test('stacking, the two ties at z-index 1000: the leaderboard\'s badge ladder and the Open Pages progress line still paint above the bar', async ({ page, context }) => {
+  const now = Date.now();
+  await db.ref().update({
+    'leaderboard/bar1ranked': { displayName: 'Ranked Reader', readerScore: 120, scoreUpdatedAt: now, joinDate: now - 10 * DAY },
+    'users/bar1ranked': { displayName: 'Ranked Reader', username: 'rankedreader', readCount: 70, createdAt: now - 10 * DAY },
+    'open_pages/-Nbar1piece000000000': { status: 'live', title: 'A Piece for the Bar', body: 'A paragraph.\n\nAnother paragraph.', authorUid: 'bar1author', createdAt: now - DAY, publishedAt: now - DAY, genre: 'Essay' },
+  });
+  await open(page, context, '/leaderboard');
+  await page.getByText('Island Reader', { exact: true }).first().click({ timeout: 180000 });
+  const tip = await page.evaluate(() => { const e = [...document.querySelectorAll('div')].find((d) => getComputedStyle(d).position === 'fixed' && getComputedStyle(d).zIndex === '1000' && d.offsetWidth >= 260); if (e) e.setAttribute('data-bar1-tip', ''); return !!e; });
+  expect(tip).toBe(true);
+  const ladder = await onTop(page, '[data-bar1-tip]');
+  await page.goto('/open-pages/-Nbar1piece000000000');
+  await page.locator('.op-reading-progress').waitFor({ state: 'attached', timeout: 180000 });
+  const progress = await onTop(page, '.op-reading-progress');
+  const order = await page.evaluate(() => !!(document.querySelector('nav.cs-nav').compareDocumentPosition(document.querySelector('.op-reading-progress')) & Node.DOCUMENT_POSITION_FOLLOWING));
+  test.info().annotations.push({ type: 'ties', description: `ladder ${ladder}, progress ${progress}, progress after bar in DOM ${order}` });
+  expect({ ladder, progress, order }).toEqual({ ladder: 'overlay', progress: 'overlay', order: true });
+});

@@ -99,7 +99,49 @@ export function viewportShift(vv) {
   return Number.isFinite(o) && Math.abs(o) > VIEWPORT_TOLERANCE_PX ? o : 0;
 }
 
-export const initialBar = () => ({ state: 'shown', lastY: null, acc: 0, lastH: null, apart: false });
+// ── BAR-1 GO: FOLLOW ONLY A SETTLED OFFSET ──────────────────────────────────────────────────
+// The fault being corrected is STATIC: a viewport left offset after the keyboard or a swipe-back.
+// So code never moves a bar while the offset is moving (that is the lag W16 avoided). A bar
+// follows only when ALL of these hold; otherwise W16's behaviour stands (a positive offset hides the
+// bar, a negative one leaves it where the layout viewport puts it):
+//   · no field has focus (a keyboard is up, or about to be: its pan moves the offset per keystroke)
+//   · the offset has not changed for FOLLOW_SETTLE_MS
+//   · the page is not overscrolled (a rubber band at the top or the bottom)
+// One rule for every bar the guard drives: the site bar (Navbar), the story bar (StoryBar, with its
+// scroll-hide) and the verify banner.
+
+/**
+ * How long an offset must hold still before a bar follows it. A CHOSEN number, not a measured one:
+ * long enough that a keyboard's pan, a bounce or a toolbar animation is still moving at the end of
+ * it, short enough that a stuck viewport is corrected before a reader's eye has settled on the bar.
+ */
+export const FOLLOW_SETTLE_MS = 150;
+
+export const initialBar = () => ({ state: 'shown', lastY: null, acc: 0, lastH: null, apart: false, off: 0, offSince: null });
+
+/**
+ * The follow decision for one sample. `now` in ms (performance.now()); `field` whether a field has
+ * focus. Returns the offset seen, since when, whether the bar follows (and by how much), whether it
+ * is hidden instead (W16), and how long until this offset will have settled (0 = nothing to wait for).
+ */
+export function followPlan(s, { y, maxY, vv, now = 0, field = false }) {
+  const zoomed = isZoomed(vv);
+  const off = zoomed ? 0 : Math.round(viewportShift(vv));
+  const overscrolled = y < 0 || y > maxY + 1;
+  const eligible = off !== 0 && !field && !overscrolled;
+  // The 150ms are counted only while the bar MAY follow: an offset seen during a bounce or with a
+  // field focused never counts towards settling. (When a rubber band ends, the scroll comes back a
+  // moment before the offset does; that moment must not find an offset that looks long settled.)
+  const offSince = eligible && off === s.off && s.offSince !== null && s.offSince !== undefined ? s.offSince : now;
+  const settled = now - offSince >= FOLLOW_SETTLE_MS;
+  const follow = eligible && settled;
+  return {
+    off, offSince, follow, shift: follow ? off : 0,
+    // W16 otherwise: zoomed, or panned DOWN (a positive offset) and not followed → hidden.
+    apart: zoomed || (!follow && off > VIEWPORT_TOLERANCE_PX),
+    waitMs: eligible && !settled ? FOLLOW_SETTLE_MS - (now - offSince) : 0,
+  };
+}
 
 /**
  * One scroll sample → the next bar state.
@@ -110,11 +152,11 @@ export const initialBar = () => ({ state: 'shown', lastY: null, acc: 0, lastH: n
  *   vv    { offsetTop, scale } of window.visualViewport, or null (W16)
  *   s.apart  true while the viewports disagree (W16)
  */
-export function nextBar(s, { y, maxY, h, vv = null }) {
+export function nextBar(s, { y, maxY, h, vv = null, apart = isZoomed(vv) }) {
   // W16: ZOOMED — the bar's top 0 is not the screen's top, and the offset moves with every pan.
   // Hidden, and nothing decided from this frame's scroll: a zoomed pan is not the reader asking for
   // the bar. (BAR-1: an offset at scale 1 is FOLLOWED instead, by barView's shift; see above.)
-  if (isZoomed(vv)) return { state: 'hidden', lastY: y, acc: 0, lastH: h, apart: true };
+  if (apart) return { state: 'hidden', lastY: y, acc: 0, lastH: h, apart: true };
   // Agreeing again: re-baseline. Shown only if we are in the top zone; otherwise it waits for a
   // real scroll up, like any hidden bar.
   if (s.apart) return { state: y <= BAR_TOP_ZONE ? 'shown' : 'hidden', lastY: y, acc: 0, lastH: h, apart: false };
@@ -193,15 +235,16 @@ export function containingBlockAncestor(el, getStyle) {
  *   hideOnScroll  false: shown / apart only (the site bar, the Series bar, the verify banner)
  *                 true:  W9's scroll-hide (nextBar) under the same guard (the story bar)
  */
-export function barView(s, { y, maxY, h, vv = null }, hideOnScroll = false) {
-  // BAR-1: `shift` is the translate that puts the bar's top on the screen's top (0 when they agree).
-  const shift = viewportShift(vv);
+export function barView(s, { y, maxY, h, vv = null, now = 0, field = false }, hideOnScroll = false) {
+  // BAR-1: `shift` is the translate that puts the bar's top on the screen's top, applied only to a
+  // settled offset (followPlan). `waitMs` asks the caller to look again when it will have settled.
+  const p = followPlan(s, { y, maxY, vv, now, field });
+  const keep = { off: p.off, offSince: p.offSince, waitMs: p.waitMs };
   if (hideOnScroll) {
-    const n = nextBar(s, { y, maxY, h, vv });
-    return { ...n, view: n.apart ? 'apart' : n.state, shift: n.apart ? 0 : shift };
+    const n = nextBar(s, { y, maxY, h, vv, apart: p.apart });
+    return { ...n, ...keep, view: n.apart ? 'apart' : n.state, shift: n.apart ? 0 : p.shift };
   }
-  const zoomed = isZoomed(vv);
-  return { ...s, apart: zoomed, view: zoomed ? 'apart' : 'shown', shift: zoomed ? 0 : shift };
+  return { ...s, ...keep, apart: p.apart, view: p.apart ? 'apart' : 'shown', shift: p.shift };
 }
 
 /** The CSS for the apart state: unpainted and untouchable. `sel` is the bar's selector. */

@@ -272,7 +272,10 @@ export default function Navbar() {
       </nav>
 
       {menuOpen && (
-        <div className="cs-drawer">
+        // BAR-1 go: the open drawer moves WITH the bar. While it is open the guard holds the bar
+        // exactly as it is (hold: menuOpen), so the drawer takes the bar's translate as it opens
+        // and the two stay together, by the same rule: a settled offset, or none.
+        <div className="cs-drawer" ref={(d) => { if (d) d.style.translate = navRef.current?.style.translate || ''; }}>
           {user && (
             <a href="/profile" className="cs-drawer-avatar-row" onClick={() => setMenuOpen(false)}>
               <div className="cs-drawer-avatar">

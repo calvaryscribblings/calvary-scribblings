@@ -118,8 +118,8 @@ describe('W16 · the founder readout', () => {
     // and Navbar mounts it too, so every site-bar page has the readout.
     const b = code('app/components/useBarGuard.js');
     assert.match(b, /isFounder\(uid\)/);
-    // BAR-1: the flag is sticky for the session (barDebugOn), still founder-gated first.
-    assert.match(b, /if \(!barDebugOn\(\)\) return undefined;/);
+    // BAR-1 go: founders record on every visit; ?debug=bar is the live panel; founder-gated first.
+    assert.match(b, /const mode = barDebugMode\(\);/);
     assert.match(b, /if \(q === 'bar'\) sessionStorage\.setItem\(BAR_DEBUG_KEY, '1'\)/);
     assert.match(b, /import\('\.\/BarReadout'\)/);
     for (const f of ['app/components/useBarGuard.js', 'app/components/StoryBar.js', 'app/components/Navbar.js']) {
